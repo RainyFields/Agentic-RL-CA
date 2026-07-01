@@ -78,8 +78,7 @@ class DataParallelPPOCritic(BasePPOCritic):
 
                 # unpad the position_ids to align the rotary
                 if position_ids.dim() == 3:
-                    position_ids_rmpad =
-                    index_first_axis(rearrange(position_ids, "c b s ... -> (b s) c ..."), indices).transpose(0, 1).unsqueeze(1)  # (4, bsz, seqlen) -> (4, 1, bsz * seqlen)
+                    position_ids_rmpad = index_first_axis(rearrange(position_ids, "c b s ... -> (b s) c ..."), indices).transpose(0, 1).unsqueeze(1)  # (4, bsz, seqlen) -> (4, 1, bsz * seqlen)
                 else:
                     position_ids_rmpad = index_first_axis(rearrange(position_ids.unsqueeze(-1), "b s ... -> (b s) ..."), indices).transpose(0, 1)
 
@@ -183,6 +182,10 @@ class DataParallelPPOCritic(BasePPOCritic):
         metrics = {}
 
         select_keys = ["input_ids", "responses", "attention_mask", "position_ids", "values", "returns"]
+        if os.environ.get("DUMP_TRAIN_SAMPLE") == "1":  # SP3 dump (#7): carry merge keys through split
+            for _k in ("dump_traj_id", "dump_turn_index"):
+                if _k in data.batch.keys():
+                    select_keys.append(_k)
         batch = data.select(batch_keys=select_keys).batch
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
@@ -237,6 +240,25 @@ class DataParallelPPOCritic(BasePPOCritic):
                         cliprange_value=self.config.cliprange_value,
                         loss_agg_mode=self.config.loss_agg_mode,
                     )
+                    # SP3 dump (#7): one-shot per-microbatch critic capture (guarded, no-op otherwise)
+                    if os.environ.get("DUMP_TRAIN_SAMPLE") == "1" and "dump_traj_id" in data:
+                        _dir = os.environ.get("DUMP_TRAIN_PATH", "/tmp/ppo_true_dump")
+                        _f = os.path.join(_dir, "critic_dump.pkl")
+                        if not os.path.exists(_f):
+                            import pickle as _pickle
+                            os.makedirs(_dir, exist_ok=True)
+                            _d = {"dump_traj_id": data["dump_traj_id"].detach().cpu().numpy(),
+                                  "dump_turn_index": data["dump_turn_index"].detach().cpu().numpy(),
+                                  "responses": data["responses"].detach().cpu(),
+                                  "response_mask": response_mask.detach().cpu(),
+                                  "vpreds": vpreds.detach().cpu(),
+                                  "values": values.detach().cpu(),
+                                  "returns": returns.detach().cpu(),
+                                  "vf_loss": float(vf_loss.detach())}
+                            with open(_f, "wb") as _fh:
+                                _pickle.dump(_d, _fh)
+                            print(f"[DUMP_TRAIN_SAMPLE] critic wrote {_f}", flush=True)
+
                     if self.config.use_dynamic_bsz:
                         # relative to the dynamic bsz
                         loss = vf_loss * (len(data) / self.config.ppo_mini_batch_size)

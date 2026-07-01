@@ -326,6 +326,10 @@ class DataParallelPPOActor(BasePPOActor):
             select_keys.append("loss_mask")
         if self.config.use_kl_loss:
             select_keys.append("ref_log_prob")
+        if os.environ.get("DUMP_TRAIN_SAMPLE") == "1":  # SP3 dump (#7): carry merge keys through split
+            for _k in ("dump_traj_id", "dump_turn_index"):
+                if _k in data.batch.keys():
+                    select_keys.append(_k)
         batch = data.select(batch_keys=select_keys).batch
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
@@ -424,6 +428,26 @@ class DataParallelPPOActor(BasePPOActor):
                         policy_loss = policy_loss + kl_loss * self.config.kl_loss_coef
                         metrics["actor/kl_loss"] = kl_loss.detach().item()
                         metrics["actor/kl_coef"] = self.config.kl_loss_coef
+
+                    # SP3 dump (#7): one-shot per-microbatch actor capture (guarded, no-op otherwise)
+                    if os.environ.get("DUMP_TRAIN_SAMPLE") == "1" and "dump_traj_id" in data:
+                        _dir = os.environ.get("DUMP_TRAIN_PATH", "/tmp/ppo_true_dump")
+                        _f = os.path.join(_dir, "actor_dump.pkl")
+                        if not os.path.exists(_f):
+                            import pickle as _pickle
+                            os.makedirs(_dir, exist_ok=True)
+                            _d = {"dump_traj_id": data["dump_traj_id"].detach().cpu().numpy(),
+                                  "dump_turn_index": data["dump_turn_index"].detach().cpu().numpy(),
+                                  "responses": data["responses"].detach().cpu(),
+                                  "response_mask": response_mask.detach().cpu(),
+                                  "old_log_prob": old_log_prob.detach().cpu(),
+                                  "log_prob": log_prob.detach().cpu(),
+                                  "advantages": advantages.detach().cpu(),
+                                  "pg_loss": float(pg_loss.detach()),
+                                  "policy_loss": float(policy_loss.detach())}
+                            with open(_f, "wb") as _fh:
+                                _pickle.dump(_d, _fh)
+                            print(f"[DUMP_TRAIN_SAMPLE] actor wrote {_f}", flush=True)
 
                     if self.config.use_dynamic_bsz:
                         # relative to the dynamic bsz

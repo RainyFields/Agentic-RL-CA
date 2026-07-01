@@ -61,6 +61,8 @@ from verl.utils.torch_functional import masked_mean
 from verl.utils.tracking import ValidationGenerationsLogger
 from verl.workers.rollout.async_server import AsyncLLMServerManager
 from gigpo import core_gigpo
+from gigpo import core_hcapo  # SP4: HCAPO (hindsight credit assignment, value-free)
+from verl.trainer.ppo import core_turn_ppo  # SP3: true turn-level PPO (cross-turn GAE)
 
 from agent_system.multi_turn_rollout import TrajectoryCollector, adjust_batch
 
@@ -94,6 +96,8 @@ class AdvantageEstimator(str, Enum):
     RLOO = "rloo"
     GRPO_PASSK = "grpo_passk"
     GiGPO = 'gigpo'
+    GAE_TURN = 'gae_turn'  # true turn-level PPO: learned critic + cross-turn GAE (SP3)
+    HCAPO = 'hcapo'        # SP4: hindsight credit assignment, value-free (macro GRPO + micro hindsight)
 
 
 @dataclass
@@ -241,7 +245,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, **kwargs):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, invalid_action_penalty_coef=0.0, use_invalid_action_penalty=False, max_turns=50, hcapo_cfg=None, **kwargs):
     """Compute advantage estimates for policy optimization.
 
     This function computes advantage estimates using various estimators like GAE, GRPO, REINFORCE++, etc.
@@ -357,8 +361,104 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
+    elif adv_estimator == AdvantageEstimator.GAE_TURN:
+        # SP3: true turn-level PPO — cross-turn GAE over per-turn scalar V(s_t) from the critic.
+        advantages, returns = core_turn_ppo.compute_gae_turn_advantage_return(
+            values=data.batch['values'],
+            response_mask=data.batch['response_mask'],
+            rewards=data.non_tensor_batch['rewards'],
+            traj_uid=data.non_tensor_batch['traj_uid'],
+            turn_index=data.non_tensor_batch['turn_index'],
+            is_action_valid=data.non_tensor_batch['is_action_valid'],
+            gamma=gamma,
+            lam=lam,
+            invalid_action_penalty_coef=invalid_action_penalty_coef,
+            use_invalid_action_penalty=use_invalid_action_penalty,
+            max_turns=max_turns,
+            env_done=data.non_tensor_batch.get('env_done', None),
+        )
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
+        # SP3 dump (#7): inject integer merge keys + write the rich per-turn artifact (guarded).
+        import os as _os
+        if _os.environ.get("DUMP_TRAIN_SAMPLE") == "1":
+            import numpy as _np, torch as _torch, pickle as _pickle
+            _tu = _np.asarray(data.non_tensor_batch['traj_uid'])
+            _uids, _inv = _np.unique(_tu, return_inverse=True)
+            _ti = _np.asarray(data.non_tensor_batch['turn_index']).astype('int64')
+            data.batch['dump_traj_id'] = _torch.tensor(_inv, dtype=_torch.long)
+            data.batch['dump_turn_index'] = _torch.tensor(_ti, dtype=_torch.long)
+            _dir = _os.environ.get("DUMP_TRAIN_PATH", "/tmp/ppo_true_dump")
+            _os.makedirs(_dir, exist_ok=True)
+            _f = _os.path.join(_dir, "adv_dump.pkl")
+            if not _os.path.exists(_f):
+                _nt = data.non_tensor_batch
+                _d = {"dump_traj_id": _inv, "turn_index": _ti, "traj_uid": _tu,
+                      "rewards": _np.asarray(_nt['rewards'], dtype='float32'),
+                      "is_action_valid": _np.asarray(_nt['is_action_valid']),
+                      "invalid_action_penalty_coef": float(invalid_action_penalty_coef),
+                      "use_invalid_action_penalty": bool(use_invalid_action_penalty),
+                      "prompts": data.batch['prompts'].detach().cpu(),
+                      "responses": data.batch['responses'].detach().cpu(),
+                      "response_mask": data.batch['response_mask'].detach().cpu(),
+                      "values": data.batch['values'].detach().cpu(),
+                      "advantages": advantages.detach().cpu(),
+                      "returns": returns.detach().cpu()}
+                # SP3.1 per-turn debugging fields (present when the rollout logged them)
+                for _k in ("parse_status", "env_reward", "env_done", "env_won",
+                           "invalid_count_so_far", "repeated_count_so_far",
+                           "response_token_count", "early_stopped", "early_stop_reason"):
+                    if _k in _nt.keys():
+                        _d[_k] = _np.asarray(_nt[_k])
+                with open(_f, "wb") as _fh:
+                    _pickle.dump(_d, _fh)
+                print(f"[DUMP_TRAIN_SAMPLE] wrote {_f} ({len(_tu)} turn-samples)", flush=True)
+    elif adv_estimator == AdvantageEstimator.HCAPO:
+        # SP4: value-free hindsight credit assignment (macro GRPO + micro hindsight Q^H).
+        _hc = hcapo_cfg or {}
+        advantages, returns = core_hcapo.compute_hcapo_advantage(
+            policy_log_probs=data.batch['old_log_probs'],
+            hindsight_log_probs=data.batch['hindsight_log_probs'],
+            response_mask=data.batch['response_mask'],
+            rewards=data.non_tensor_batch['rewards'],
+            uid=data.non_tensor_batch['uid'],
+            traj_uid=data.non_tensor_batch['traj_uid'],
+            turn_index=data.non_tensor_batch['turn_index'],
+            gamma=gamma,
+            omega=float(_hc.get('omega', 1.0)),
+            t_temp=float(_hc.get('t_temp', 5.0)),
+            clip_lo=float(_hc.get('clip_lo', 0.8)),
+            clip_hi=float(_hc.get('clip_hi', 1.2)),
+            temporal_alpha=float(_hc.get('temporal_alpha', 0.5)),
+            use_temporal=bool(_hc.get('use_temporal', True)),
+        )
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
     else:
         raise NotImplementedError
+    # --- one-shot rollout dump (instrumentation; guarded by env, no-op otherwise) ---
+    import os as _os
+    if _os.environ.get("DUMP_ROLLOUT_ONCE") == "1":
+        import pickle as _pickle, numpy as _np
+        _path = _os.environ["DUMP_ROLLOUT_PATH"]
+        _want_t = ["prompts", "responses", "input_ids", "attention_mask", "response_mask",
+                   "token_level_scores", "token_level_rewards", "advantages", "returns", "step_rewards"]
+        _want_nt = ["uid", "traj_uid", "anchor_obs", "episode_rewards", "episode_lengths",
+                    "rewards", "active_masks", "is_action_valid", "data_source"]
+        _dump = {"adv_estimator": str(adv_estimator), "tensors": {}, "non_tensors": {}}
+        for _k in _want_t:
+            if _k in data.batch.keys():
+                _dump["tensors"][_k] = data.batch[_k].detach().cpu()
+        for _k in _want_nt:
+            if _k in data.non_tensor_batch.keys():
+                _dump["non_tensors"][_k] = _np.asarray(data.non_tensor_batch[_k])
+        with open(_path, "wb") as _f:
+            _pickle.dump(_dump, _f)
+        with open(_path + ".done", "w") as _f:
+            _f.write("ok\n")
+        print(f"[DUMP_ROLLOUT] wrote {_path} ({len(data)} turn-samples); exiting.", flush=True)
+        _os._exit(0)
+    # --- end instrumentation ---
     return data
 
 
@@ -442,7 +542,7 @@ class RayPPOTrainer:
         if config.algorithm.use_kl_in_reward:
             self.kl_ctrl_in_reward = core_algos.get_kl_controller(config.algorithm.kl_ctrl)
 
-        if self.config.algorithm.adv_estimator == AdvantageEstimator.GAE:
+        if self.config.algorithm.adv_estimator in (AdvantageEstimator.GAE, AdvantageEstimator.GAE_TURN):
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
             AdvantageEstimator.GRPO,
@@ -451,7 +551,8 @@ class RayPPOTrainer:
             AdvantageEstimator.REMAX,
             AdvantageEstimator.RLOO,
             AdvantageEstimator.REINFORCE_PLUS_PLUS_BASELINE,
-            AdvantageEstimator.GiGPO
+            AdvantageEstimator.GiGPO,
+            AdvantageEstimator.HCAPO,
         ]:
             self.use_critic = False
         else:
@@ -1174,6 +1275,15 @@ class RayPPOTrainer:
                                 }
                             )
 
+                    # SP4 HCAPO: hindsight log-prob pass — re-score actions conditioned on s_final.
+                    if self.config.algorithm.adv_estimator == AdvantageEstimator.HCAPO:
+                        with _timer("hindsight", timing_raw):
+                            hb = core_hcapo.build_hindsight_batch(
+                                batch, self.tokenizer,
+                                self.config.data.max_prompt_length, self.config.data.max_response_length)
+                            hlp = self.actor_rollout_wg.compute_log_prob(hb)
+                            batch.batch['hindsight_log_probs'] = hlp.batch['old_log_probs']
+
                     if self.use_reference_policy:
                         # compute reference log_prob
                         with _timer("ref", timing_raw):
@@ -1233,6 +1343,10 @@ class RayPPOTrainer:
                             gigpo_mode=self.config.algorithm.gigpo.mode,
                             gigpo_enable_similarity= self.config.algorithm.gigpo.enable_similarity,
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
+                            invalid_action_penalty_coef=self.config.actor_rollout_ref.actor.get('invalid_action_penalty_coef', 0.0),
+                            use_invalid_action_penalty=self.config.actor_rollout_ref.actor.get('use_invalid_action_penalty', False),
+                            max_turns=self.config.env.max_steps,
+                            hcapo_cfg=self.config.algorithm.get('hcapo', {}),
                         )
 
                     # update critic

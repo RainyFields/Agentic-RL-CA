@@ -328,6 +328,18 @@ class TrajectoryCollector:
         episode_lengths = np.zeros(batch_size, dtype=np.float32)
         episode_rewards = np.zeros(batch_size, dtype=np.float32)
         tool_callings = np.zeros(batch_size, dtype=np.float32)
+        # SP3.1: rollout debugging + early-stop bookkeeping
+        es_invalid = self.config.env.get('early_stop_invalid_count', None)
+        es_repeated = self.config.env.get('early_stop_repeated_action_count', None)
+        es_nochange = self.config.env.get('early_stop_no_state_change_count', None)
+        invalid_count = np.zeros(batch_size, dtype=np.int64)    # cumulative invalid actions
+        repeated_count = np.zeros(batch_size, dtype=np.int64)   # consecutive repeated actions
+        nochange_count = np.zeros(batch_size, dtype=np.int64)   # consecutive no-state-change
+        early_stopped = np.zeros(batch_size, dtype=bool)
+        early_stop_reason = np.array([""] * batch_size, dtype=object)
+        prev_action = [None] * batch_size
+        prev_obs_text = [None] * batch_size
+        rollout_records = []   # SP3.1: reliable per-turn debug log (written to JSONL at loop end)
         # Trajectory collection loop
         for _step in range(self.config.env.max_steps):
             active_masks = np.logical_not(is_done)
@@ -386,7 +398,69 @@ class TrajectoryCollector:
             assert len(rewards) == batch_size, f"env should return rewards for all environments, got {len(rewards)} rewards for {batch_size} environments"
             batch.non_tensor_batch['rewards'] = torch_to_numpy(rewards, is_object=True)
             batch.non_tensor_batch['active_masks'] = torch_to_numpy(active_masks, is_object=True)
-            
+            # SP3: per-turn step index within the trajectory (for cross-turn GAE boundary detection)
+            batch.non_tensor_batch['turn_index'] = np.full(batch_size, _step, dtype=np.int64)
+
+            # SP3.1: per-turn debugging fields + loop counters + early stop (active envs only)
+            rewards_np = torch_to_numpy(rewards)
+            dones_np = np.asarray(dones, dtype=bool)
+            is_valid_arr = batch.non_tensor_batch['is_action_valid']
+            parse_status = np.array([info.get('parse_status', 'unknown') for info in infos], dtype=object)
+            next_text = next_obs.get('text') if isinstance(next_obs, dict) else None
+            cur_text = obs.get('text') if isinstance(obs, dict) else None
+            resp_len0 = batch.batch['responses'].shape[1]
+            resp_tok0 = torch_to_numpy(batch.batch['attention_mask'][:, -resp_len0:].sum(-1)).astype(np.int64)
+            for i in range(batch_size):
+                if not active_masks[i]:
+                    continue
+                if not bool(is_valid_arr[i]):
+                    invalid_count[i] += 1
+                if prev_action[i] is not None and text_actions[i] == prev_action[i]:
+                    repeated_count[i] += 1
+                else:
+                    repeated_count[i] = 0
+                prev_action[i] = text_actions[i]
+                cur_obs = next_text[i] if next_text is not None else None
+                if prev_obs_text[i] is not None and cur_obs is not None and cur_obs == prev_obs_text[i]:
+                    nochange_count[i] += 1
+                else:
+                    nochange_count[i] = 0
+                prev_obs_text[i] = cur_obs
+                if not bool(dones_np[i]):  # only rollout-truncate envs the env hasn't already ended
+                    reason = ""
+                    if es_invalid is not None and invalid_count[i] >= es_invalid:
+                        reason = f"invalid_count>={es_invalid}"
+                    elif es_repeated is not None and repeated_count[i] >= es_repeated:
+                        reason = f"repeated_action>={es_repeated}"
+                    elif es_nochange is not None and nochange_count[i] >= es_nochange:
+                        reason = f"no_state_change>={es_nochange}"
+                    if reason:
+                        early_stopped[i] = True
+                        early_stop_reason[i] = reason
+                rollout_records.append({
+                    "traj_uid": str(traj_uid[i]), "turn_index": int(_step),
+                    "parse_status": str(parse_status[i]), "is_action_valid": bool(is_valid_arr[i]),
+                    "env_reward": float(rewards_np[i]), "env_done": bool(dones_np[i]),
+                    "env_won": bool(bool(dones_np[i]) and float(rewards_np[i]) > 0),
+                    "invalid_count_so_far": int(invalid_count[i]),
+                    "repeated_count_so_far": int(repeated_count[i]),
+                    "response_token_count": int(resp_tok0[i]),
+                    "early_stopped": bool(early_stopped[i]), "early_stop_reason": str(early_stop_reason[i]),
+                    "observation": (cur_text[i] if cur_text is not None else ""),
+                    "raw_model_response": text_actions[i],
+                })
+            resp_len = batch.batch['responses'].shape[1]
+            resp_tok = batch.batch['attention_mask'][:, -resp_len:].sum(-1)
+            batch.non_tensor_batch['parse_status'] = parse_status
+            batch.non_tensor_batch['env_reward'] = torch_to_numpy(rewards, is_object=True)   # raw env reward
+            batch.non_tensor_batch['env_done'] = np.array(dones_np, dtype=object)
+            batch.non_tensor_batch['env_won'] = np.array(dones_np & (rewards_np > 0), dtype=object)
+            batch.non_tensor_batch['invalid_count_so_far'] = invalid_count.copy()
+            batch.non_tensor_batch['repeated_count_so_far'] = repeated_count.copy()
+            batch.non_tensor_batch['response_token_count'] = torch_to_numpy(resp_tok).astype(np.int64)
+            batch.non_tensor_batch['early_stopped'] = np.array(early_stopped, dtype=object)
+            batch.non_tensor_batch['early_stop_reason'] = early_stop_reason.copy()
+
             # Update episode lengths for active environments
             batch_list: list[dict] = to_list_of_dict(batch)
 
@@ -394,8 +468,9 @@ class TrajectoryCollector:
                 total_batch_list[i].append(batch_list[i])
                 total_infos[i].append(infos[i])
 
-            # Update done states
+            # Update done states (env terminal OR SP3.1 early-stop rollout-truncation)
             is_done = np.logical_or(is_done, dones)
+            is_done = np.logical_or(is_done, early_stopped)
                 
             # Update observations for next step
             obs = next_obs
@@ -403,7 +478,21 @@ class TrajectoryCollector:
             # Break if all environments are done
             if is_done.all():
                 break
-        
+
+        # SP3.1: write the per-turn rollout debug log (reliable; bypasses non_tensor propagation).
+        # SP4 HISR STAGE-1: the same per-turn JSONL (obs holds the admissible list, raw_model_response is
+        # the action, env_won=success) is the HISR collector's input — enable it via HISR_COLLECT=1.
+        import os as _os, json as _json
+        _hisr_collect = _os.environ.get("HISR_COLLECT") == "1"
+        if (_os.environ.get("DUMP_TRAIN_SAMPLE") == "1" or _hisr_collect) and rollout_records:
+            _dir = _os.environ.get("HISR_COLLECT_PATH") if _hisr_collect else _os.environ.get("DUMP_TRAIN_PATH", "/tmp/ppo_true_dump")
+            _dir = _dir or "/tmp/ppo_true_dump"
+            _p = _os.path.join(_dir, "rollout_log.jsonl")
+            _os.makedirs(_os.path.dirname(_p), exist_ok=True)
+            with open(_p, "a") as _fh:
+                for _r in rollout_records:
+                    _fh.write(_json.dumps(_r) + "\n")
+
         success: Dict[str, np.ndarray] = envs.success_evaluator(
                     total_infos=total_infos,
                     total_batch_list=total_batch_list,
@@ -535,5 +624,20 @@ class TrajectoryCollector:
             traj_uid=total_traj_uid,
             tool_callings=totoal_tool_callings,
         )
-        
+
+        # SP4 HISR STAGE-4 (guarded; OFF by default → zero effect on other conditions). When
+        # HISR_FUSED_REWARD=1, rewrite the per-turn `rewards` with HISR fused process rewards
+        # (SPRM × hindsight importance, fused with grounding) before gae_turn consumes them.
+        import os as _os, sys as _sys
+        if _os.environ.get("HISR_FUSED_REWARD") == "1":
+            try:
+                # Ray actors may not inherit the shell PYTHONPATH; ensure reward_models is importable.
+                _rm = _os.environ.get("HISR_REWARD_MODELS_PATH", "/home/tiger/xiaoxuan/reward_models")
+                if _rm not in _sys.path:
+                    _sys.path.insert(0, _rm)
+                from src.hisr.runtime import apply_hisr_to_rollout_batch
+                gen_batch_output = apply_hisr_to_rollout_batch(gen_batch_output, self.tokenizer)
+            except Exception as _e:
+                print(f"[HISR] reward rewrite FAILED ({_e}); falling back to raw rewards", flush=True)
+
         return gen_batch_output

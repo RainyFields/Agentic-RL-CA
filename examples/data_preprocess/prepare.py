@@ -40,10 +40,14 @@ if __name__ == '__main__':
     See details: https://github.com/langfengQ/verl-agent?tab=readme-ov-file#2-data-preparation
     """
 
-    dataset = datasets.load_dataset(data_source)
+    # SP6: geometry3k is only a modality+size placeholder ("We do NOT use the data" above) and its
+    # 'problem'/'images' fields are popped+discarded for text mode. Synthesize dummy rows locally to
+    # avoid the HF download (which hits anonymous-IP rate limits / 429s).
+    def _dummy(n):
+        return datasets.Dataset.from_dict({'problem': [''] * n, 'images': [[] for _ in range(n)]})
 
-    train_dataset = dataset['train'].select(range(args.train_data_size))
-    test_dataset = dataset['test'].select(range(args.val_data_size))
+    train_dataset = _dummy(args.train_data_size)
+    test_dataset = _dummy(args.val_data_size)
 
     instruction_following = {
         "visual": "<image>",

@@ -20,6 +20,7 @@ import numpy as np
 from functools import partial
 import os
 from agent_system.environments.prompts import *
+from agent_system.environments.prompts.alfworld_transcript import build_transcript_prompt
 from agent_system.environments.base import EnvironmentManagerBase, to_numpy
 from agent_system.memory import SimpleMemory, SearchMemory
 from omegaconf import OmegaConf
@@ -148,18 +149,28 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         return {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}, infos
     
     def step(self, text_actions: List[str]):
-        actions, valids = self.projection_f(text_actions, self.envs.get_admissible_commands)
+        # ReAct responses are "Thought: ...\nAction: <act>" -> use the lenient parser (strips Action:, matches admissible)
+        _weak = bool(self.config.env.get('use_admissible_action_prompt', False)) or \
+                bool(self.config.env.get('use_react_prompt', False)) or \
+                bool(self.config.env.get('use_react_transcript', False))
+        actions, valids, parse_statuses = self.projection_f(
+            text_actions, self.envs.get_admissible_commands,
+            weak_prompt=_weak,
+            match_mode=self.config.env.get('admissible_action_match_mode', 'weak_text_match'),
+            replace_invalid_with_random=self.config.env.get('replace_invalid_with_random_admissible', False),
+        )
         text_obs, image_obs, rewards, dones, infos = self.envs.step(actions)
-        self.memory.store({'text_obs': self.pre_text_obs, 'action': actions})
+        self.memory.store({'text_obs': self.pre_text_obs, 'action': actions, 'response': text_actions})
         self.pre_text_obs = text_obs
 
         full_text_obs = self.build_text_obs(text_obs, self.envs.get_admissible_commands)
         if infos[0].get("extra.gamefile") is None:
             infos = set_gamefile(infos, self.gamefile)
 
-        # add action_valid to infos
+        # add action_valid + parse_status to infos
         for i, info in enumerate(infos):
             info['is_action_valid'] = to_numpy(valids[i])
+            info['parse_status'] = parse_statuses[i]
 
         next_observations = {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}
         rewards = to_numpy(rewards)
@@ -188,17 +199,52 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     obs_key="text_obs",
                     action_key="action")
             
+        weak = bool(self.config.env.get('use_admissible_action_prompt', False))
+        react = bool(self.config.env.get('use_react_prompt', False))   # SP6 ReAct track (matches BC pi_base)
+        transcript = bool(self.config.env.get('use_react_transcript', False))  # SP6 full-history + one-shot
         for i in range(len(text_obs)):
+            if transcript:
+                recs = self.memory[i]
+                if not recs:
+                    obs = build_transcript_prompt(text_obs[i], [])
+                else:
+                    steps = []
+                    for k in range(len(recs)):
+                        nxt = recs[k + 1]['text_obs'] if k + 1 < len(recs) else text_obs[i]
+                        steps.append((recs[k].get('response', recs[k]['action']), nxt))
+                    obs = build_transcript_prompt(recs[0]['text_obs'], steps)
+                postprocess_text_obs.append(obs)
+                continue
             # exclude 'help' in admissible_actions[i]
-            reformatted_admissible_actions = "\n ".join(f"'{s}'" for s in admissible_actions[i] if s != 'help')
+            acts = [s for s in admissible_actions[i] if s != 'help']
+            if weak:
+                reformatted_admissible_actions = "\n".join(f"- {s}" for s in acts)
+            else:
+                reformatted_admissible_actions = "\n ".join(f"'{s}'" for s in acts)
+
+            if react:
+                # ReAct prompt — actions are in the preamble, not listed per turn; no admissible list.
+                if init or self.config.env.history_length <= 0:
+                    obs = ALFWORLD_TEMPLATE_REACT_NO_HIS.format(current_observation=text_obs[i])
+                else:
+                    obs = ALFWORLD_TEMPLATE_REACT.format(
+                        task_description=self.tasks[i],
+                        history_length=valid_lens[i],
+                        action_history=memory_contexts[i],
+                        current_observation=text_obs[i],
+                    )
+                postprocess_text_obs.append(obs)
+                continue
 
             if init or self.config.env.history_length <= 0:
-                obs = ALFWORLD_TEMPLATE_NO_HIS.format(
+                tmpl = ALFWORLD_TEMPLATE_WEAK_NO_HIS if weak else ALFWORLD_TEMPLATE_NO_HIS
+                obs = tmpl.format(
                     current_observation=text_obs[i],
                     admissible_actions=reformatted_admissible_actions
                 )
             else:
-                obs = ALFWORLD_TEMPLATE.format(
+                tmpl = ALFWORLD_TEMPLATE_WEAK if weak else ALFWORLD_TEMPLATE
+                obs = tmpl.format(
                     task_description=self.tasks[i],
                     step_count=len(self.memory[i]),
                     history_length=valid_lens[i],

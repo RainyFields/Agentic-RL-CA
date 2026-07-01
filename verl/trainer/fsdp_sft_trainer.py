@@ -463,7 +463,7 @@ class FSDPSFTTrainer:
             # save huggingface model
             if self.device_mesh.get_rank() == 0:
                 os.makedirs(path, exist_ok=True)
-                self.model.save_pretrained(path, state_dict=state_dict)
+                self.model.save_pretrained(path, state_dict=state_dict, safe_serialization=False)
                 self.tokenizer.save_pretrained(path)
         elif fsdp_strategy == "fsdp2":
             # FSDP2 checkpoint saving
@@ -476,7 +476,7 @@ class FSDPSFTTrainer:
             # save huggingface model
             if self.device_mesh.get_rank() == 0:
                 os.makedirs(path, exist_ok=True)
-                self.model.save_pretrained(path, state_dict=state_dict)
+                self.model.save_pretrained(path, state_dict=state_dict, safe_serialization=False)
                 self.model_config.save_pretrained(path)
                 self.tokenizer.save_pretrained(path)
         else:

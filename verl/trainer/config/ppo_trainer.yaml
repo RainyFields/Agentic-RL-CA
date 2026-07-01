@@ -294,6 +294,18 @@ env:
   seed: 0
   max_steps: 50
   history_length: 2
+  # SP3.1 rollout-optimization flags (safe defaults preserve original behavior)
+  use_admissible_action_prompt: false      # weak prompt (obs+admissible, output only action text, no <think>)
+  use_react_prompt: false
+  use_react_transcript: false               # SP6 full-history + one-shot ReAct transcript
+  admissible_action_match_mode: weak_text_match
+  replace_invalid_with_random_admissible: false
+  log_admissible_commands: true
+  log_raw_model_response: true
+  early_stop_invalid_count: null           # cumulative invalid actions before rollout-truncating a traj
+  early_stop_repeated_action_count: null   # consecutive repeated actions
+  early_stop_no_state_change_count: null   # consecutive no-observation-change
+  num_env_workers: 1                        # informational; real CPU lever = resources_per_worker.num_cpus
   resources_per_worker: # resources for each env worker
     num_cpus: 0.1
     num_gpus: 0
