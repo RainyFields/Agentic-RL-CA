@@ -1251,6 +1251,7 @@ class RayPPOTrainer:
                         old_log_prob.batch.pop("entropys")
                         batch = batch.union(old_log_prob)
 
+                        _skip_policy_update = False  # SP6 safety valve: set if rollout/actor logprobs diverge
                         if "rollout_log_probs" in batch.batch.keys():
                             # TODO: we may want to add diff of probs too.
                             rollout_old_log_probs = batch.batch["rollout_log_probs"]
@@ -1274,6 +1275,15 @@ class RayPPOTrainer:
                                     "training/rollout_probs_diff_std": rollout_probs_diff_std.detach().item(),
                                 }
                             )
+                            # SP6 safety valve: a rare token whose vLLM/FSDP prob gap is huge makes that batch
+                            # off-policy and detonates the policy in one PPO update (entropy explodes, grounding->0).
+                            # Skip the actor/critic update on such steps so a single poisoned batch can't kill training.
+                            _rpd_thresh = self.config.actor_rollout_ref.actor.get('rollout_probs_diff_skip_threshold', 0.0)
+                            if _rpd_thresh and rollout_probs_diff_max.item() > _rpd_thresh:
+                                _skip_policy_update = True
+                                print(f"[safety-valve] step {self.global_steps}: rollout_probs_diff_max="
+                                      f"{rollout_probs_diff_max.item():.3f} > {_rpd_thresh} -> SKIP actor/critic update")
+                                metrics.update({"training/policy_update_skipped": 1.0})
 
                     # SP4 HCAPO: hindsight log-prob pass — re-score actions conditioned on s_final.
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.HCAPO:
@@ -1350,14 +1360,14 @@ class RayPPOTrainer:
                         )
 
                     # update critic
-                    if self.use_critic:
+                    if self.use_critic and not _skip_policy_update:
                         with _timer("update_critic", timing_raw):
                             critic_output = self.critic_wg.update_critic(batch)
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                         metrics.update(critic_output_metrics)
 
                     # implement critic warmup
-                    if self.config.trainer.critic_warmup <= self.global_steps:
+                    if self.config.trainer.critic_warmup <= self.global_steps and not _skip_policy_update:
                         # update actor
                         with _timer("update_actor", timing_raw):
                             batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable

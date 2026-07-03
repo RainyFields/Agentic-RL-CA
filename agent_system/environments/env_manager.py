@@ -204,15 +204,16 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         transcript = bool(self.config.env.get('use_react_transcript', False))  # SP6 full-history + one-shot
         for i in range(len(text_obs)):
             if transcript:
+                tw = int(self.config.env.get('transcript_window', 0) or 0)
                 recs = self.memory[i]
                 if not recs:
-                    obs = build_transcript_prompt(text_obs[i], [])
+                    obs = build_transcript_prompt(text_obs[i], [], max_steps=tw)
                 else:
                     steps = []
                     for k in range(len(recs)):
                         nxt = recs[k + 1]['text_obs'] if k + 1 < len(recs) else text_obs[i]
                         steps.append((recs[k].get('response', recs[k]['action']), nxt))
-                    obs = build_transcript_prompt(recs[0]['text_obs'], steps)
+                    obs = build_transcript_prompt(recs[0]['text_obs'], steps, max_steps=tw)
                 postprocess_text_obs.append(obs)
                 continue
             # exclude 'help' in admissible_actions[i]

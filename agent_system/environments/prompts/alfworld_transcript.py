@@ -62,9 +62,14 @@ def _render_oneshot():
 ONESHOT_BLOCK = "Here is an example of a completed task:\n\n" + _render_oneshot() + "\n\nNow solve the following task."
 
 
-def build_transcript_prompt(initial_obs, steps):
+def build_transcript_prompt(initial_obs, steps, max_steps=0):
     """initial_obs: raw initial observation (room+task). steps: list of (response, next_obs) for each
-    COMPLETED turn (last next_obs = current obs). Returns the full user prompt."""
+    COMPLETED turn (last next_obs = current obs). max_steps>0 keeps only the last max_steps turns (after
+    the initial obs) to bound prompt length — expert/successful trajectories are short so this is a no-op
+    for them; it only caps pathological long rollouts to stay in the stable <=4096-token regime.
+    Returns the full user prompt."""
+    if max_steps and len(steps) > max_steps:
+        steps = steps[-max_steps:]
     lines = [ fmt_task_and_room(initial_obs) ]
     for resp, nxt in steps:
         lines.append(resp.strip())

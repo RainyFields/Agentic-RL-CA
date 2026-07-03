@@ -298,6 +298,7 @@ env:
   use_admissible_action_prompt: false      # weak prompt (obs+admissible, output only action text, no <think>)
   use_react_prompt: false
   use_react_transcript: false               # SP6 full-history + one-shot ReAct transcript
+  transcript_window: 0                       # >0 caps transcript to last N turns (bound prompt length)
   admissible_action_match_mode: weak_text_match
   replace_invalid_with_random_admissible: false
   log_admissible_commands: true
