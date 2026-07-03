@@ -74,7 +74,7 @@ def _group_norm(x, groups, eps=1e-6):
 def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask,
                             rewards, uid, traj_uid, turn_index,
                             gamma=0.95, omega=1.0, t_temp=5.0, clip_lo=0.8, clip_hi=1.2,
-                            temporal_alpha=0.5, use_temporal=True, eps=1e-6):
+                            temporal_alpha=0.5, use_temporal=True, eps=1e-3, adv_clip=5.0):
     """Returns (advantages, returns) each (B, T_resp). Value-free (returns mirrors advantages)."""
     device, dtype = policy_log_probs.device, policy_log_probs.dtype
     m = response_mask.float()
@@ -112,6 +112,10 @@ def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask
             QH[j] = by_Q[int(turn_index[j])]
 
     A = _group_norm(R_traj, uid, eps) + omega * _group_norm(QH, uid, eps)
+    # SP6: bound the advantage — a group with near-equal outcomes (tiny std) yields an extreme
+    # normalized advantage that detonates the PPO update (entropy explodes, grounding->0). Clip it.
+    if adv_clip and adv_clip > 0:
+        A = np.clip(A, -adv_clip, adv_clip)
     A_t = torch.tensor(A, device=device, dtype=dtype).unsqueeze(-1)
     advantages = A_t * response_mask
     return advantages, advantages
