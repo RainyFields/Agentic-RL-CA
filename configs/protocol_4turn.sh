@@ -22,7 +22,8 @@ export GAMMA=1.0                   # Search-R1 protocol (decision_log 2026-07-14
 export LAM=1.0
 export TOTAL_STEPS=500             # fixed budget, matches tr1 reference; confirm with user before Wave 1
 export VAL_FREQ=25                 # test_freq on fixed val_2048 (greedy)
-export SAVE_FREQ=25
+export SAVE_FREQ=50                # full actor+critic save ~40GB (tr1-measured) — rolling keep=1
+                                   # (MAX_CKPT_KEEP); retention policy flagged in decision_log
 
 export VAL_BATCH=2048              # fixed stratified val subsample (val_2048.parquet)
 export TOPK=3                      # retrieval top-k (Search-R1 protocol)

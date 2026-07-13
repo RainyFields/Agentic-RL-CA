@@ -104,6 +104,8 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq="$SAVE_FREQ" \
+    trainer.max_actor_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
+    trainer.max_critic_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.test_freq="$VAL_FREQ" \
     trainer.total_epochs=1 \
     trainer.total_training_steps="$TOTAL_STEPS" \

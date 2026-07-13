@@ -33,3 +33,14 @@ Append-only. Every entry: date (SF time), decision, why, who (user / assistant-p
 - StepSearch: γ_key, GAE λ/γ, max turns absent from PDF — take from their released code
   when Phase 2c starts (secondary tier).
 
+
+## 2026-07-13 PM (Phase 1 GPU bring-up)
+- Phase-1 worker launched (user OK 2026-07-13): 8xH100 `arlca-phase1` — env build, retriever,
+  base-model val_2048 gate, 7-condition toy gate. Ledger: worker_logs/workers.tsv.
+- Project venv `~/xiaoxuan/envs/agentic-rl-ca` (NOT SP6's verl-agent venv — editable installs
+  must not cross projects). (assistant)
+- Checkpoint retention: full actor+critic save ~40GB (tr1-measured) x 8 concurrent runs
+  overwhelms the ~335G free HDFS quota -> SAVE_FREQ=50, rolling MAX_CKPT_KEEP=1 (resume +
+  final retained). COST: the pre-registered secondary "best val-selected checkpoint" would
+  need milestone model-only HF exports (~3.4G each) to be added, or a rerun later.
+  FLAGGED TO USER before Wave 1. (assistant-proposed)
