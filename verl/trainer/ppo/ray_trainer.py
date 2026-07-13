@@ -792,6 +792,9 @@ class RayPPOTrainer:
         data_source_lst = []
         tool_calling_list = []
         traj_uid_list = []
+        turn_index_list = []
+        env_reward_list = []
+        env_done_list = []
         success_rate_dict = {}
 
         # Lists to collect samples for the table
@@ -873,6 +876,10 @@ class RayPPOTrainer:
             data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
             tool_calling_list.append(test_output_gen_batch.non_tensor_batch['tool_callings'])
             traj_uid_list.append(test_output_gen_batch.non_tensor_batch['traj_uid'])
+            # Agentic-RL-CA Phase 3: per-turn fields for per-TRAJECTORY EM (paper protocol)
+            turn_index_list.append(test_output_gen_batch.non_tensor_batch['turn_index'])
+            env_reward_list.append(test_output_gen_batch.non_tensor_batch['env_reward'])
+            env_done_list.append(test_output_gen_batch.non_tensor_batch['env_done'])
             # success rate
             for k in test_batch.non_tensor_batch.keys():
                 if 'success_rate' in k:
@@ -923,6 +930,32 @@ class RayPPOTrainer:
 
         for k, v in success_rate.items():
             metric_dict[f'val/{k}'] = v
+
+        # ---- Agentic-RL-CA Phase 3: per-TRAJECTORY EM (paper protocol) + JSONL dump ----
+        # Stock test_score above averages over turn-ROWS (length-biased); the paper metric
+        # is per-question EM. val-core/macro_em is the headline tracking metric.
+        from credit_assignment.eval_metrics import compute_trajectory_val_metrics
+        traj_metrics, traj_records = compute_trajectory_val_metrics(
+            traj_uids=np.concatenate(traj_uid_list, axis=0),
+            data_sources=data_sources,
+            turn_indices=np.concatenate(turn_index_list, axis=0),
+            env_rewards=np.concatenate(env_reward_list, axis=0),
+            env_dones=np.concatenate(env_done_list, axis=0),
+            responses=sample_outputs if len(sample_outputs) == len(data_sources) else None,
+        )
+        metric_dict.update(traj_metrics)
+
+        validation_data_dir = self.config.trainer.get('validation_data_dir', None)
+        if validation_data_dir:
+            import json as _json
+            import os as _os
+            _os.makedirs(validation_data_dir, exist_ok=True)
+            dump_path = _os.path.join(
+                validation_data_dir, f'val_trajectories_step{self.global_steps}.jsonl')
+            with open(dump_path, 'w') as _fh:
+                for _r in traj_records:
+                    _fh.write(_json.dumps(_r) + '\n')
+            print(f'[validate] wrote {len(traj_records)} per-trajectory records to {dump_path}')
 
         return metric_dict
 
