@@ -1405,6 +1405,13 @@ class RayPPOTrainer:
                             hcapo_cfg=self.config.algorithm.get('hcapo', {}),
                         )
 
+                        # Agentic-RL-CA Phase 3c: length-weighting diagnostic (RQ1) — logged
+                        # for every arm; verifies no method-dependent length shift between
+                        # token- and turn-level credit (reported alongside F7/F8).
+                        from credit_assignment.length_diagnostic import length_weight_metrics
+                        metrics.update(length_weight_metrics(
+                            batch.batch['advantages'], batch.batch['response_mask']))
+
                     # update critic
                     if self.use_critic and not _skip_policy_update:
                         with _timer("update_critic", timing_raw):
