@@ -1209,6 +1209,19 @@ class RayPPOTrainer:
                     del batch
                     batch = gen_batch_output
 
+                    # Agentic-RL-CA (RQ3): B1-shuffle control + raw step-reward/retrieval-hit
+                    # stats. Must run BEFORE GiGPO step returns / adjust_batch /
+                    # compute_advantage so every consumer sees the (possibly shuffled)
+                    # per-turn rewards. No-ops for arms without B1 instrumentation.
+                    from credit_assignment.b1_shuffle import shuffle_step_rewards, step_reward_stats
+                    if self.config.algorithm.get('step_reward_shuffle', False):
+                        batch, _shuffle_metrics = shuffle_step_rewards(
+                            batch,
+                            seed=int(self.config.algorithm.get('step_reward_shuffle_seed', 1234)),
+                        )
+                        metrics.update(_shuffle_metrics)
+                    metrics.update(step_reward_stats(batch))
+
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.GiGPO:
                         step_rewards_tensor = core_gigpo.compute_step_discounted_returns(
                             batch=batch,

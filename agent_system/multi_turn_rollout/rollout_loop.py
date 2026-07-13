@@ -394,6 +394,16 @@ class TrajectoryCollector:
 
             if 'tool_calling' in infos[0]:
                 tool_callings[active_masks] += np.array([info['tool_calling'] for info in infos], dtype=np.float32)[active_masks]
+            # Agentic-RL-CA: per-ROW tool-calling flag (B1-shuffle eligibility needs to know
+            # which turns actually issued a search, not just the per-trajectory count).
+            if any('tool_calling' in info for info in infos):
+                batch.non_tensor_batch['tool_calling'] = np.array(
+                    [bool(info.get('tool_calling', False)) for info in infos], dtype=object)
+            # Agentic-RL-CA (RQ3): raw retrieval-hit exposure signal (present only when the
+            # search env runs with step_reward_mode=b1; terminal turns default False).
+            if any('b1_hit' in info for info in infos):
+                batch.non_tensor_batch['b1_hit'] = np.array(
+                    [bool(info.get('b1_hit', False)) for info in infos], dtype=object)
             # Create reward tensor, only assign rewards for active environments
             # episode_rewards += torch_to_numpy(rewards) * torch_to_numpy(active_masks)
             episode_rewards[active_masks] += torch_to_numpy(rewards)[active_masks]

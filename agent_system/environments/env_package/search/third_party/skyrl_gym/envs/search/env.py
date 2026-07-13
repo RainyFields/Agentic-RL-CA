@@ -25,11 +25,17 @@ class SearchEnv(BaseTextEnv):
             log_requests=env_config.log_requests,
         )
         self.init_tool_groups([self.tool_group])
-        
+
+        # Agentic-RL-CA Phase 2 (RQ3): B1 privileged answer-exposure step reward.
+        # OFF by default ('none') — stock behavior is untouched for every other arm.
+        self.step_reward_mode = str(env_config.get("step_reward_mode", "none"))
+        self.step_reward_w = float(env_config.get("step_reward_w", 0.0))
+
     def reset(self, extras: Dict[str, Any] = {}) -> None:
         assert "ground_truth" in extras, "ground_truth is required in extras field"
         self.ground_truth = extras["ground_truth"]
         self.max_turns = extras["max_turns"] if "max_turns" in extras else 3
+        self._b1_given = False  # first-hit-only latch (one step reward per trajectory)
 
         self.data_source = extras.get("data_source", "unknown")
 
@@ -118,6 +124,19 @@ class SearchEnv(BaseTextEnv):
             "tool_input": query,
             "data_source": self.data_source,
         }
+
+        if self.step_reward_mode == "b1":
+            from credit_assignment.step_rewards import compute_b1_step_reward
+
+            bonus, hit, self._b1_given = compute_b1_step_reward(
+                observation if isinstance(observation, str) else None,
+                self.ground_truth,
+                self._b1_given,
+                self.step_reward_w,
+            )
+            reward += bonus
+            info["b1_hit"] = hit
+            info["b1_step_reward"] = bonus
 
         # Update chat history
         if new_obs:
