@@ -33,15 +33,23 @@ echo "==== Phase1 worker start $(date -u) on $(hostname) ===="
 nvidia-smi -L || true
 
 # ---- 1. env (idempotent; project venv, NOT SP6's) ----
-FA_TRUE="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3.post1/flash_attn-2.8.3.post1+cu12torch2.8cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"
-FA_FALSE="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3.post1/flash_attn-2.8.3.post1+cu12torch2.8cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
-uv venv "$VENV" || { echo "uv venv failed"; exit 1; }
+# Pin python 3.11 (the verified combo). A 3.10 venv from the image default broke the cp311
+# flash-attn wheel on the first launch — and dp_actor imports flash_attn at module level,
+# so flash-attn is FATAL, not a warning.
+if [ -x "$VENV/bin/python" ]; then
+  PYV=$("$VENV/bin/python" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+  [ "$PYV" != "3.11" ] && { echo "venv is py$PYV — recreating with 3.11"; rm -rf "$VENV"; }
+fi
+uv venv -p 3.11 "$VENV" || { echo "uv venv failed"; exit 1; }
 source "$VENV/bin/activate"
 export VIRTUAL_ENV="$VENV"
 uv pip install "vllm==0.11.0" || { echo "vllm install failed"; exit 1; }
 ABI=$(python -c 'import torch;print(torch._C._GLIBCXX_USE_CXX11_ABI)')
-[ "$ABI" = "True" ] && FA="$FA_TRUE" || FA="$FA_FALSE"
-uv pip install "$FA" || echo "WARN flash-attn failed (training needs it — will surface at toy gate)"
+CPTAG=$(python -c 'import sys;print(f"cp{sys.version_info.major}{sys.version_info.minor}")')
+[ "$ABI" = "True" ] && ABITAG="TRUE" || ABITAG="FALSE"
+FA="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3.post1/flash_attn-2.8.3.post1+cu12torch2.8cxx11abi${ABITAG}-${CPTAG}-${CPTAG}-linux_x86_64.whl"
+uv pip install "$FA" || { echo "flash-attn install failed (FATAL: dp_actor imports it)"; exit 1; }
+python -c 'import flash_attn;print("flash_attn", flash_attn.__version__)' || { echo "flash-attn import failed"; exit 1; }
 uv pip install -e "$REPO" || { echo "verl-agent -e failed"; exit 1; }
 uv pip install gym || { echo "gym failed"; exit 1; }
 

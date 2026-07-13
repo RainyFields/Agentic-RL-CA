@@ -33,7 +33,7 @@ nvidia-smi -L || true
 
 # ---- env: venv is persistent on /home/tiger (built by phase1 job); verify, repair if needed ----
 source "$VENV/bin/activate" 2>/dev/null || { echo "venv missing — run phase1 job first"; exit 1; }
-python -c "import torch, vllm, verl, gym, agent_system, credit_assignment" || {
+python -c "import torch, vllm, verl, gym, flash_attn, agent_system, credit_assignment" || {
   echo "venv incomplete — repairing"; uv pip install -e "$REPO" gym || exit 1
   python -c "import verl, credit_assignment" || exit 1
 }
