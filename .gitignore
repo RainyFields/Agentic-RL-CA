@@ -132,3 +132,10 @@ data/
 .tmp
 *ports
 
+
+# ---- Agentic-RL-CA project ----
+data/
+outputs/
+docs/papers/*.pdf
+worker_logs/
+*.parquet
