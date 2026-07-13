@@ -23,8 +23,10 @@ require_retriever
 
 # ---- Toy-gate mode (plan Phase 1.3): tiny run + per-turn trajectory dumps ----
 TOY="${TOY:-0}"
+VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 if [[ "$TOY" == "1" ]]; then
   TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
+  VAL_BEFORE_TRAIN=False   # the base-model val_2048 gate runs ONCE via eval_search_full.sh, not 7x
   export DUMP_TRAIN_SAMPLE=1
   export DUMP_TRAIN_PATH="$REPO_DIR/outputs/search_toy/${CONDITION}"
   mkdir -p "$DUMP_TRAIN_PATH"; rm -f "$DUMP_TRAIN_PATH/rollout_log.jsonl"
@@ -106,6 +108,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.total_epochs=1 \
     trainer.total_training_steps="$TOTAL_STEPS" \
     trainer.default_local_dir="$CKPT_DIR" \
-    trainer.val_before_train=True \
+    trainer.val_before_train="$VAL_BEFORE_TRAIN" \
     "${EXTRA_OVERRIDES[@]}" \
     "${@:4}"

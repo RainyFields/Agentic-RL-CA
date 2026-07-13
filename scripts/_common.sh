@@ -14,7 +14,7 @@ export SEARCHR1_DATA="${SEARCHR1_DATA:-/mnt/hdfs/mlsys/users/xiaoxuan/searchr1/s
 export DATA_DIR="${DATA_DIR:-$REPO_DIR/data/searchR1_processed_direct}"
 export SEARCH_URL="${SEARCH_URL:-http://127.0.0.1:8000/retrieve}"
 export WANDB_PROJECT="${WANDB_PROJECT:-agentic-rl-ca}"
-export VENV="${VENV:-$HOME/xiaoxuan/envs/verl-agent}"
+export VENV="${VENV:-$HOME/xiaoxuan/envs/agentic-rl-ca}"   # project venv (NOT SP6's verl-agent venv: editable installs must not cross projects)
 
 require_model_path() {
   if [[ ! -d "$MODEL_PATH" ]]; then
