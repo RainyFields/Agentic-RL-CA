@@ -25,7 +25,9 @@ require_retriever
 TOY="${TOY:-0}"
 if [[ "$TOY" == "1" ]]; then
   TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
-  EXTRA_OVERRIDES+=( +trainer.dump_trajectories_dir="$REPO_DIR/outputs/search_toy/${CONDITION}" )
+  export DUMP_TRAIN_SAMPLE=1
+  export DUMP_TRAIN_PATH="$REPO_DIR/outputs/search_toy/${CONDITION}"
+  mkdir -p "$DUMP_TRAIN_PATH"; rm -f "$DUMP_TRAIN_PATH/rollout_log.jsonl"
 fi
 
 MODEL_TAG="$(basename "$MODEL_PATH" | tr '[:upper:]' '[:lower:]')"

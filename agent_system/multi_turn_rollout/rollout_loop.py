@@ -159,6 +159,9 @@ class TrajectoryCollector:
             position_ids = compute_position_id_with_mask(attention_mask)
 
         raw_prompt_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        # Agentic-RL-CA: pre-truncation prompt length — any prompt-side truncation event is a
+        # protocol bug (plan: truncation-event rate must be <0.1%), so it must be measurable.
+        prompt_pretrunc_len = len(raw_prompt_ids)
         if len(raw_prompt_ids) > self.config.data.max_prompt_length:
             if self.config.data.truncation == "left":
                 raw_prompt_ids = raw_prompt_ids[-self.config.data.max_prompt_length :]
@@ -177,6 +180,7 @@ class TrajectoryCollector:
             'attention_mask': attention_mask[0],
             'position_ids': position_ids[0],
             'raw_prompt_ids': raw_prompt_ids,
+            'prompt_pretrunc_len': prompt_pretrunc_len,
             'anchor_obs': _obs_anchor,
             'index': item,
             'data_source': data_source
@@ -439,6 +443,9 @@ class TrajectoryCollector:
                         early_stop_reason[i] = reason
                 rollout_records.append({
                     "traj_uid": str(traj_uid[i]), "turn_index": int(_step),
+                    "uid": str(uid_batch[i]),
+                    "data_source": str(batch.non_tensor_batch['data_source'][i]) if 'data_source' in batch.non_tensor_batch else "",
+                    "prompt_pretrunc_len": int(batch.non_tensor_batch['prompt_pretrunc_len'][i]) if 'prompt_pretrunc_len' in batch.non_tensor_batch else -1,
                     "parse_status": str(parse_status[i]), "is_action_valid": bool(is_valid_arr[i]),
                     "env_reward": float(rewards_np[i]), "env_done": bool(dones_np[i]),
                     "env_won": bool(bool(dones_np[i]) and float(rewards_np[i]) > 0),
