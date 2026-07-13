@@ -44,3 +44,7 @@ Append-only. Every entry: date (SF time), decision, why, who (user / assistant-p
   final retained). COST: the pre-registered secondary "best val-selected checkpoint" would
   need milestone model-only HF exports (~3.4G each) to be added, or a rerun later.
   FLAGGED TO USER before Wave 1. (assistant-proposed)
+- Checkpoint retention RESOLVED (user, 2026-07-13): keep rolling MAX_CKPT_KEEP=1, NO
+  milestone HF exports. The secondary "best val-selected checkpoint" comparison, if needed,
+  will be produced by a LATER RERUN of the selected step (resume/retrain to that step),
+  not by storing intermediates. Headline metrics (fixed-budget FINAL + val-AUC) unaffected.
