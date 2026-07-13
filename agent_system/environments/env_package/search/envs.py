@@ -146,6 +146,18 @@ class SearchMultiProcessEnv(gym.Env):
 
         return obs_list, reward_list, done_list, info_list
 
+    # ---- Agentic-RL-CA Phase 2b: batch state snapshot/restore (CARL trees + the
+    # credit-alignment diagnostic's prefix resume). ----
+    def get_states(self, indices: List[int] | None = None) -> List[Dict]:
+        idxs = range(self.batch_size) if indices is None else indices
+        return [self.envs[i].snapshot_state() for i in idxs]
+
+    def set_states(self, states: List[Dict], indices: List[int] | None = None) -> None:
+        idxs = list(range(self.batch_size)) if indices is None else list(indices)
+        assert len(states) == len(idxs), f"{len(states)} states for {len(idxs)} indices"
+        for st, i in zip(states, idxs):
+            self.envs[i].restore_state(st)
+
     def close(self):
         if getattr(self, "_closed", False):
             return

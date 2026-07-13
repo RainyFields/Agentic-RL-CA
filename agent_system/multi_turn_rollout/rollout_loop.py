@@ -465,6 +465,14 @@ class TrajectoryCollector:
                     "early_stopped": bool(early_stopped[i]), "early_stop_reason": str(early_stop_reason[i]),
                     "observation": (cur_text[i] if cur_text is not None else ""),
                     "raw_model_response": text_actions[i],
+                    # Agentic-RL-CA: RAW retrieved information for THIS turn's action (the
+                    # anchor of next_obs, un-templated) — lets the credit-alignment
+                    # diagnostic rebuild exact prefix states from dumps alone.
+                    "information": (
+                        str(next_obs.get('anchor')[i])
+                        if isinstance(next_obs, dict) and next_obs.get('anchor') is not None
+                        else ""
+                    ),
                 })
             resp_len = batch.batch['responses'].shape[1]
             resp_tok = batch.batch['attention_mask'][:, -resp_len:].sum(-1)

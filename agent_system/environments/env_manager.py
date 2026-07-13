@@ -129,7 +129,71 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
                 data_source = info.get("data_source")
                 success[f"{data_source}_success_rate"].append(won_value)
                 return  # Exit after finding the first active mask
-            
+
+    # ---- Agentic-RL-CA Phase 2b: exact snapshot/restore of the full driver-local state
+    # (env chat_history/turns + SearchMemory prefix + task). Shared infrastructure for
+    # CARL rollout trees and the Phase-3b credit-alignment diagnostic (prefix resume). ----
+    def snapshot(self, indices: List[int] = None) -> List[Dict]:
+        from copy import deepcopy
+        idxs = list(range(self.memory.batch_size)) if indices is None else list(indices)
+        env_states = self.envs.get_states(idxs)
+        return [
+            {
+                "env": es,
+                "memory": deepcopy(self.memory._data[i]),
+                "task": self.tasks[i],
+            }
+            for es, i in zip(env_states, idxs)
+        ]
+
+    def restore_batch(self, snapshots: List[Dict], indices: List[int] = None) -> Dict[str, Any]:
+        """Restore snapshots into env slots `indices`; returns the policy-visible
+        observation dict at the restored states (same structure as reset()/step())."""
+        from copy import deepcopy
+        idxs = list(range(len(snapshots))) if indices is None else list(indices)
+        assert len(snapshots) == len(idxs)
+        self.envs.set_states([s["env"] for s in snapshots], idxs)
+        for s, i in zip(snapshots, idxs):
+            self.memory._data[i] = deepcopy(s["memory"])
+            self.tasks[i] = s["task"]
+        anchors = []
+        for i in idxs:
+            if len(self.memory._data[i]) > 0:
+                anchors.append(self.memory._data[i][-1].get("information", self.tasks[i]))
+            else:
+                anchors.append(self.tasks[i])
+        return {
+            "text": self.rebuild_text_obs(idxs),
+            "image": None,
+            "anchor": anchors,
+        }
+
+    def rebuild_text_obs(self, indices: List[int]) -> List[str]:
+        """Rebuild the templated per-turn prompt for the given env slots from the current
+        (possibly just-restored) memory + task state. Mirrors build_text_obs() exactly
+        (all limits read from config — no literal turn counts)."""
+        history_length = self.config.env.history_length
+        out = []
+        for i in indices:
+            n_steps = len(self.memory._data[i])
+            if n_steps == 0 or history_length <= 0:
+                out.append(SEARCH_TEMPLATE_NO_HIS.format(task_description=self.tasks[i]))
+            else:
+                recent = self.memory._data[i][-history_length:]
+                start_idx = n_steps - len(recent)
+                lines = [
+                    f"Step {start_idx + j + 1}:{rec['search']} {rec['information']}\n"
+                    for j, rec in enumerate(recent)
+                ]
+                out.append(
+                    SEARCH_TEMPLATE.format(
+                        task_description=self.tasks[i],
+                        memory_context="\n".join(lines),
+                        step_count=n_steps,
+                    )
+                )
+        return out
+
 
 class AlfWorldEnvironmentManager(EnvironmentManagerBase):
     def __init__(self, envs, projection_f, config):

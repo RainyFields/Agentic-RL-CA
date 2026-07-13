@@ -81,6 +81,32 @@ class SearchEnv(BaseTextEnv):
         else:
             return None
 
+    # ---- Agentic-RL-CA Phase 2b: exact state snapshot/restore (search state is fully
+    # driver-local and deterministic given the query, so snapshots are exact). Shared
+    # infrastructure for CARL tree rollouts AND the Phase-3b credit-alignment diagnostic
+    # (prefix resume). ----
+    def snapshot_state(self) -> Dict[str, Any]:
+        from copy import deepcopy
+        return {
+            "ground_truth": deepcopy(self.ground_truth),
+            "max_turns": self.max_turns,
+            "data_source": self.data_source,
+            "chat_history": deepcopy(self.chat_history),
+            "done": self.done,
+            "turns": self.turns,
+            "_b1_given": getattr(self, "_b1_given", False),
+        }
+
+    def restore_state(self, state: Dict[str, Any]) -> None:
+        from copy import deepcopy
+        self.ground_truth = deepcopy(state["ground_truth"])
+        self.max_turns = state["max_turns"]
+        self.data_source = state["data_source"]
+        self.chat_history = deepcopy(state["chat_history"])
+        self.done = state["done"]
+        self.turns = state["turns"]
+        self._b1_given = state.get("_b1_given", False)
+
     def step(self, action: str) -> BaseTextEnvStepOutput:
         self.turns += 1
         # action = self._postprocess_action(action)
