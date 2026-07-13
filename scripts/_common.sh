@@ -69,4 +69,8 @@ activate_env() {
   source "$VENV/bin/activate"
   cd "$REPO_DIR"
   export PYTHONPATH="$REPO_DIR:${PYTHONPATH:-}"
+  # HF-datasets Arrow conversions of the parquet files are a CACHE (~13G for our train set):
+  # keep them on worker-LOCAL disk (/tmp, ~300G), never on the shared /home/tiger volume
+  # (125G total; it filled up on 2026-07-13) and not on HDFS FUSE (mmap over FUSE is slow).
+  export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/tmp/hf_datasets_cache}"
 }
