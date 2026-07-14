@@ -122,3 +122,15 @@ plan-text expectations; both were pre-flagged in methods_note 2026-07-14):
   snapshots via the Phase-2b infra; training dumps lack ground_truth anyway. Pending
   GPU: first diagnostic run + CARL toy smoke + vanilla-path (gigpo) smoke after the
   _turn_loop refactor — all need a free worker slot.
+
+## 2026-07-14 ~14:10 PDT (ops fix: allocator fragmentation OOMs on gae_turn arms)
+Recurring actor-update CUDA OOMs on wave-1 critic arms as response lengths grow:
+b1-s1 x2, b1_shuffle-s0 x2 (twice failed to reach its step-100 checkpoint => livelock
+risk), turn_ppo_b0-s1 x1. Every OOM dump shows 16-27 GiB "reserved by PyTorch but
+unallocated" (fragmentation) while a 9-11 GiB allocation fails. Fix: export
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in scripts/_common.sh (activate_env).
+Allocator-only — no training-semantics change; numerics unaffected. Deploys per-run at
+its next crash-resume (healthy processes untouched). Each crash-resume costs up to ~45
+steps of redone work (save_freq 50); if OOMs persist AFTER this fix, next lever is
+LOGPROB_MICRO/MICRO_BSZ reduction — that changes throughput only but will be raised for
+user decision first.
