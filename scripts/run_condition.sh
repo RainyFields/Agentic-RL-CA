@@ -31,7 +31,7 @@ if [[ "$TOY" == "1" ]]; then
   # keeps adjust_batch's lcm divisor (micro x world_size) at 32 << toy row count.
   VAL_BEFORE_TRAIN=False   # the base-model val_2048 gate runs ONCE via eval_search_full.sh, not 7x
   export DUMP_TRAIN_SAMPLE=1
-  export DUMP_TRAIN_PATH="$REPO_DIR/outputs/search_toy/${CONDITION}"
+  export DUMP_TRAIN_PATH="$REPO_DIR/outputs/${TOY_OUT:-search_toy}/${CONDITION}"
   mkdir -p "$DUMP_TRAIN_PATH"; rm -f "$DUMP_TRAIN_PATH/rollout_log.jsonl"
 fi
 
@@ -71,7 +71,7 @@ python3 -m verl.trainer.main_ppo \
     data.filter_overlong_prompts=True \
     data.truncation="$TRUNCATION" \
     data.return_raw_chat=True \
-    +data.apply_chat_template_kwargs.enable_thinking=False \
+    +data.apply_chat_template_kwargs.enable_thinking="${ENABLE_THINKING:-False}" \
     actor_rollout_ref.model.path="$MODEL_PATH" \
     actor_rollout_ref.actor.optim.lr="$LR" \
     actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.1 \

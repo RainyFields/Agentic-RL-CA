@@ -12,15 +12,20 @@ export PYTHONUNBUFFERED=1
 
 REPO=/home/tiger/xiaoxuan/Agentic-RL-CA
 export VENV=/home/tiger/xiaoxuan/envs/agentic-rl-ca
-HLOG=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/logs/phase1
+# Parametrized via wrapper (mlx --envs is broken): model / protocol / output tag / label.
+export MODEL_PATH="${MODEL_PATH:-/mnt/hdfs/mlsys/models/Qwen3-1.7B}"
+PROTOCOL="${PROTOCOL:-4turn}"
+export TOY_OUT="${TOY_OUT:-search_toy}"
+BASE_LABEL="${BASE_LABEL:-wave0_base}"
+HLOG=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/logs/phase1_${TOY_OUT}
 mkdir -p "$HLOG" "$REPO/outputs"
 rm -f "$HLOG/DONE" "$HLOG/FAILED"
 
 status=FAILED
 finish() {
   echo "$status $(date -u +%FT%TZ)" > "$HLOG/$status"
-  cp -r "$REPO/outputs/search_toy" "$HLOG/" 2>/dev/null || true
-  cp -r "$REPO/outputs/eval_full/wave0_base" "$HLOG/" 2>/dev/null || true
+  cp -r "$REPO/outputs/$TOY_OUT" "$HLOG/" 2>/dev/null || true
+  cp -r "$REPO/outputs/eval_full/$BASE_LABEL" "$HLOG/" 2>/dev/null || true
   pkill -f retrieval_server.py 2>/dev/null || true
   echo "[worker] exit: $status"
 }
@@ -54,15 +59,15 @@ uv pip install -e "$REPO" || { echo "verl-agent -e failed"; exit 1; }
 uv pip install gym || { echo "gym failed"; exit 1; }
 
 # ---- 2. gates ----
-python - <<'EOF' || exit 1
+python - <<EOF || exit 1
 import torch, vllm, transformers, verl, gym
 import agent_system, credit_assignment
 print("imports OK | torch", torch.__version__, "| vllm", vllm.__version__,
       "| transformers", transformers.__version__, "| cuda", torch.cuda.is_available())
 from transformers import AutoModelForCausalLM, AutoTokenizer
-m = AutoModelForCausalLM.from_pretrained("/mnt/hdfs/mlsys/models/Qwen3-1.7B",
+m = AutoModelForCausalLM.from_pretrained("$MODEL_PATH",
                                          dtype=torch.bfloat16, device_map="cuda")
-tok = AutoTokenizer.from_pretrained("/mnt/hdfs/mlsys/models/Qwen3-1.7B")
+tok = AutoTokenizer.from_pretrained("$MODEL_PATH")
 ids = tok("hello", return_tensors="pt").input_ids.cuda()
 print("forward OK, logits", m(ids).logits.shape)
 del m; torch.cuda.empty_cache()
@@ -71,17 +76,17 @@ EOF
 # ---- 3. retriever (backgrounds itself inside the script; health-gated) ----
 bash "$REPO/scripts/retriever_serve.sh" || { echo "retriever failed"; exit 1; }
 
-# ---- 4. base-model Wave-0 gate eval on val_2048 (once, greedy; skip if already done) ----
-if [ -f "$REPO/outputs/eval_full/wave0_base/paper_table.json" ]; then
-  echo "[worker] wave0_base eval already done — skipping"
+# ---- 4. base-model Wave-0 gate eval on val_2048 (once per label, greedy) ----
+if [ -f "$REPO/outputs/eval_full/$BASE_LABEL/paper_table.json" ]; then
+  echo "[worker] $BASE_LABEL eval already done — skipping"
 else
   VAL_FILES="$REPO/data/searchR1_processed_direct/val_2048.parquet" EVAL_VAL_BATCH=1024 \
-    bash "$REPO/scripts/eval_search_full.sh" /mnt/hdfs/mlsys/models/Qwen3-1.7B wave0_base token_grpo 4turn \
+    bash "$REPO/scripts/eval_search_full.sh" "$MODEL_PATH" "$BASE_LABEL" token_grpo "$PROTOCOL" \
     || { echo "base-model val failed"; exit 1; }
 fi
 
 # ---- 5. toy gate (7 conditions) ----
-bash "$REPO/scripts/run_toy_gate.sh" || { echo "toy gate failed"; exit 1; }
+PROTOCOL="$PROTOCOL" TOY_OUT="$TOY_OUT" bash "$REPO/scripts/run_toy_gate.sh" || { echo "toy gate failed"; exit 1; }
 
 status=DONE
 echo "==== Phase1 worker complete $(date -u) ===="

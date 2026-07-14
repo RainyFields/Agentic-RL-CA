@@ -51,7 +51,7 @@ python3 -m verl.trainer.main_ppo \
     data.filter_overlong_prompts=True \
     data.truncation="$TRUNCATION" \
     data.return_raw_chat=True \
-    +data.apply_chat_template_kwargs.enable_thinking=False \
+    +data.apply_chat_template_kwargs.enable_thinking="${ENABLE_THINKING:-False}" \
     actor_rollout_ref.model.path="$MODEL_DIR" \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size="$PPO_MINI_BATCH" \

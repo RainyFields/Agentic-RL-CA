@@ -13,15 +13,16 @@ CONDS=("${@:-token_ppo turn_ppo_b0 token_grpo gigpo hcapo}")
 PROTOCOL="${PROTOCOL:-4turn}"
 source "$REPO_DIR/configs/protocol_${PROTOCOL}.sh"
 
+TOY_OUT="${TOY_OUT:-search_toy}"
 for cond in "${CONDS[@]}"; do
   echo "=========== toy gate: $cond ==========="
-  TOY=1 "$REPO_DIR/scripts/run_condition.sh" "$cond" 0 "$PROTOCOL" || {
+  TOY=1 TOY_OUT="$TOY_OUT" "$REPO_DIR/scripts/run_condition.sh" "$cond" 0 "$PROTOCOL" || {
     echo "[toy-gate] $cond RUN FAILED"; exit 1; }
   python3 "$REPO_DIR/analysis/toy_gate_report.py" \
-      --jsonl "$REPO_DIR/outputs/search_toy/${cond}/rollout_log.jsonl" \
+      --jsonl "$REPO_DIR/outputs/${TOY_OUT}/${cond}/rollout_log.jsonl" \
       --algo "$cond" \
-      --out_dir "$REPO_DIR/outputs/search_toy" \
+      --out_dir "$REPO_DIR/outputs/${TOY_OUT}" \
       --max_prompt_length "$MAX_PROMPT_LENGTH" \
       --max_response_length "$MAX_RESPONSE_LENGTH"
 done
-echo "[toy-gate] all conditions done — dumps in outputs/search_toy/ (awaiting user review)"
+echo "[toy-gate] all conditions done — dumps in outputs/${TOY_OUT}/ (awaiting user review)"
