@@ -25,8 +25,10 @@ require_retriever
 TOY="${TOY:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 if [[ "$TOY" == "1" ]]; then
-  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; MICRO_BSZ=4; TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
-  # verl normalizes mini by n_gpus (32/8=4): micro_per_gpu must divide it
+  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; MICRO_BSZ=4; LOGPROB_MICRO=4
+  TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
+  # verl normalizes mini by n_gpus (32/8=4): micro_per_gpu must divide it. LOGPROB_MICRO=4
+  # keeps adjust_batch's lcm divisor (micro x world_size) at 32 << toy row count.
   VAL_BEFORE_TRAIN=False   # the base-model val_2048 gate runs ONCE via eval_search_full.sh, not 7x
   export DUMP_TRAIN_SAMPLE=1
   export DUMP_TRAIN_PATH="$REPO_DIR/outputs/search_toy/${CONDITION}"
@@ -80,14 +82,14 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="${LOGPROB_MICRO:-32}" \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="${LOGPROB_MICRO:-32}" \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.01 \
