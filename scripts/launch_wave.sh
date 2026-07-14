@@ -9,6 +9,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 WAVE="${1:?usage: launch_wave.sh <wave1|custom> [cond:seed ...]}"
+PROTOCOL="${PROTOCOL:-4turn_think2k}"
 case "$WAVE" in
   wave1)
     # Plan §Phase 4 Wave 1: RQ3 triad at equal seeds + RQ1/RQ2 start (8 workers).
@@ -35,7 +36,7 @@ for run in "${RUNS[@]}"; do
   wrapper="$REPO_DIR/scripts/wave_wrappers/.${alias}.sh"
   cat > "$wrapper" <<EOF
 #!/bin/bash
-exec env COND=$cond SEED=$seed PROTOCOL=${PROTOCOL:-4turn} bash $REPO_DIR/scripts/worker_train.sh
+exec env COND=$cond SEED=$seed PROTOCOL=${PROTOCOL:-4turn_think2k} bash $REPO_DIR/scripts/worker_train.sh
 EOF
   chmod +x "$wrapper"
   LOG="$LAUNCH_DIR/$(date +%Y%m%d_%H%M%S)_${alias}.log"
