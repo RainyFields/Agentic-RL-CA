@@ -106,3 +106,19 @@ plan-text expectations; both were pre-flagged in methods_note 2026-07-14):
   action => identical reward/obs).
 - env.rollout.n for the carl condition sizes the env pool only (max(n0, n_total-n0));
   group repetition happens inside carl_multi_turn_loop.
+
+## 2026-07-14 ~13:00 PDT (wave-1 tripwire observation + Phase 3b.2 complete)
+- shuffle/active_frac on B1-SHUFFLE TRAINING batches has crossed the 0.30 rule during RL:
+  b1_shuffle-s1 = 0.447 (step ~79), b1_shuffle-s0 = 0.248 and climbing (step ~61); was
+  0.035 on the base distribution at the Wave-0 gate. Interpretation: RL increases search
+  invocation/step-reward incidence, so the shuffle control becomes ACTIVE at 4 turns as
+  training progresses. OBSERVATION ONLY — whether this un-promotes the REQUIRED 8-turn
+  stress test is a user decision at the Wave-1 readout (the Wave-0 promotion was based on
+  the base distribution; the pre-registered re-check contemplated exactly this).
+- Phase 3b.2 diagnostic GPU runner implemented (diag_runner.py standalone vLLM +
+  diag_plan.py pure helpers + run_diag.sh; 33/33 tests). Design decision: base
+  trajectories are REGENERATED from the target checkpoint (not parsed from training
+  dumps) — guarantees same-policy continuations by construction and gives exact live
+  snapshots via the Phase-2b infra; training dumps lack ground_truth anyway. Pending
+  GPU: first diagnostic run + CARL toy smoke + vanilla-path (gigpo) smoke after the
+  _turn_loop refactor — all need a free worker slot.
