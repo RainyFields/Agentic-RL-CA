@@ -66,3 +66,21 @@ Append-only. Every entry: date (SF time), decision, why, who (user / assistant-p
   working retrieval; stale outputs renamed *_NORETRIEVAL (HDFS backup exists). The
   thinking-mode protocol lock stands (thinking benefits + truncation statistics are
   retrieval-independent in direction) pending the re-gate numbers.
+
+## 2026-07-14 (Wave-0 base-model gate — FINAL, retrieval-backed, locked protocol)
+Re-gate with working retrieval (worker arlca-toyg-think17-r2kf, all 7 conditions):
+- (a) base val_2048 macro-EM 0.2246 (micro 0.2524; 1hop 0.301, mhop 0.167) >= 0.03: PASS.
+- (b) valid-action 0.885-0.945 across conditions (median ~0.94; boundary noise): PASS-marginal;
+  both-tags is the dominant invalid pattern, penalized (coef 0.01), expected to train away.
+- (c) truncation 3.0-4.5% at response 2048 (was 15% @1024): FAILS the strict <0.1% rule —
+  ACCEPTED-WITH-MONITORING deviation (user-locked protocol); training tripwire: rate must
+  fall over training, else revisit.
+- (d) frac groups with nonzero reward variance 0.62-0.67 >= 0.2: PASS (strong signal).
+- (e) search-invocation 0.57-0.66 >= 0.5: PASS.
+VERDICT: proceed at Qwen3-1.7B thinking @2048. Wave 0 (token_grpo s0) training; step-0 val
+macro-EM 0.234 agrees with base eval.
+- B1 signal REAL with retrieval: 24.8% of trajectories B1-positive (515/2080).
+- shuffle_active_frac = 0.035 << 0.30 on the BASE distribution -> PRE-REGISTERED PLAN B
+  FIRES: 8-turn horizon stress test PROMOTED TO REQUIRED (configs/protocol_8turn_think2k.sh);
+  re-check active_frac on Wave-1 training batches (logged per step) as RL lengthens
+  trajectories.
