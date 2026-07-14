@@ -19,6 +19,47 @@ copy-duplicates.
 from collections import defaultdict
 
 
+def carl_resume_schedule(group_snapshots, n_resume, include_root=False):
+    """Round-robin assignment of phase-2 resumes over one group's snapshot entries.
+
+    group_snapshots: list of dicts with at least {"depth": int} (loop adds snap/node).
+    Returns the list of n_resume chosen entries (repeats allowed), ordered by the
+    round-robin cycle over depth-sorted candidates. Depth-0 (root) states are excluded
+    unless include_root — resuming the root is just a fresh resample. Falls back to the
+    full list when filtering leaves nothing (a 1-turn trajectory only has its root)."""
+    cands = [s for s in group_snapshots if include_root or s["depth"] >= 1]
+    if not cands:
+        cands = list(group_snapshots)
+    if not cands:
+        return []
+    cands = sorted(cands, key=lambda s: s["depth"])
+    return [cands[k % len(cands)] for k in range(n_resume)]
+
+
+def build_carl_rows(traj_uid, turn_index, src, dst, env_done, env_reward):
+    """Assemble compute_carl_edge_advantages input rows from per-row batch columns.
+
+    Terminal rows carry the trajectory's terminal reward: env_done rows, plus the last
+    row of any trajectory that never env-finished (early-stop truncation) — its env
+    reward (typically 0) is the observed outcome at that leaf."""
+    n = len(traj_uid)
+    last_row = {}
+    for i in range(n):
+        k = traj_uid[i]
+        if k not in last_row or turn_index[i] > turn_index[last_row[k]]:
+            last_row[k] = i
+    rows = []
+    for i in range(n):
+        terminal = bool(env_done[i]) or (last_row[traj_uid[i]] == i)
+        rows.append({
+            "key": (str(traj_uid[i]), int(turn_index[i])),
+            "src": str(src[i]),
+            "dst": str(dst[i]),
+            "terminal_reward": float(env_reward[i]) if terminal else None,
+        })
+    return rows
+
+
 def compute_node_values(edges, leaf_rewards):
     """edges: iterable of (src, dst) pairs (may repeat). leaf_rewards: {node: [r, ...]}
     for nodes where trajectories terminated. Returns {node: V}.

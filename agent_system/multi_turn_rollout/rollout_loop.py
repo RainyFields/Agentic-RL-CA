@@ -286,50 +286,49 @@ class TrajectoryCollector:
         )
         return gen_batch_output
 
-    def vanilla_multi_turn_loop(
+    def _turn_loop(
             self,
-            gen_batch: DataProto, 
-            actor_rollout_wg, 
+            gen_batch: DataProto,
+            actor_rollout_wg,
             envs: EnvironmentManagerBase,
-            ) -> DataProto:
-        """
-        Collects trajectories through parallel agent-environment agent_loop.
-        Parameters:
-            gen_batch (DataProto): Initial batch with prompts to start the agent_loop
-            actor_rollout_wg (WorkerGroup): Worker group containing the actor model for policy decisions
-            envs (EnvironmentManagerBase): Environment manager containing parallel environment instances
-        
-        Returns:
-            total_batch_list (List[Dict]): List of trajectory data for each environment
-            episode_rewards (np.ndarray): Total rewards for each environment
-            episode_lengths (np.ndarray): Total steps for each environment
-            success (Dict[str, np.ndarray]): Success samples for each environment
-            traj_uid (np.ndarray): Trajectory unique identifiers
-        """
+            obs: Dict,
+            uid_batch: np.ndarray,
+            traj_uid: np.ndarray,
+            turn_offsets: np.ndarray = None,
+            pre_gen_hook=None,
+            post_step_hook=None,
+            ):
+        """Shared agent-environment turn loop (Agentic-RL-CA Phase 2b.2 refactor).
 
+        Runs the generate→step loop for `len(gen_batch.batch)` env slots starting from
+        `obs` (which may come from envs.reset() — vanilla — or envs.restore_batch() —
+        CARL phase-2 resumes). Behavior is byte-identical to the pre-refactor vanilla
+        loop when turn_offsets is None and no hooks are given.
+
+        Parameters beyond the vanilla ones:
+            obs: initial policy-visible observation dict for the slots being rolled.
+            uid_batch / traj_uid: caller-owned identity arrays (length = batch size).
+            turn_offsets: per-slot starting global depth; row turn_index = offset + step
+                (None → zeros). Episode lengths start at the offset so they stay global.
+            pre_gen_hook(step, active_masks, batch): called after preprocess_batch,
+                before the generation pop — CARL snapshots env state / hashes the
+                policy-visible prompt here.
+            post_step_hook(step, active_masks, dones, batch): called after env.step once
+                all per-row fields are attached, before rows are split — may attach
+                additional non_tensor fields (must be UNCONDITIONAL per-row: ragged
+                keys break collate_fn, see b1_hit note below).
+
+        Returns (total_batch_list, episode_rewards, episode_lengths, tool_callings,
+                 total_infos, rollout_records).
+        """
         batch_size = len(gen_batch.batch)
+        if turn_offsets is None:
+            turn_offsets = np.zeros(batch_size, dtype=np.int64)
 
-        # Initial observations from the environment
-        obs, infos = envs.reset(kwargs=gen_batch.non_tensor_batch.pop('env_kwargs', None))
-
-        lenght_obs = len(obs['text']) if obs['text'] is not None else len(obs['image'])
-        assert len(gen_batch.batch) == lenght_obs, f"gen_batch size {len(gen_batch.batch)} does not match obs size {lenght_obs}"
-        
-        if self.config.env.rollout.n > 0: # env grouping
-            uid_batch = []
-            for i in range(batch_size):
-                if i % self.config.env.rollout.n == 0:
-                    uid = str(uuid.uuid4())
-                uid_batch.append(uid)
-            uid_batch = np.array(uid_batch, dtype=object)
-        else: # no env grouping, set all to the same uid
-            uid = str(uuid.uuid4())
-            uid_batch = np.array([uid for _ in range(len(gen_batch.batch))], dtype=object)
         is_done = np.zeros(batch_size, dtype=bool)
-        traj_uid = np.array([str(uuid.uuid4()) for _ in range(batch_size)], dtype=object)
         total_batch_list = [[] for _ in range(batch_size)]
         total_infos = [[] for _ in range(batch_size)]
-        episode_lengths = np.zeros(batch_size, dtype=np.float32)
+        episode_lengths = turn_offsets.astype(np.float32).copy()
         episode_rewards = np.zeros(batch_size, dtype=np.float32)
         tool_callings = np.zeros(batch_size, dtype=np.float32)
         # SP3.1: rollout debugging + early-stop bookkeeping
@@ -349,6 +348,9 @@ class TrajectoryCollector:
             active_masks = np.logical_not(is_done)
 
             batch = self.preprocess_batch(gen_batch=gen_batch, obs=obs)
+
+            if pre_gen_hook is not None:
+                pre_gen_hook(_step, active_masks, batch)
 
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids"]
@@ -411,8 +413,10 @@ class TrajectoryCollector:
             assert len(rewards) == batch_size, f"env should return rewards for all environments, got {len(rewards)} rewards for {batch_size} environments"
             batch.non_tensor_batch['rewards'] = torch_to_numpy(rewards, is_object=True)
             batch.non_tensor_batch['active_masks'] = torch_to_numpy(active_masks, is_object=True)
-            # SP3: per-turn step index within the trajectory (for cross-turn GAE boundary detection)
-            batch.non_tensor_batch['turn_index'] = np.full(batch_size, _step, dtype=np.int64)
+            # SP3: per-turn step index within the trajectory (for cross-turn GAE boundary
+            # detection). GLOBAL depth: resumed slots (CARL phase 2) start at their fork
+            # depth, vanilla slots at 0.
+            batch.non_tensor_batch['turn_index'] = turn_offsets + _step
 
             # SP3.1: per-turn debugging fields + loop counters + early stop (active envs only)
             rewards_np = torch_to_numpy(rewards)
@@ -451,7 +455,7 @@ class TrajectoryCollector:
                         early_stopped[i] = True
                         early_stop_reason[i] = reason
                 rollout_records.append({
-                    "traj_uid": str(traj_uid[i]), "turn_index": int(_step),
+                    "traj_uid": str(traj_uid[i]), "turn_index": int(turn_offsets[i] + _step),
                     "uid": str(uid_batch[i]),
                     "data_source": str(batch.non_tensor_batch['data_source'][i]) if 'data_source' in batch.non_tensor_batch else "",
                     "prompt_pretrunc_len": int(batch.non_tensor_batch['prompt_pretrunc_len'][i]) if 'prompt_pretrunc_len' in batch.non_tensor_batch else -1,
@@ -485,6 +489,9 @@ class TrajectoryCollector:
             batch.non_tensor_batch['early_stopped'] = np.array(early_stopped, dtype=object)
             batch.non_tensor_batch['early_stop_reason'] = early_stop_reason.copy()
 
+            if post_step_hook is not None:
+                post_step_hook(_step, active_masks, dones_np, batch)
+
             # Update episode lengths for active environments
             batch_list: list[dict] = to_list_of_dict(batch)
 
@@ -503,9 +510,14 @@ class TrajectoryCollector:
             if is_done.all():
                 break
 
-        # SP3.1: write the per-turn rollout debug log (reliable; bypasses non_tensor propagation).
-        # SP4 HISR STAGE-1: the same per-turn JSONL (obs holds the admissible list, raw_model_response is
-        # the action, env_won=success) is the HISR collector's input — enable it via HISR_COLLECT=1.
+        return (total_batch_list, episode_rewards, episode_lengths, tool_callings,
+                total_infos, rollout_records)
+
+    def _dump_rollout_records(self, rollout_records):
+        """SP3.1: write the per-turn rollout debug log (reliable; bypasses non_tensor
+        propagation). SP4 HISR STAGE-1: the same per-turn JSONL (obs holds the admissible
+        list, raw_model_response is the action, env_won=success) is the HISR collector's
+        input — enable it via HISR_COLLECT=1."""
         import os as _os, json as _json
         _hisr_collect = _os.environ.get("HISR_COLLECT") == "1"
         if (_os.environ.get("DUMP_TRAIN_SAMPLE") == "1" or _hisr_collect) and rollout_records:
@@ -517,15 +529,251 @@ class TrajectoryCollector:
                 for _r in rollout_records:
                     _fh.write(_json.dumps(_r) + "\n")
 
+    def vanilla_multi_turn_loop(
+            self,
+            gen_batch: DataProto,
+            actor_rollout_wg,
+            envs: EnvironmentManagerBase,
+            ) -> DataProto:
+        """
+        Collects trajectories through parallel agent-environment agent_loop.
+        Parameters:
+            gen_batch (DataProto): Initial batch with prompts to start the agent_loop
+            actor_rollout_wg (WorkerGroup): Worker group containing the actor model for policy decisions
+            envs (EnvironmentManagerBase): Environment manager containing parallel environment instances
+
+        Returns:
+            total_batch_list (List[Dict]): List of trajectory data for each environment
+            episode_rewards (np.ndarray): Total rewards for each environment
+            episode_lengths (np.ndarray): Total steps for each environment
+            success (Dict[str, np.ndarray]): Success samples for each environment
+            traj_uid (np.ndarray): Trajectory unique identifiers
+        """
+
+        batch_size = len(gen_batch.batch)
+
+        # Initial observations from the environment
+        obs, infos = envs.reset(kwargs=gen_batch.non_tensor_batch.pop('env_kwargs', None))
+
+        lenght_obs = len(obs['text']) if obs['text'] is not None else len(obs['image'])
+        assert len(gen_batch.batch) == lenght_obs, f"gen_batch size {len(gen_batch.batch)} does not match obs size {lenght_obs}"
+
+        if self.config.env.rollout.n > 0: # env grouping
+            uid_batch = []
+            for i in range(batch_size):
+                if i % self.config.env.rollout.n == 0:
+                    uid = str(uuid.uuid4())
+                uid_batch.append(uid)
+            uid_batch = np.array(uid_batch, dtype=object)
+        else: # no env grouping, set all to the same uid
+            uid = str(uuid.uuid4())
+            uid_batch = np.array([uid for _ in range(len(gen_batch.batch))], dtype=object)
+        traj_uid = np.array([str(uuid.uuid4()) for _ in range(batch_size)], dtype=object)
+
+        (total_batch_list, episode_rewards, episode_lengths, tool_callings,
+         total_infos, rollout_records) = self._turn_loop(
+            gen_batch=gen_batch,
+            actor_rollout_wg=actor_rollout_wg,
+            envs=envs,
+            obs=obs,
+            uid_batch=uid_batch,
+            traj_uid=traj_uid,
+        )
+
+        self._dump_rollout_records(rollout_records)
+
         success: Dict[str, np.ndarray] = envs.success_evaluator(
                     total_infos=total_infos,
                     total_batch_list=total_batch_list,
-                    episode_rewards=episode_rewards, 
+                    episode_rewards=episode_rewards,
                     episode_lengths=episode_lengths,
                     )
-        
+
         return total_batch_list, episode_rewards, episode_lengths, success, traj_uid, tool_callings
-    
+
+    def _policy_prompt_ids(self, obs_text: str):
+        """Tokenize an observation into the exact policy-visible prompt ids that
+        preprocess_single_sample would produce as raw_prompt_ids (chat template +
+        add_generation_prompt + protocol truncation). CARL node identity hashes these."""
+        chat = np.array([{"content": obs_text, "role": "user"}])
+        apply_chat_template_kwargs = self.config.data.get("apply_chat_template_kwargs", {})
+        prompt = self.tokenizer.apply_chat_template(
+            chat, add_generation_prompt=True, tokenize=False, **apply_chat_template_kwargs)
+        ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+        max_len = self.config.data.max_prompt_length
+        if len(ids) > max_len:
+            trunc = self.config.data.truncation
+            if trunc == "left":
+                ids = ids[-max_len:]
+            elif trunc == "right":
+                ids = ids[:max_len]
+            elif trunc == "middle":
+                left_half = max_len // 2
+                ids = ids[:left_half] + ids[-(max_len - left_half):]
+        return ids
+
+    def carl_multi_turn_loop(
+            self,
+            gen_batch: DataProto,
+            actor_rollout_wg,
+            envs: EnvironmentManagerBase,
+            ):
+        """Agentic-RL-CA Phase 2b.2 — CARL two-phase tree rollout (arXiv 2512.04949;
+        constants/deltas locked in docs/methods_note.md).
+
+        Phase 1: n0 stochastic rollouts per prompt, snapshotting the exact driver-local
+        state at every visited depth. Phase 2: n_total−n0 resumes per prompt, assigned
+        round-robin over the group's snapshot depths, each continuing STOCHASTICALLY from
+        the restored state (methods_note: resume temp 0 appears only in the paper's Eq. 5
+        preliminary study; the unbiasedness argument requires sampling from pi_theta).
+
+        Every generated turn is one tree edge; rows carry carl_src/carl_dst node ids
+        (sha1 of the policy-visible tokenized prompt before/after the action) consumed by
+        credit_assignment.core_carl at advantage time. Runtime fidelity counters (soft):
+        chain (dst_t == src_{t+1}) and resume (restored prompt == snapshot node).
+        """
+        from credit_assignment.state_tools import node_id_from_prompt_ids
+
+        ccfg = self.config.algorithm.get('carl', {}) or {}
+        n0 = int(ccfg.get('n0', 1))
+        n_total = int(ccfg.get('n_total', 16))
+        include_root = bool(ccfg.get('include_root', False))
+        assert 1 <= n0 < n_total, f"CARL needs 1 <= n0 < n_total, got n0={n0} n_total={n_total}"
+
+        n_prompts = len(gen_batch.batch)
+        pool = envs.envs.batch_size  # total env worker slots
+        assert pool >= n_prompts * n0, (
+            f"CARL phase 1 needs {n_prompts * n0} env slots, pool has {pool} "
+            f"(set env.rollout.n >= max(n0, n_total-n0))")
+
+        group_uid = [str(uuid.uuid4()) for _ in range(n_prompts)]
+        fidelity = {"chain_mismatch": 0, "resume_mismatch": 0, "merge_mismatch": 0}
+        node_ids_seen = {}  # node -> tuple(prompt ids); hard identity audit (soft at runtime)
+
+        def _audit_node(node, ids):
+            prev = node_ids_seen.get(node)
+            tup = tuple(int(t) for t in ids)
+            if prev is None:
+                node_ids_seen[node] = tup
+            elif prev != tup:
+                fidelity["merge_mismatch"] += 1
+
+        class _Hooks:
+            """Per-phase closure state for the shared _turn_loop callbacks."""
+            def __init__(hself, size, offsets, groups, snap_store, expect_first, resumed):
+                hself.size = size
+                hself.offsets = offsets          # per-slot global start depth
+                hself.groups = groups            # per-slot prompt-group index
+                hself.snap_store = snap_store    # list per group (phase 1) or None
+                hself.expect = list(expect_first)  # expected src node per slot (or None)
+                hself.resumed = resumed
+
+            def pre_gen(hself, _step, active_masks, batch):
+                ids_list = batch.non_tensor_batch['raw_prompt_ids']
+                act_idx = [i for i in range(hself.size) if active_masks[i]]
+                hself.src = [""] * hself.size
+                snaps = envs.snapshot(act_idx) if hself.snap_store is not None else None
+                for j, i in enumerate(act_idx):
+                    node = node_id_from_prompt_ids(ids_list[i])
+                    _audit_node(node, ids_list[i])
+                    if hself.expect[i] is not None and hself.expect[i] != node:
+                        key = "resume_mismatch" if (_step == 0 and hself.resumed) else "chain_mismatch"
+                        fidelity[key] += 1
+                    hself.src[i] = node
+                    if snaps is not None:
+                        hself.snap_store[hself.groups[i]].append({
+                            "depth": int(hself.offsets[i] + _step),
+                            "snap": snaps[j],
+                            "node": node,
+                        })
+
+            def post_step(hself, _step, active_masks, dones, batch):
+                texts = envs.rebuild_text_obs(list(range(hself.size)))
+                dst = np.empty(hself.size, dtype=object)
+                for i in range(hself.size):
+                    if active_masks[i]:
+                        ids = self._policy_prompt_ids(texts[i])
+                        dst[i] = node_id_from_prompt_ids(ids)
+                        _audit_node(dst[i], ids)
+                        hself.expect[i] = dst[i]  # chain check next turn
+                    else:
+                        dst[i] = ""
+                batch.non_tensor_batch['carl_src'] = np.array(hself.src, dtype=object)
+                batch.non_tensor_batch['carl_dst'] = dst
+                batch.non_tensor_batch['carl_resumed'] = np.full(
+                    hself.size, hself.resumed, dtype=object)
+
+        # ---------------- phase 1: n0 rollouts per prompt, snapshot every depth --------
+        p1_batch = gen_batch.repeat(repeat_times=n0, interleave=True) if n0 > 1 else gen_batch
+        obs, _ = envs.reset(kwargs=p1_batch.non_tensor_batch.pop('env_kwargs', None))
+        p1_size = n_prompts * n0
+        uid1 = np.array([group_uid[i // n0] for i in range(p1_size)], dtype=object)
+        tuid1 = np.array([str(uuid.uuid4()) for _ in range(p1_size)], dtype=object)
+        snapshots = [[] for _ in range(n_prompts)]
+        hooks1 = _Hooks(size=p1_size,
+                        offsets=np.zeros(p1_size, dtype=np.int64),
+                        groups=[i // n0 for i in range(p1_size)],
+                        snap_store=snapshots,
+                        expect_first=[None] * p1_size,
+                        resumed=False)
+        (total_batch_list, episode_rewards, episode_lengths, tool_callings,
+         total_infos, rollout_records) = self._turn_loop(
+            gen_batch=p1_batch, actor_rollout_wg=actor_rollout_wg, envs=envs, obs=obs,
+            uid_batch=uid1, traj_uid=tuid1,
+            pre_gen_hook=hooks1.pre_gen, post_step_hook=hooks1.post_step)
+        traj_uid_all = list(tuid1)
+
+        # ---------------- phase 2: round-robin resumes over snapshot depths ------------
+        from credit_assignment.core_carl import carl_resume_schedule
+        n_resume = n_total - n0
+        resumes = []  # (group, snapshot-entry)
+        for g in range(n_prompts):
+            resumes.extend((g, s) for s in carl_resume_schedule(snapshots[g], n_resume, include_root))
+
+        for wave_start in range(0, len(resumes), pool):
+            wave = resumes[wave_start:wave_start + pool]
+            k = len(wave)
+            # size the manager's driver-local state to this wave before restoring
+            envs.memory.reset(batch_size=k)
+            envs.tasks = [""] * k
+            obs2 = envs.restore_batch([s["snap"] for _, s in wave], indices=list(range(k)))
+            wave_gen = gen_batch.select_idxs(np.array([g for g, _ in wave], dtype=np.int64))
+            if 'env_kwargs' in wave_gen.non_tensor_batch:
+                wave_gen.non_tensor_batch.pop('env_kwargs')
+            offsets = np.array([s["depth"] for _, s in wave], dtype=np.int64)
+            uid2 = np.array([group_uid[g] for g, _ in wave], dtype=object)
+            tuid2 = np.array([str(uuid.uuid4()) for _ in range(k)], dtype=object)
+            hooks2 = _Hooks(size=k, offsets=offsets,
+                            groups=[g for g, _ in wave],
+                            snap_store=None,
+                            expect_first=[s["node"] for _, s in wave],
+                            resumed=True)
+            (bl, er, el, tc, ti, rr) = self._turn_loop(
+                gen_batch=wave_gen, actor_rollout_wg=actor_rollout_wg, envs=envs, obs=obs2,
+                uid_batch=uid2, traj_uid=tuid2, turn_offsets=offsets,
+                pre_gen_hook=hooks2.pre_gen, post_step_hook=hooks2.post_step)
+            total_batch_list += bl
+            episode_rewards = np.concatenate([episode_rewards, er])
+            episode_lengths = np.concatenate([episode_lengths, el])
+            tool_callings = np.concatenate([tool_callings, tc])
+            total_infos += ti
+            rollout_records += rr
+            traj_uid_all += list(tuid2)
+
+        n_snap = sum(len(s) for s in snapshots)
+        print(f"[CARL] prompts={n_prompts} n0={n0} n_total={n_total} snapshots={n_snap} "
+              f"resumes={len(resumes)} fidelity={fidelity}", flush=True)
+
+        self._dump_rollout_records(rollout_records)
+        success: Dict[str, np.ndarray] = envs.success_evaluator(
+            total_infos=total_infos,
+            total_batch_list=total_batch_list,
+            episode_rewards=episode_rewards,
+            episode_lengths=episode_lengths,
+        )
+        traj_uid = np.array(traj_uid_all, dtype=object)
+        return total_batch_list, episode_rewards, episode_lengths, success, traj_uid, tool_callings
+
     def dynamic_multi_turn_loop(
             self,
             gen_batch: DataProto, 
@@ -613,9 +861,25 @@ class TrajectoryCollector:
         Returns:
             DataProto: Final collected trajectory data with metadata.
         """
+        # Agentic-RL-CA Phase 2b: CARL builds its own per-prompt rollout tree (n0 phase-1
+        # rollouts + n_total-n0 snapshot resumes) — group repetition happens inside the
+        # loop, NOT via env.rollout.n (which only sizes the env pool for this arm).
+        if is_train and str(self.config.algorithm.adv_estimator) == 'carl':
+            assert not self.config.algorithm.filter_groups.enable, \
+                "CARL is incompatible with filter_groups (dynamic sampling)"
+            total_batch_list, total_episode_rewards, total_episode_lengths, total_success, total_traj_uid, totoal_tool_callings = \
+                self.carl_multi_turn_loop(
+                gen_batch=gen_batch,
+                actor_rollout_wg=actor_rollout_wg,
+                envs=envs,
+            )
+            return self._finalize_rollout(total_batch_list, total_episode_rewards,
+                                          total_episode_lengths, total_success,
+                                          total_traj_uid, totoal_tool_callings)
+
         if is_train:
             gen_batch = gen_batch.repeat(repeat_times=self.config.env.rollout.n, interleave=True)
-            
+
         # Initial observations from the environment
         if self.config.algorithm.filter_groups.enable and is_train:
             # Dynamic Sampling (for DAPO and Dynamic GiGPO)
@@ -633,11 +897,18 @@ class TrajectoryCollector:
                 actor_rollout_wg=actor_rollout_wg,
                 envs=envs,
             )
+        return self._finalize_rollout(total_batch_list, total_episode_rewards,
+                                      total_episode_lengths, total_success,
+                                      total_traj_uid, totoal_tool_callings)
+
+    def _finalize_rollout(self, total_batch_list, total_episode_rewards,
+                          total_episode_lengths, total_success, total_traj_uid,
+                          totoal_tool_callings) -> DataProto:
         assert len(total_batch_list) == len(total_episode_rewards)
         assert len(total_batch_list) == len(total_episode_lengths)
         assert len(total_batch_list) == len(total_traj_uid)
         assert len(total_batch_list) == len(totoal_tool_callings)
-        
+
 
         # Create trajectory data
         gen_batch_output: DataProto = self.gather_rollout_data(

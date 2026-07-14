@@ -98,6 +98,7 @@ class AdvantageEstimator(str, Enum):
     GiGPO = 'gigpo'
     GAE_TURN = 'gae_turn'  # true turn-level PPO: learned critic + cross-turn GAE (SP3)
     HCAPO = 'hcapo'        # SP4: hindsight credit assignment, value-free (macro GRPO + micro hindsight)
+    CARL = 'carl'          # Agentic-RL-CA Phase 2b: criticality-aware tree rollouts (arXiv 2512.04949), value-free
 
 
 @dataclass
@@ -434,6 +435,18 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
+    elif adv_estimator == AdvantageEstimator.CARL:
+        # Agentic-RL-CA Phase 2b: edge advantages were computed (and non-critical edges
+        # dropped) by credit_assignment.carl_glue BEFORE adjust_batch; here we only
+        # broadcast the per-row scalar over that row's response tokens.
+        import numpy as _np
+        response_mask = data.batch['response_mask']
+        adv_scalar = torch.as_tensor(
+            _np.asarray(data.non_tensor_batch['carl_adv'], dtype=_np.float32),
+            device=response_mask.device)
+        advantages = adv_scalar.unsqueeze(-1) * response_mask
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = advantages
     else:
         raise NotImplementedError
     # --- one-shot rollout dump (instrumentation; guarded by env, no-op otherwise) ---
@@ -553,6 +566,7 @@ class RayPPOTrainer:
             AdvantageEstimator.REINFORCE_PLUS_PLUS_BASELINE,
             AdvantageEstimator.GiGPO,
             AdvantageEstimator.HCAPO,
+            AdvantageEstimator.CARL,
         ]:
             self.use_critic = False
         else:
@@ -1261,7 +1275,15 @@ class RayPPOTrainer:
                             gamma=self.config.algorithm.gamma
                         )
                         batch.batch['step_rewards'] = step_rewards_tensor
-                    
+
+                    # Agentic-RL-CA Phase 2b: CARL edge advantages + Eq. 13 drop of
+                    # non-critical edges, BEFORE adjust_batch so padding happens on the
+                    # final update set (copy-duplicates carry their precomputed scalar).
+                    if self.config.algorithm.adv_estimator == AdvantageEstimator.CARL:
+                        from credit_assignment.carl_glue import apply_carl_to_batch
+                        batch, _carl_metrics = apply_carl_to_batch(batch, self.config.algorithm)
+                        metrics.update(_carl_metrics)
+
                     batch = adjust_batch(self.config, batch)
 
                     batch.batch["response_mask"] = compute_response_mask(batch)

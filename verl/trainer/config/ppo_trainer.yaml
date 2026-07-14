@@ -252,6 +252,13 @@ algorithm:
     mode: "mean_norm" # "mean_norm" or "mean_std_norm"
     enable_similarity: False # whether to use similarity-based anchor state grouping in GiGPO (supported for text-only tasks)
     similarity_thresh: 0.95 # similarity threshold for GiGPO (0.0, 1.0)
+  carl: # Agentic-RL-CA Phase 2b (arXiv 2512.04949; constants/deltas locked in docs/methods_note.md)
+    n0: 1 # phase-1 rollouts per prompt: 1 = CARL-Lite (paper default), 8 = best "CARL"
+    n_total: 16 # total rollouts per prompt (phase-1 + phase-2 resumes)
+    resume_schedule: round_robin # resume-depth assignment over collected snapshots
+    include_root: False # allow depth-0 resumes (fresh resamples) in the schedule
+    drop_noncritical: True # Eq. 13 drop from D_upd (paper primary); False = zero-advantage ablation
+    norm_adv: False # paper uses no advantage normalization
   filter_groups: # DAPO from https://arxiv.org/abs/2503.14476
     enable: False
     max_num_gen_batches: 10

@@ -84,3 +84,25 @@ macro-EM 0.234 agrees with base eval.
   FIRES: 8-turn horizon stress test PROMOTED TO REQUIRED (configs/protocol_8turn_think2k.sh);
   re-check active_frac on Wave-1 training batches (logged per step) as RL lengthens
   trajectories.
+
+## 2026-07-14 (Phase 2b.2 CARL tree loop — implementation decisions)
+Implemented per plan §2b.2-2b.5 with the methods_note-locked deltas (which supersede two
+plan-text expectations; both were pre-flagged in methods_note 2026-07-14):
+- Phase-2 resumed turns sample STOCHASTICALLY from pi_theta (plan text said "later turns
+  greedy"; the paper's temp-0 appears only in the Eq. 5 preliminary study and the
+  unbiasedness argument requires sampling). No per-turn do_sample switching needed.
+- Non-critical edges are physically DROPPED from D_upd before adjust_batch (Eq. 13,
+  primary mode); zero-advantage loss-exclusion retained as ablation flag
+  (algorithm.carl.drop_noncritical=False). Degenerate all-non-critical batch => keep all
+  rows at zero advantage (no-op step) rather than crash; logged carl/empty_update_set.
+- Node identity: sha1 over the exact raw_prompt_ids pipeline (chat template +
+  add_generation_prompt + protocol truncation). Runtime SOFT fidelity counters
+  (chain: dst_t == src_{t+1}; resume: restored prompt == snapshot node; merge:
+  same-node => byte-identical ids) — logged, not fatal; the hard guarantees live in
+  credit_assignment/tests/ (30/30 pass incl. 7 new).
+- Vanilla loop refactored into shared _turn_loop (plan-prescribed); behavior intended
+  byte-identical — REQUIRES gigpo/grpo search toy smoke on next worker before any Wave-3
+  launch relies on this tree (also validates restore fidelity on GPU: resume + same
+  action => identical reward/obs).
+- env.rollout.n for the carl condition sizes the env pool only (max(n0, n_total-n0));
+  group repetition happens inside carl_multi_turn_loop.

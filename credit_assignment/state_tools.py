@@ -11,9 +11,21 @@ Output snapshot dicts are exactly the structure SearchEnvironmentManager.restore
 expects: {"env": <SearchEnv state>, "memory": <SearchMemory._data[i]>, "task": question}.
 Pure python — CPU-testable.
 """
+import hashlib
 from copy import deepcopy
 
+import numpy as np
+
 from credit_assignment.step_rewards import b1_hit
+
+
+def node_id_from_prompt_ids(ids) -> str:
+    """CARL node identity (plan Phase 2b.3, hardened): sha1 of the FULL policy-visible
+    tokenized prompt. State equivalence is definitional — two rows share a node iff the
+    prompt the policy would see at that state is token-identical. Accepts any iterable
+    of ints (list or np array of token ids)."""
+    arr = np.asarray(list(ids), dtype=np.int64)
+    return hashlib.sha1(arr.tobytes()).hexdigest()
 
 
 def build_snapshot_from_prefix(
