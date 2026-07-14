@@ -45,7 +45,12 @@ def call_search_api(
     request_id = str(uuid.uuid4())
     log_prefix = f"[Search Request ID: {request_id}] "
 
-    payload = {"query": query, "topk": topk, "return_scores": return_scores}
+    # Agentic-RL-CA: the Search-R1 retrieval_server (our tr1 infra) expects {"queries":
+    # [ ... ]} (plural, list). The upstream SkyRL payload {"query": ...} 422s on every
+    # request — discovered 2026-07-13 when every toy-gate search returned
+    # "API Request Error: 422". Response format (result -> [[{document:{contents}}]])
+    # already matches; only the request schema differs.
+    payload = {"queries": [query], "topk": topk, "return_scores": return_scores}
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
     # Use provided session or create a new one for this request

@@ -59,3 +59,10 @@ Append-only. Every entry: date (SF time), decision, why, who (user / assistant-p
   this criterion: 0.48).
 - Toy-gate hard review: user delegated to assistant summaries + dumps on disk
   (outputs/search_toy*/trajectory_*.md; HDFS mirror). All 7 algorithm paths live-validated.
+- RETRIEVAL BUG (2026-07-13, critical): upstream SkyRL search tool posts {"query": ...}
+  but the Search-R1 retrieval_server expects {"queries": [...]} -> EVERY search in every
+  toy-gate/base-eval run 422'd; all EM numbers above are PARAMETRIC-ONLY (no retrieval).
+  Fixed in tools/search.py (payload now plural). All gate evals + Wave 0 restarted with
+  working retrieval; stale outputs renamed *_NORETRIEVAL (HDFS backup exists). The
+  thinking-mode protocol lock stands (thinking benefits + truncation statistics are
+  retrieval-independent in direction) pending the re-gate numbers.
