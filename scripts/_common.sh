@@ -73,10 +73,11 @@ activate_env() {
   # keep them on worker-LOCAL disk (/tmp, ~300G), never on the shared /home/tiger volume
   # (125G total; it filled up on 2026-07-13) and not on HDFS FUSE (mmap over FUSE is slow).
   export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/tmp/hf_datasets_cache}"
-  # Wave-1 recurring actor-update OOMs on the gae_turn arms (b1 s1 x2, b1_shuffle s0 x2,
-  # turn_ppo_b0 s1 x1 on 2026-07-14): every dump shows 16-27 GiB "reserved by PyTorch but
-  # unallocated" (fragmentation) while ~9-11 GiB allocations fail. expandable_segments
-  # is allocator-only (no training-semantics change) and targets exactly this; it
-  # hot-deploys per run at its next crash-resume. decision_log 2026-07-14.
-  export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+  # Wave-1 gae_turn arms hit recurring actor-update OOMs from allocator fragmentation
+  # (16-27 GiB reserved-but-unallocated in every dump). DO NOT set
+  # expandable_segments:True here — vLLM's CUDA-graph memory pool asserts
+  # "Expandable segments are not compatible with memory pool" (pytorch#147851) and every
+  # crash-resume then fails instantly at startup (token_ppo attempt 3, 2026-07-14).
+  # decision_log 2026-07-14 (~14:50) has the full incident.
+  unset PYTORCH_CUDA_ALLOC_CONF
 }
