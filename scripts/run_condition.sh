@@ -21,6 +21,13 @@ require_model_path
 require_data
 require_retriever
 
+# ---- Per-run memory overrides (2026-07-14 OOM livelock, decision_log): protocol files
+# `export MICRO_BSZ=...` unconditionally, so a wrapper-baked override must be re-applied
+# AFTER sourcing. Throughput/memory only — PPO_MINI_BATCH (512, locked) is untouched, so
+# gradient math is identical (gradient accumulation chunking). Inert unless set.
+MICRO_BSZ="${MICRO_BSZ_OVERRIDE:-$MICRO_BSZ}"
+LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-${LOGPROB_MICRO:-32}}"
+
 # ---- Toy-gate mode (plan Phase 1.3): tiny run + per-turn trajectory dumps ----
 TOY="${TOY:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"

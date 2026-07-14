@@ -151,3 +151,20 @@ first, (b) MICRO_BSZ/LOGPROB_MICRO reduction (throughput-only), (c) MAX_ATTEMPTS
 on future launches. NOTE: worker_train.sh must NEVER be edited while workers run (bash
 reads the executing file by offset); _common.sh is safe (sourced fresh per attempt, ms
 window).
+
+## 2026-07-14 ~16:10 PDT (b1-s1 OOM livelock: single-run MICRO_BSZ=8 relaunch prepared)
+b1-s1 has OOM'd on 5/6 attempts (organic fragmentation OOMs at steps ~62/~74/~65 + 2
+poison-window startup deaths), NEVER reaching the step-100 checkpoint — a livelock: each
+resume replays from step 50 and dies in the same window. Attempt 6 (last) is running.
+Mitigation prepared (executes only if/when the worker exhausts attempts):
+- run_condition.sh now honors MICRO_BSZ_OVERRIDE / LOGPROB_MICRO_OVERRIDE re-applied
+  AFTER protocol sourcing (protocols export MICRO_BSZ unconditionally). Inert unless set.
+- wrapper .arlca-b1-s1-micro8.sh: b1 s1 with MICRO_BSZ=8, LOGPROB_MICRO=8 — THIS RUN
+  ONLY ("test on one run first" lesson). Throughput/memory only: PPO_MINI_BATCH=512
+  (locked constant) untouched => gradient accumulation chunking, identical math.
+- Rationale for acting without fresh user OK: wave-1 was user-approved; this is a
+  relaunch of an approved member arm (per-wave OK convention), the alternative is a dead
+  arm (RQ3 needs B1 s1 — s0 is still quota-queued), and the change is not among the
+  locked protocol constants. Flagged prominently in the next user report; trivially
+  reverted by relaunching with the original wrapper.
+If MICRO_BSZ=8 also OOMs, next step goes to the user (protocol-level decision).
