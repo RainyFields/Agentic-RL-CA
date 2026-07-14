@@ -11,7 +11,7 @@ REPO=/home/tiger/xiaoxuan/Agentic-RL-CA
 export VENV=/home/tiger/xiaoxuan/envs/agentic-rl-ca
 COND="${COND:?set COND}"
 SEED="${SEED:-0}"
-PROTOCOL="${PROTOCOL:-4turn}"
+PROTOCOL="${PROTOCOL:-4turn_think2k}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
 HLOG=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/logs/train_${COND}_s${SEED}_${PROTOCOL}
 mkdir -p "$HLOG"

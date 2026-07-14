@@ -48,3 +48,14 @@ Append-only. Every entry: date (SF time), decision, why, who (user / assistant-p
   milestone HF exports. The secondary "best val-selected checkpoint" comparison, if needed,
   will be produced by a LATER RERUN of the selected step (resume/retrain to that step),
   not by storing intermediates. Headline metrics (fixed-budget FINAL + val-AUC) unaffected.
+
+## 2026-07-13 late PM (protocol decision — USER)
+- MAIN PROTOCOL LOCKED (user): Qwen3-1.7B, thinking mode, max_response_length=2048
+  (configs/protocol_4turn_think2k.sh), TOTAL_STEPS=500, gamma=1.0. Evidence: thinking mode
+  fills <think> (85%) and lifts base val_2048 macro-EM 0.054 -> 0.157; 1024 budget capped
+  15% of turns (pre-registered truncation rule -> raise to 2048); base eval at 2048 clean
+  (macro 0.156). 4B remains the pre-registered fallback only. Search-invocation ~0.49 at
+  base accepted-with-logging (RL vs EM is expected to raise it; scaling to 4B did not help
+  this criterion: 0.48).
+- Toy-gate hard review: user delegated to assistant summaries + dumps on disk
+  (outputs/search_toy*/trajectory_*.md; HDFS mirror). All 7 algorithm paths live-validated.
