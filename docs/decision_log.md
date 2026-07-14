@@ -134,3 +134,20 @@ its next crash-resume (healthy processes untouched). Each crash-resume costs up 
 steps of redone work (save_freq 50); if OOMs persist AFTER this fix, next lever is
 LOGPROB_MICRO/MICRO_BSZ reduction — that changes throughput only but will be raised for
 user decision first.
+
+## 2026-07-14 ~14:50 PDT (INCIDENT: expandable_segments revert)
+The 14:10 allocator fix backfired: vLLM's CUDA-graph memory pool asserts
+"Expandable segments are not compatible with memory pool" (pytorch#147851) at engine
+init, so every poisoned crash-resume died at STARTUP instead of fixing the OOMs.
+Reverted at 14:36 (428bcb5; _common.sh now explicitly unsets the var). Blast radius:
+token_ppo-s0 burned attempts 3-5 (attempt 6 = last, runs clean, original OOM issue
+unfixed), b1-s1 burned attempt 4 (attempts 5-6 clean). LESSON (memory updated): allocator
+knobs interact with vLLM pools — never hot-deploy allocator changes fleet-wide without a
+single-run test. Standing ops plan: if a worker exhausts its 6 attempts, RELAUNCH the
+worker (verl resume_mode=auto continues from the last HDFS checkpoint — routine
+continuation of the approved wave). Root-cause options for the fragmentation OOMs to
+decide at the Wave-1 readout: (a) max_split_size_mb (pool-compatible) tested on ONE run
+first, (b) MICRO_BSZ/LOGPROB_MICRO reduction (throughput-only), (c) MAX_ATTEMPTS raise
+on future launches. NOTE: worker_train.sh must NEVER be edited while workers run (bash
+reads the executing file by offset); _common.sh is safe (sourced fresh per attempt, ms
+window).
