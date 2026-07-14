@@ -25,7 +25,8 @@ require_retriever
 TOY="${TOY:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 if [[ "$TOY" == "1" ]]; then
-  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
+  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; MICRO_BSZ=4; TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
+  # verl normalizes mini by n_gpus (32/8=4): micro_per_gpu must divide it
   VAL_BEFORE_TRAIN=False   # the base-model val_2048 gate runs ONCE via eval_search_full.sh, not 7x
   export DUMP_TRAIN_SAMPLE=1
   export DUMP_TRAIN_PATH="$REPO_DIR/outputs/search_toy/${CONDITION}"
@@ -41,6 +42,7 @@ CRITIC_OVERRIDES=()
 if [[ "$ADV_ESTIMATOR" == "gae" || "$ADV_ESTIMATOR" == "gae_turn" ]]; then
   CRITIC_OVERRIDES=(
     critic.optim.lr="$CRITIC_LR"
+    critic.ppo_mini_batch_size="$PPO_MINI_BATCH"
     critic.model.path="$MODEL_PATH"
     critic.model.use_remove_padding=True
     critic.model.enable_gradient_checkpointing=True

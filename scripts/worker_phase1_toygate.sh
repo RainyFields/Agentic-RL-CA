@@ -71,10 +71,14 @@ EOF
 # ---- 3. retriever (backgrounds itself inside the script; health-gated) ----
 bash "$REPO/scripts/retriever_serve.sh" || { echo "retriever failed"; exit 1; }
 
-# ---- 4. base-model Wave-0 gate eval on val_2048 (once, greedy) ----
-VAL_FILES="$REPO/data/searchR1_processed_direct/val_2048.parquet" EVAL_VAL_BATCH=1024 \
-  bash "$REPO/scripts/eval_search_full.sh" /mnt/hdfs/mlsys/models/Qwen3-1.7B wave0_base token_grpo 4turn \
-  || { echo "base-model val failed"; exit 1; }
+# ---- 4. base-model Wave-0 gate eval on val_2048 (once, greedy; skip if already done) ----
+if [ -f "$REPO/outputs/eval_full/wave0_base/paper_table.json" ]; then
+  echo "[worker] wave0_base eval already done — skipping"
+else
+  VAL_FILES="$REPO/data/searchR1_processed_direct/val_2048.parquet" EVAL_VAL_BATCH=1024 \
+    bash "$REPO/scripts/eval_search_full.sh" /mnt/hdfs/mlsys/models/Qwen3-1.7B wave0_base token_grpo 4turn \
+    || { echo "base-model val failed"; exit 1; }
+fi
 
 # ---- 5. toy gate (7 conditions) ----
 bash "$REPO/scripts/run_toy_gate.sh" || { echo "toy gate failed"; exit 1; }
