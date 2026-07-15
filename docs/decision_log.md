@@ -168,3 +168,14 @@ Mitigation prepared (executes only if/when the worker exhausts attempts):
   locked protocol constants. Flagged prominently in the next user report; trivially
   reverted by relaunching with the original wrapper.
 If MICRO_BSZ=8 also OOMs, next step goes to the user (protocol-level decision).
+
+## 2026-07-14 ~22:15 PDT (micro8 VALIDATED; step-100 RQ3 readout issued)
+- MICRO_BSZ=8 fix validated on both test runs: b1-s1 cleared step 105 (7 consecutive
+  micro16 attempts had died at 62-90) and b1sh-s1 cleared its 119 ceiling (now 127+).
+  Throughput at micro8 ~= micro16 (33 vs ~25-30 steps/hr — no measurable penalty).
+- Step-100 RQ3 readout (docs/readouts/2026-07-14_wave1_rq3_s100.md): s1 triple complete —
+  shuffle 0.322 > B0 0.315 > B1 0.311, all deltas <= 0.011 ~ noise; AUC deltas <= 0.006.
+  Current shape: "all ~= equal", weak lean toward density-not-content (shuffle >= B1).
+  NOT final (window readout, 1 complete seed-triple, shuffle_active_frac 0.79 reported).
+- PROPOSED to user (pending OK): fleet-wide micro8 via protocol files for FUTURE
+  launches + at-exhaustion relaunches only (running healthy workers untouched).
