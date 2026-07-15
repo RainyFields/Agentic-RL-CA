@@ -179,3 +179,14 @@ If MICRO_BSZ=8 also OOMs, next step goes to the user (protocol-level decision).
   NOT final (window readout, 1 complete seed-triple, shuffle_active_frac 0.79 reported).
 - PROPOSED to user (pending OK): fleet-wide micro8 via protocol files for FUTURE
   launches + at-exhaustion relaunches only (running healthy workers untouched).
+
+## 2026-07-15 ~05:15 PDT (RQ3 step-100 readout COMPLETE — both seeds)
+Full 2x3 grid at step 100 (docs/readouts/2026-07-15_wave1_rq3_s100_full.md):
+- s0: B1 0.330 > shuffle 0.327 > B0 0.313;  s1: shuffle 0.322 > B0 0.315 > B1 0.311.
+- Per-seed deltas: shuffle-B0 POSITIVE both seeds (+0.014/+0.007); B1-shuffle straddles
+  zero (+0.003/-0.011); B1-B0 [+0.017/-0.004]. AUC: B1-B0 [+0.009/+0.002].
+- Pre-registered reading (interim): B1 ~= B1-shuffle > B0 => DENSITY/optimization effect,
+  not progress supervision — consistent across seeds, small magnitude (~0.01).
+  shuffle_active_frac ~0.97-1.0 on current batches (control fully active).
+- Final call remains the fixed-budget FINAL ckpt + full-budget val-AUC + per-dataset
+  breakdown. b1-s0 cleared ckpt-100 on micro16 attempt 4 (no relaunch needed).
