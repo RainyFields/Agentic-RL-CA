@@ -225,3 +225,14 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   horizon is where timing/content could separate from density); (5) HCAPO s0, GiGPO s1,
   GRPO s1 (plan Wave-2 remainder). Wrappers staged for 1-5.
 - 8-turn requirement KEPT (pre-registration stands; active_frac inversion noted).
+
+## 2026-07-15 16:30 PDT (b1-s0 OOM -> first in-flight validation of micro8 hot-deploy)
+- b1-s0 attempt 4 (micro16, pre-commit launch) hit actor OOM (~step 271, 9.69 GiB alloc
+  fail). Attempt 5/6 auto-resumed 16:05 PDT from ckpt 250 and inherited fleet-wide
+  micro8 from protocol_4turn.sh exactly as designed (launch line verified: all
+  ppo/log_prob/forward micro sizes = 8). ~21 steps replayed from ckpt rollback; run
+  healthy at step 252+. No action taken; micro8 wrapper stays staged in case attempts
+  exhaust. This confirms the hot-deploy-on-crash-resume mechanism end to end.
+- Queue #5 wrappers written+committed (3a1dacf): .arlca-hcapo-s0.sh, .arlca-gigpo-s1.sh,
+  .arlca-token-grpo-s1.sh (4turn_think2k; micro8 inherited via protocol chain, verified
+  by sourcing). New files only — no effect on running workers.
