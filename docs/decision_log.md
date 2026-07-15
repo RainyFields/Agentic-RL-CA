@@ -190,3 +190,12 @@ Full 2x3 grid at step 100 (docs/readouts/2026-07-15_wave1_rq3_s100_full.md):
   shuffle_active_frac ~0.97-1.0 on current batches (control fully active).
 - Final call remains the fixed-budget FINAL ckpt + full-budget val-AUC + per-dataset
   breakdown. b1-s0 cleared ckpt-100 on micro16 attempt 4 (no relaunch needed).
+
+## 2026-07-15 ~06:20 PDT (WAVE 0 COMPLETE)
+token_grpo s0 finished 500/500 steps. Final val_2048 macro-EM 0.391 (base 0.2246,
+step-0 0.234) — +0.157 absolute. Checkpoints 50-500 verified on HDFS
+(checkpoints/token_grpo_qwen3-1.7b_4turn_think2k_s0/). Truncation clip_ratio ended ~0.000-0.001
+(tripwire SATISFIED for this run). Pre-registered next step: full-set eval
+(scripts/eval_search_full.sh) of the FINAL (step-500) checkpoint — needs a GPU slot;
+queued behind token_ppo-micro8 relaunch. gigpo-s0 launched into the freed slot
+(arlca-gigpo-s0b) completing the original wave-1 slate.
