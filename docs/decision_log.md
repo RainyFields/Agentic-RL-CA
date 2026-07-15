@@ -213,3 +213,15 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Final judgment deferred to fixed-budget FINAL + full-budget val-AUC + per-dataset
   breakdown (multi-hop subgroup) per pre-registration; third seeds are the Wave-2 lever
   if the user wants the B1-vs-B0 range tightened.
+
+## 2026-07-15 ~09:00 PDT (user "go ahead": fleet-wide micro8 + slot queue approved)
+- MICRO_BSZ=8 + LOGPROB_MICRO=8 now in protocol_4turn.sh (all protocols inherit).
+  Gradient-accumulation only; applies to future launches + each worker's next
+  crash-resume. Per-run override hook retained.
+- Approved slot queue (launch as workers complete; quota 7): (1) token_ppo-s0 micro8
+  relaunch [resumes ckpt 100]; (2) wave-0 FINAL full-set eval (pre-registered);
+  (3) third seeds b0-s2 / b1-s2 / b1sh-s2 (tighten the RQ3 seed range on the window
+  finding); (4) 8-turn stress B0/B1 s0 (REQUIRED; now scientifically central — longer
+  horizon is where timing/content could separate from density); (5) HCAPO s0, GiGPO s1,
+  GRPO s1 (plan Wave-2 remainder). Wrappers staged for 1-5.
+- 8-turn requirement KEPT (pre-registration stands; active_frac inversion noted).

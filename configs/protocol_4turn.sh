@@ -14,7 +14,13 @@ export TRUNCATION=left             # safety valve ONLY — any nonzero truncatio
 export TRAIN_BATCH=256             # prompts per step
 export GROUP_SIZE=5                # env.rollout.n  -> 1280 trajectories/step for all arms
 export PPO_MINI_BATCH=512
-export MICRO_BSZ=16                # per-GPU micro batch (actor); tune once at toy gate
+# MICRO_BSZ 16->8 fleet-wide (user OK 2026-07-15): gradient-accumulation chunking only —
+# PPO_MINI_BATCH unchanged, math identical. 16 caused fragmentation-OOM livelocks on every
+# critic arm as response lengths grew; micro8 validated 3-for-3 on relaunched runs at
+# equal-or-better steps/hr (decision_log 2026-07-14/15). Applies to future launches and
+# at each running worker's next crash-resume.
+export MICRO_BSZ=8                 # per-GPU micro batch (actor)
+export LOGPROB_MICRO=8             # old_log_prob/ref passes (same OOM surface)
 export LR=1e-6
 export CRITIC_LR=1e-5              # PPO arms only (critic auto-on for gae/gae_turn)
 export KL_LOSS_COEF=0.001
