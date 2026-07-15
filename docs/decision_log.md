@@ -199,3 +199,17 @@ step-0 0.234) — +0.157 absolute. Checkpoints 50-500 verified on HDFS
 (scripts/eval_search_full.sh) of the FINAL (step-500) checkpoint — needs a GPU slot;
 queued behind token_ppo-micro8 relaunch. gigpo-s0 launched into the freed slot
 (arlca-gigpo-s0b) completing the original wave-1 slate.
+
+## 2026-07-15 ~08:35 PDT (RQ3 WINDOW READOUT FINAL — step 150, both seeds, full grid)
+docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper bound:
+- s150 EM: B1 [0.349/0.334] vs shuffle [0.340/0.342] vs B0 [0.321/0.336].
+- Per-seed deltas: shuffle-B0 POSITIVE both seeds (+0.019/+0.006); B1-B0 AUC positive
+  both seeds (+0.013/+0.003); B1-shuffle straddles zero (+0.009/-0.008).
+- WINDOW CONCLUSION (interim, pre-registered form): both step-reward arms sit at-or-above
+  B0, with B1 ~= B1-shuffle => consistent with a reward-DENSITY/optimization effect
+  rather than progress-content supervision. Seed-range wide relative to effect
+  (b1_minus_b0_em spans -0.002..+0.028) => 2 seeds insufficient for a headline B1-vs-B0
+  claim; density-vs-content (B1-vs-shuffle) remains a null. shuffle_active_frac ~1.0.
+- Final judgment deferred to fixed-budget FINAL + full-budget val-AUC + per-dataset
+  breakdown (multi-hop subgroup) per pre-registration; third seeds are the Wave-2 lever
+  if the user wants the B1-vs-B0 range tightened.
