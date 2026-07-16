@@ -139,3 +139,7 @@ outputs/
 docs/papers/*.pdf
 worker_logs/
 *.parquet
+
+# project reports are tracked (upstream *ports rule is for coverage reports)
+!docs/reports/
+!docs/reports/**
