@@ -244,3 +244,14 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   elevated post-resume (0.055-0.079 band, steps 100-150). No mid-run intervention
   (consistent with b0-s0 precedent); flag BOTH in the formal Wave-1 report alongside
   b0-s0. Shuffle arms + gigpo clean (clip ~0.000-0.001) at same wall-clock.
+
+## 2026-07-15 21:36 PDT (b0-s1 COMPLETE; queue #2 launched)
+- turn_ppo_b0 s1 COMPLETE 500/500, final val_2048 macro-EM 0.330 (s0: 0.343; seed pair
+  0.343/0.330). Final-step truncation clip_ratio 0.091 — b0-s0's late must-fall tripwire
+  violation REPLICATED on seed 1 (both seeds flagged for formal report). Ckpt on HDFS.
+  Per-dataset final (s1): nq 0.349, triviaqa 0.542, popqa 0.400, hotpotqa 0.311,
+  2wiki 0.262, musique 0.190, bamboogle 0.258.
+- Queue #2 LAUNCHED into freed slot 21:36 PDT: wave-0 pre-registered FINAL full-set eval
+  (token_grpo s0 ckpt 500, label wave0_grpo_s0_final), alias arlca-wave0-eval, via new
+  wrapper .arlca-wave0-eval.sh (retriever_serve then eval_search_full). 7/7 clients.
+  Digest LOGS updated + monitor restarted; completion watcher armed.
