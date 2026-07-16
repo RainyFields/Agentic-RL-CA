@@ -280,3 +280,16 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Queue #3 continues: b1 s2 launched 01:47 PDT into the eval's freed slot
   (alias arlca-b1-s2). Remaining queue: b1sh-s2, then 8-turn stress pair, then
   hcapo-s0/gigpo-s1/token_grpo-s1.
+
+## 2026-07-16 07:20 PDT (b1sh-s1 COMPLETE — clean run, late UPTICK; queue #3 fully launched)
+- b1_shuffle s1 COMPLETE 500/500, final val_2048 macro-EM 0.363 (peak 0.369 @475-495).
+  Truncation clip ~0.00 the entire run — NO late drift, and val ticked UP late while
+  both b1 arms drifted down late (s1 collapsed to 0.318; s0 declining 0.362->0.343
+  with clip 0.03->0.07). RQ3 note: shuffle (density-only) now BEATS b1 (content) on
+  seed-1 finals 0.363 vs 0.318, and the divergence is mechanistically tied to the
+  truncation tripwire hitting b1 but not shuffle. Per-dataset final (b1sh-s1):
+  nq 0.349, triviaqa 0.602, popqa 0.406, hotpotqa 0.314, 2wiki 0.382, musique 0.197,
+  bamboogle 0.288.
+- Queue #3 fully launched: b1_shuffle s2 into freed slot 07:20 PDT (alias arlca-b1sh-s2).
+  All three third seeds now in flight (b0-s2 step ~98, b1-s2 step ~87, b1sh-s2 queued).
+  Queue remaining: #4 8-turn stress pair, #5 hcapo-s0/gigpo-s1/token_grpo-s1.
