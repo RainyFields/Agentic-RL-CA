@@ -236,3 +236,11 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Queue #5 wrappers written+committed (3a1dacf): .arlca-hcapo-s0.sh, .arlca-gigpo-s1.sh,
   .arlca-token-grpo-s1.sh (4turn_think2k; micro8 inherited via protocol chain, verified
   by sourcing). New files only — no effect on running workers.
+
+## 2026-07-15 19:00 PDT (tripwire watch: late-run truncation clip drift on two more arms)
+- b1-s1 (step ~400): truncation clip_ratio climbed 0.059 -> 0.095 over steps ~370-400;
+  val dipped from 0.362 best (@350) to 0.337/0.336 (@375/@400). Same must-fall-rule
+  violation pattern as b0-s0 late-run (formal-report tripwire note). token_ppo-s0 also
+  elevated post-resume (0.055-0.079 band, steps 100-150). No mid-run intervention
+  (consistent with b0-s0 precedent); flag BOTH in the formal Wave-1 report alongside
+  b0-s0. Shuffle arms + gigpo clean (clip ~0.000-0.001) at same wall-clock.
