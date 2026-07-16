@@ -360,3 +360,19 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Queue #4.5 LAUNCHED 15:51 PDT: F8a credit-alignment diagnostic (arlca-diag-b0),
   B0-s0 ckpts 150/300/500 sequential on one worker. Its verdict gates the lambda sweep
   (docs/plan_lambda_sweep.md). hcapo-s0 takes the next freed slot (token_ppo ~465/500).
+
+## 2026-07-16 16:35 PDT (F8a pre-registration DEVIATION: B0-s0 mid-run ckpts destroyed by retention policy)
+- Discovery: max_actor/critic_ckpt_to_keep=1 pruned B0-s0 ckpt 150/300 shards (empty
+  dirs remained, which is why the plan assumed they existed). Diag worker failed merge
+  on both; ckpt 500 diag RUNNING normally.
+- Salvage: B0-s1 retains FULL actor+critic sets at {50,100,200,500} (crash-resume
+  attempts left un-pruned saves). ADAPTED GATE (deviation from pre-registered s0
+  {150,300,500}, forced by data loss): evaluate trigger on s1 {100,200,500} + s0 {500};
+  same threshold (pooled Spearman > 0.2, 95% CI excl. 0, >=2 of 3 s1 checkpoints).
+  Wrapper .arlca-diag-b0s1.sh staged; takes over the diag slot when the s0 worker exits.
+  Deviation to be stated in the paper paragraph regardless of outcome.
+- Note for future waves: mid-run checkpoint retention must be planned EXPLICITLY for
+  any run whose intermediate checkpoints a diagnostic will need (keep=1 destroys them).
+- Option (expires when b0-s2 saves step 250, ~1-2h): snapshot-copy b0-s2's step-200
+  ckpt (40G, HDFS has 312G free) before pruning, to bank a third-seed mid-run point.
+  NOT done by default — awaiting user word.
