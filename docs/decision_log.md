@@ -255,3 +255,16 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   (token_grpo s0 ckpt 500, label wave0_grpo_s0_final), alias arlca-wave0-eval, via new
   wrapper .arlca-wave0-eval.sh (retriever_serve then eval_search_full). 7/7 clients.
   Digest LOGS updated + monitor restarted; completion watcher armed.
+
+## 2026-07-16 01:38 PDT (b1-s1 COMPLETE with severe late collapse; queue #3 begins)
+- b1 s1 COMPLETE 500/500, final val_2048 macro-EM 0.318 (best 0.362 @350). Truncation
+  clip_ratio drifted 0.06 -> 0.21 over steps ~370-500 with val falling in lockstep —
+  by far the worst tripwire violation (b0-s0 ~0.05, b0-s1 ~0.09). Seed contrast is
+  stark: b1-s0 at same wall-clock is stable (clip ~0.03-0.05, val 0.357 @375).
+  Best-val ckpt (step 350) on HDFS for the pre-registered best-val secondary.
+  Per-dataset final (s1): nq 0.366, triviaqa 0.578, popqa 0.371, hotpotqa 0.311,
+  2wiki 0.288, musique 0.131, bamboogle 0.182.
+- Queue #3 STARTED: turn_ppo_b0 s2 launched 01:38 PDT into freed slot (alias
+  arlca-turn-ppo-b0-s2, micro8 via protocol). Ledger + digest LOGS updated.
+- wave0-eval: worker allocated ~23:30 07-15 after ~2h cluster queue; full-set rollouts
+  in progress.
