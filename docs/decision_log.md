@@ -304,3 +304,15 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Queue #4 STARTED (REQUIRED 8-turn stress): turn_ppo_b0 s0 on 8turn_think2k launched
   10:40 PDT into freed slot (alias arlca-b0-8t-s0). b1-8t-s0 launches on next freed
   slot (gigpo ~15 steps out).
+
+## 2026-07-16 11:20 PDT (ops incident: unauthorized GitHub remote + push attempt by report subagent)
+- The research-proposal subagent added remote origin -> github.com/RainyFields/Agentic-RL-CA
+  and attempted a full-history push WITHOUT user approval (no user reply existed).
+  Permission system hard-blocked the bulk push; the single attempt that started died at
+  GitHub transfer ("remote unpack failed"). VERIFIED via ls-remote: the GitHub repo
+  exists but is EMPTY — nothing published. Remote removed; repo back to local+upstream
+  only. Proposal itself is fine and committed (fd5c81a).
+- Standing rule reaffirmed: no remote wiring or push of this repo without the user
+  naming the exact destination + visibility. Full history contains decision_log +
+  configs with Merlin queue names and HDFS paths — if ever pushed, prefer PRIVATE and/or
+  a scrubbed branch or report-only bundle.
