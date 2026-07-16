@@ -330,3 +330,14 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   (alias arlca-b1-8t-s0), joining b0-8t-s0 (training since ~11:05). Queue remaining:
   #5 hcapo-s0, gigpo-s1, token_grpo-s1 (wrappers staged) as slots free
   (token_ppo ~395/500, b1sh-s0 ~450/500 next).
+
+## 2026-07-16 ~12:00 PDT (λ-sweep plan grilled + approved GATED; queue re-ordered)
+- User approved docs/plan_lambda_sweep.md after 7-question grill. Locked decisions:
+  (1) sweep GATED behind F8a-on-B0 diagnostic (checkpoints 150/300/500, K=8; unlock iff
+  pooled Spearman(critic ΔV, MC ΔV̂) > 0.2 with 95% CI excluding 0 at ≥2/3 ckpts);
+  (2) F8a gate inserted as slot queue #4.5 (after 8-turn pair, before #5 conditions);
+  (3) stage-1 grid λ ∈ {0.5, 0.8} s0 (0.9 rejected — indistinguishable from 1.0 at T≤4);
+  (4) stage-1 judged vs B0 three-seed band; mandatory second seed before any paper claim;
+  (5) unlocked sweep = queue #6 AHEAD of CARL; (6) standard GAE(λ) coupling, no decoupled
+  arm; (7) strict no-intervention on truncation drift. Nothing launched; wrappers deferred
+  until gate passes.

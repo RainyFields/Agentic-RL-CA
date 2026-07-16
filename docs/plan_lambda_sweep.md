@@ -1,8 +1,10 @@
-# PROPOSED — λ-sweep for turn-level PPO (drafted 2026-07-16, NOT yet approved)
+# APPROVED-GATED — λ-sweep for turn-level PPO (drafted + grilled 2026-07-16)
 
-Status: **draft for user review.** No wrappers written, no slots claimed, nothing launched.
-If approved, this becomes a numbered item in the slot queue and gets its own decision_log
-entry; per the MPU rule (plan.md) it is additive and individually droppable.
+Status: **user-approved 2026-07-16 (7-question grill), GATED behind the F8a diagnostic.**
+Queue placement (user): F8a-on-B0 diagnostic = slot queue **#4.5** (after 8-turn stress pair,
+before hcapo/gigpo-s1/grpo-s1); if the unlock trigger (§2a) fires, λ stage 1 enters as queue
+**#6, ahead of CARL**. No wrappers written until the gate passes. Per the MPU rule (plan.md)
+the sweep is additive and individually droppable.
 
 ## 1. Motivation and framing
 
@@ -42,18 +44,34 @@ continuation values V̂(s_t) by prefix resume; for the λ arms, compare the crit
 one-step deltas (V_φ(s_{t+1}) − V_φ(s_t)) against ΔV̂_t. This measures directly whether the
 implicit reward model is *correct*, independent of final EM.
 
+## 2a. Unlock trigger (pre-registered gate, decided at grill Q1/Q2)
+
+Run the Phase-3b credit-alignment diagnostic on the existing **B0-s0 checkpoints at steps
+{150, 300, 500}** (K=8 continuations, pooled turn-pairs, bootstrap CIs — Phase 3b spec).
+Compute the pooled Spearman correlation between the critic's own one-step deltas
+V_φ(s_{t+1}) − V_φ(s_t) and the MC continuation deltas ΔV̂_t.
+**Unlock the sweep iff Spearman > 0.2 with the 95% CI excluding 0 at ≥ 2 of the 3
+checkpoints.** Otherwise the sweep is DROPPED and the paper reports the negative directly
+("critic ΔV unaligned with true progress — bootstrapping through it has no basis").
+Rationale: the diagnostic answers the observational half for ~5% of the sweep's cost; the
+sweep is then the causal confirmation, not a fishing trip.
+
 ## 3. Design
 
 - **Vehicle: turn-level PPO (B0), 4turn_think2k protocol** — the turn-level MDP has ≤ 4 credit
   steps, so a coarse grid is meaningful and each λ is interpretable. Everything else
   (data, seeds, batch, lengths, KL, penalty, eval cadence) identical to B0 — single-variable
   contrast, same as the rest of the benchmark.
-- **Grid (staged):**
-  - Stage 1 (2 workers): **λ = 0.5, λ = 0.9**, seed 0. λ=1 s0/s1/s2 already exist (B0);
-    λ=0 deferred (highest collapse risk, only run if stage 1 shows a usable trend toward
-    low λ).
-  - Stage 2 (conditional, ≤ 2 workers): promote the better stage-1 λ to seeds 1 (+2 if it
-    beats B0-λ1 beyond the seed range); or add λ=0 / λ=0.7 to bracket a peak.
+- **Grid (staged; grill Q3/Q4 decisions):**
+  - Stage 1 (2 workers): **λ = 0.5, λ = 0.8**, seed 0. (0.9 rejected: with γ=1 and ≤4 turns
+    the λ^l weights at 0.9 keep ≥0.73 of MC weight even at max distance — indistinguishable
+    from λ=1 within the ±0.013 B0 seed band. 0.8 → final-step weight 0.51 = real
+    bootstrapping; 0.5 → 0.13 = aggressive.) λ=1 s0/s1/s2 already exist (B0); λ=0 deferred.
+  - **Interpretation unit: the B0 three-seed band, not B0-s0 alone.** A stage-1 λ point
+    inside the band reads "no effect"; only outside-the-band results trigger stage 2.
+  - Stage 2: second seed on the informative λ is **MANDATORY before any paper claim**
+    (stage-1 single-seed results are directional only — the b1 seed pair differed by 0.034);
+    optionally bracket a peak with λ=0 / λ=0.65.
 - **Token-PPO λ-sweep: explicitly out of scope** (secondary tier at best). Token-level λ acts
   over thousands of tokens, so the interesting range is a different regime (λ ≈ 0.95–1) and
   the token-PPO arm is already the weakest; spend the slots on the interpretable turn-level
@@ -65,11 +83,12 @@ implicit reward model is *correct*, independent of final EM.
 - `algorithm.lam` is already config-driven (all current launches pass `algorithm.lam=1.0`).
   Add `LAM_OVERRIDE` (default 1.0) to `scripts/run_condition.sh` in the same style as
   `MICRO_BSZ_OVERRIDE`, mapped to `algorithm.lam=$LAM_OVERRIDE`.
-- Note: λ enters **both** the actor's advantages and the critic's regression targets
-  (returns = advantages + values in GAE); this is standard and intended — document it in the
-  methods note so the arms are described honestly as "GAE(λ)" not "MC baseline".
-- Wrappers `.arlca-b0-lam05-s0.sh`, `.arlca-b0-lam09-s0.sh` (COND=turn_ppo_b0, SEED=0,
-  PROTOCOL=4turn_think2k, LAM_OVERRIDE=0.5/0.9); micro8 inherited via protocol.
+- **Standard GAE(λ) confirmed (grill Q6):** λ enters both the actor's advantages and the
+  critic's regression targets; NO decoupled arm (actor-λ<1 / critic-λ=1) — that would be a
+  nonstandard method claim. Interpretive ambiguity handled by logging vf_explained_var per λ
+  and the F8a extension (critic ΔV vs ΔV̂ per λ). Document arms as "GAE(λ)".
+- Wrappers `.arlca-b0-lam05-s0.sh`, `.arlca-b0-lam08-s0.sh` (COND=turn_ppo_b0, SEED=0,
+  PROTOCOL=4turn_think2k, LAM_OVERRIDE=0.5/0.8); micro8 inherited via protocol.
 - W&B names per convention: `turn_ppo_b0_lam05_qwen3-1.7b_4turn_think2k_s0`, etc.
 - Unit check before launch: one-batch dry assertion that `algorithm.lam` propagates (grep the
   dumped hydra config in the log header), plus the existing 33-test suite.
@@ -81,14 +100,18 @@ Standard digest metrics + specifically:
 - truncation clip_ratio tripwire (must-fall rule; watch damping prediction above);
 - early-warning review at step 150 (RQ3-window style readout vs the three B0 seeds), no
   kill rule — fixed-budget FINAL stays the primary comparison per pre-registration.
+- **STRICT no-intervention on truncation drift (grill Q7):** λ arms ride out any clip
+  runaway to step 500, exactly like the B0/B1 precedent — the λ-vs-drift damping prediction
+  (§2) requires untouched runs, and best-val is reported as secondary anyway.
 
 ## 6. Budget & scheduling
 
 - Each run: 1 × 8×H100 worker, ~19 h wall-clock for 500 steps (B0 reference), retriever
   co-located. Stage 1 = 2 workers; stage 2 ≤ 2 more.
-- Queue position: **after** current queue #5 (hcapo-s0, gigpo-s1, token_grpo-s1) and the
-  8-turn stress pair — those serve pre-registered headline claims (MPU); the λ-sweep is an
-  explanatory ablation. Fires only on freed slots, needs explicit user OK to enter the queue.
+- Queue position (grill Q5, user-decided): **F8a diagnostic = queue #4.5** (after the 8-turn
+  stress pair, before hcapo/gigpo-s1/grpo-s1); **unlocked λ stage 1 = queue #6, ahead of
+  CARL** (launch-only vs CARL's engineering risk; keeps the F8a→sweep explanatory chain
+  tight). Fires only on freed slots.
 - GPU-hours logged in workers.tsv as usual (survey checklist F4/compute accounting).
 
 ## 7. Reporting
