@@ -268,3 +268,15 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   arlca-turn-ppo-b0-s2, micro8 via protocol). Ledger + digest LOGS updated.
 - wave0-eval: worker allocated ~23:30 07-15 after ~2h cluster queue; full-set rollouts
   in progress.
+
+## 2026-07-16 01:47 PDT (wave-0 pre-registered FINAL full-set eval COMPLETE; b1-s2 launched)
+- wave0_grpo_s0_final (token_grpo s0 ckpt 500, greedy, full 51,713-row test set):
+  macro_em 0.3951, micro_em 0.4433; single-hop 0.4993 vs multi-hop 0.3170.
+  Per-dataset EM: triviaqa 0.602, popqa 0.450, nq 0.445, hotpotqa 0.396, 2wiki 0.378,
+  bamboogle 0.352, musique 0.142. unterminated_frac 0.0 all datasets.
+  Full-set 0.3951 vs val_2048 final 0.391 — val_2048 tracks the full set well (+0.004).
+  Artifacts: outputs/eval_full/wave0_grpo_s0_final/{paper_table.json,paper_table.csv,
+  val_trajectories_step0.jsonl,hf_merged}. Eval worker ran ~2h13m incl. merge.
+- Queue #3 continues: b1 s2 launched 01:47 PDT into the eval's freed slot
+  (alias arlca-b1-s2). Remaining queue: b1sh-s2, then 8-turn stress pair, then
+  hcapo-s0/gigpo-s1/token_grpo-s1.
