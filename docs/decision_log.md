@@ -348,3 +348,15 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   following slot. Wrapper .arlca-diag-b0.sh written+committed: retriever, then
   run_diag.sh on B0-s0 ckpts 150/300/500 (all verified present on HDFS, actor+critic).
   Lambda-sweep gate trigger per docs/plan_lambda_sweep.md (f0ab0a2).
+
+## 2026-07-16 15:51 PDT (b1sh-s0 COMPLETE — shuffle pair final; F8a diag launched at #4.5)
+- b1_shuffle s0 COMPLETE 500/500, final val_2048 macro-EM 0.356 (clip <=0.006 whole run).
+  SHUFFLE PAIR FINAL: 0.356 / 0.363 — tight seed range (0.007), both clip-clean.
+  vs b1 pair 0.352 / 0.318 (wide range 0.034, both drifting): shuffle >= b1 on BOTH
+  seed match-ups, with far better stability. RQ3 density-not-content reading now holds
+  on completed 2x2; third seeds (running) remain the tie-breaker for magnitude.
+  Per-dataset final (b1sh-s0): nq 0.366, triviaqa 0.571, popqa 0.440, hotpotqa 0.362,
+  2wiki 0.347, musique 0.146, bamboogle 0.258.
+- Queue #4.5 LAUNCHED 15:51 PDT: F8a credit-alignment diagnostic (arlca-diag-b0),
+  B0-s0 ckpts 150/300/500 sequential on one worker. Its verdict gates the lambda sweep
+  (docs/plan_lambda_sweep.md). hcapo-s0 takes the next freed slot (token_ppo ~465/500).
