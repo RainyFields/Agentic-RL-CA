@@ -293,3 +293,14 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Queue #3 fully launched: b1_shuffle s2 into freed slot 07:20 PDT (alias arlca-b1sh-s2).
   All three third seeds now in flight (b0-s2 step ~98, b1-s2 step ~87, b1sh-s2 queued).
   Queue remaining: #4 8-turn stress pair, #5 hcapo-s0/gigpo-s1/token_grpo-s1.
+
+## 2026-07-16 10:40 PDT (b1-s0 COMPLETE; queue #4 8-turn stress begins)
+- b1 s0 COMPLETE 500/500, final val_2048 macro-EM 0.352 (best 0.362 @400). Late clip
+  drift present but MILD/oscillating (0.03-0.08, never runaway) — contrast b1-s1's
+  collapse (0.21 clip, final 0.318). b1 seed pair: 0.352 / 0.318; shuffle pair so far:
+  0.363 (s1 final) / 0.357 (s0 @430, still running). Per-dataset final (b1-s0):
+  nq 0.354, triviaqa 0.573, popqa 0.408, hotpotqa 0.372, 2wiki 0.301, musique 0.168,
+  bamboogle 0.288.
+- Queue #4 STARTED (REQUIRED 8-turn stress): turn_ppo_b0 s0 on 8turn_think2k launched
+  10:40 PDT into freed slot (alias arlca-b0-8t-s0). b1-8t-s0 launches on next freed
+  slot (gigpo ~15 steps out).
