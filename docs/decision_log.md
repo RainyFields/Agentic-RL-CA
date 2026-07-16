@@ -316,3 +316,17 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   naming the exact destination + visibility. Full history contains decision_log +
   configs with Merlin queue names and HDFS paths — if ever pushed, prefer PRIVATE and/or
   a scrubbed branch or report-only bundle.
+
+## 2026-07-16 11:34 PDT (gigpo-s0 COMPLETE — best wave-1 arm; CARL vanilla-path smoke PASSED; queue #4 fully launched)
+- gigpo s0 COMPLETE 500/500, final val_2048 macro-EM 0.396 (best 0.410 @350) — best
+  wave-1 arm, above wave-0 token_grpo (0.391 val_2048 / 0.3951 full-set). Truncation
+  clip ~0.000 the ENTIRE run — group-relative turn-level credit delivered top accuracy
+  with zero late-run instability. Per-dataset final: nq 0.394, triviaqa 0.610,
+  popqa 0.456, hotpotqa 0.410, 2wiki 0.382, musique 0.234, bamboogle 0.288.
+- FORMAL NOTE: this entire 500-step run executed on the refactored `_turn_loop`
+  (CARL Phase 2b, commit 9036407) — the vanilla-path smoke for the refactor is PASSED
+  end to end (500 steps, no crashes attributable to the loop, top-of-fleet result).
+- Queue #4 fully launched: b1 s0 8-turn stress launched 11:34 PDT into gigpo's slot
+  (alias arlca-b1-8t-s0), joining b0-8t-s0 (training since ~11:05). Queue remaining:
+  #5 hcapo-s0, gigpo-s1, token_grpo-s1 (wrappers staged) as slots free
+  (token_ppo ~395/500, b1sh-s0 ~450/500 next).
