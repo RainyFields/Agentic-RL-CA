@@ -341,3 +341,10 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   (5) unlocked sweep = queue #6 AHEAD of CARL; (6) standard GAE(λ) coupling, no decoupled
   arm; (7) strict no-intervention on truncation drift. Nothing launched; wrappers deferred
   until gate passes.
+
+## 2026-07-16 15:05 PDT (user CONFIRMED in main session: F8a diagnostic takes next freed slot)
+- Queue reorder confirmed by the user in the fleet-managing session (AskUserQuestion:
+  "F8a diagnostic first"): F8a = queue #4.5, ahead of the #5 batch. hcapo-s0 takes the
+  following slot. Wrapper .arlca-diag-b0.sh written+committed: retriever, then
+  run_diag.sh on B0-s0 ckpts 150/300/500 (all verified present on HDFS, actor+critic).
+  Lambda-sweep gate trigger per docs/plan_lambda_sweep.md (f0ab0a2).
