@@ -376,3 +376,15 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Option (expires when b0-s2 saves step 250, ~1-2h): snapshot-copy b0-s2's step-200
   ckpt (40G, HDFS has 312G free) before pruning, to bank a third-seed mid-run point.
   NOT done by default — awaiting user word.
+
+## 2026-07-16 17:59 PDT (token_ppo-s0 COMPLETE — wave-1 4-turn grid DONE; hcapo-s0 launched)
+- token_ppo s0 COMPLETE 500/500, final val_2048 macro-EM 0.315 — weakest arm, with
+  persistent truncation clip drift (0.05-0.16 band from resume at step 100 to the end;
+  never runaway, never clean). Per-dataset final: nq 0.343, triviaqa 0.561, popqa 0.396,
+  hotpotqa 0.304, 2wiki 0.262, musique 0.124, bamboogle 0.212.
+- WAVE-1 4-TURN GRID COMPLETE (final val_2048 macro-EM): gigpo 0.396 > shuffle
+  0.363/0.356 > b1 0.352/0.318 > b0 0.343/0.330 > token_ppo 0.315. (Wave-0 token_grpo
+  reference: 0.391.) Critic-free group-relative arms hold ranks 1-2; every critic arm
+  drifted; both step-reward-content seeds <= their shuffle counterparts.
+- Queue #5 STARTED: hcapo-s0 launched 17:59 PDT into token_ppo's slot. Remaining:
+  gigpo-s1, token_grpo-s1 (wrappers staged), then lambda sweep if F8a gate passes.
