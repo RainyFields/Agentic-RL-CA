@@ -433,3 +433,20 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   prefix_values.json already contains "states", always re-merges critics fresh. Janitor
   re-armed on the v3 log (deletes each label's merged models once critic_values.json
   exists; warns <2G free).
+
+## 2026-07-17 12:15 PDT (F8a gate verdict: lambda-sweep DROPPED — pre-registered negative)
+- F8a credit-alignment diagnostic complete on B0 critic checkpoints. Pooled
+  Spearman(critic dV = V_phi(s_{t+1})-V_phi(s_t), MC dVhat) per checkpoint:
+    s1@100 rho=0.077 CI[-0.031,0.179]  |  s1@200 rho=-0.022 CI[-0.111,0.070]
+    s1@500 rho=0.078 CI[-0.014,0.166]  |  s0@500 rho=0.115 CI[0.036,0.193]
+  Trigger (rho>0.2 & CI excl 0 at >=2 of 3 s1 ckpts): 0/3 PASS -> lambda sweep DROPPED.
+  Corroborating: sign_agreement ~0.15, pairwise turn-ranking acc ~0.46-0.59 (~chance).
+- READING (pre-registered negative): the turn-critic's one-step value increments carry
+  essentially NO information about true per-turn progress (Spearman ~0, well below 0.2).
+  The critic works only as a weak trajectory-level baseline (vf_explained_var~0.28), not
+  a per-turn credit signal. This directly explains turn-PPO trailing GRPO/GiGPO and
+  strengthens the core thesis: the critic-as-implicit-reward-model is a POOR reward model
+  here. Bootstrapping through it (lambda<1) has no basis -> sweep correctly dropped.
+- Grid {0.5,0.8,0.9,0.95} (user-expanded 2026-07-17) NOT launched per gate. If the user
+  wants a confirmatory sweep despite the gate, it's their explicit override call; no slots
+  free anyway (6 runs hung awaiting relaunch). Results backed to HDFS logs/diag_results/.
