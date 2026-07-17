@@ -402,3 +402,11 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Slot plan: f8a-v2 takes the NEXT freed slot (queue #4.5 continuation — completing the
   user-confirmed diagnostic), then token_grpo-s1 (#5 last item) the one after. v1 vhat
   outputs preserved as prefix_values_v1.json for provenance.
+
+## 2026-07-17 09:53 PDT (b0-s2 COMPLETE — B0 three-seed band final; f8a-v2 launched)
+- turn_ppo_b0 s2 COMPLETE 500/500, final val_2048 macro-EM 0.324 (best ~0.345 @300-330).
+  Clip drift arrived EARLIEST of the three seeds (~0.06-0.15 from step ~270). B0
+  three-seed band FINAL: {0.343, 0.330, 0.324} — mean 0.332, range 0.019. This is the
+  lambda-sweep interpretation band (plan Q4).
+- f8a-v2 launched 09:53 PDT into the freed slot: diag rerun with state dumping + critic
+  merge/scoring + pre-registered gate readout on s1 {100,200,500} + s0 {500}.
