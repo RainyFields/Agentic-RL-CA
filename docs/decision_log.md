@@ -423,3 +423,13 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   to delete each label's hf_merged+critic_merged once critic_values.json exists (all
   regenerable from HDFS via model_merger). Rule: merged-model copies on the client FS
   are cache, not artifacts — clean as you go.
+
+## 2026-07-17 10:56 PDT (f8a-v2 wedged by ENOSPC — killed, v3 recovery launched)
+- The v2 worker's critic merge for b0_s1_step100 wrote a sparse/corrupt 3.4G
+  safetensors when the disk hit 0 and then hung (no progress 10:32-10:55, no traceback
+  in log). Client killed; corrupt critic_merged removed. step100's v2 diag data
+  (prefix_values.json WITH states) is intact and reused.
+- f8a-v3 launched 10:55 (wrapper .arlca-diag-f8a-v3.sh): skips run_diag for labels whose
+  prefix_values.json already contains "states", always re-merges critics fresh. Janitor
+  re-armed on the v3 log (deletes each label's merged models once critic_values.json
+  exists; warns <2G free).
