@@ -28,6 +28,15 @@ require_retriever
 MICRO_BSZ="${MICRO_BSZ_OVERRIDE:-$MICRO_BSZ}"
 LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-${LOGPROB_MICRO:-32}}"
 
+# ---- Lambda-sweep hook (docs/plan_lambda_sweep.md; gated on the F8a trigger): standard
+# GAE(lambda) — actor advantages AND critic targets together (grill Q6). Inert unless a
+# wrapper bakes LAM_OVERRIDE; also stamps the experiment name so runs don't collide.
+LAM_SUFFIX=""
+if [[ -n "${LAM_OVERRIDE:-}" ]]; then
+  LAM="$LAM_OVERRIDE"
+  LAM_SUFFIX="_lam${LAM_OVERRIDE//./}"
+fi
+
 # ---- Toy-gate mode (plan Phase 1.3): tiny run + per-turn trajectory dumps ----
 TOY="${TOY:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
@@ -45,7 +54,7 @@ fi
 MODEL_TAG="$(basename "$MODEL_PATH" | tr '[:upper:]' '[:lower:]')"
 TOY_SUFFIX=""; [[ "$TOY" == "1" ]] && TOY_SUFFIX="_toy"
 # (was a $([[ ... ]] && echo) substitution — exit 1 under set -e killed every non-toy run)
-EXP_NAME="${EXP_NAME:-${CONDITION}_${MODEL_TAG}_${PROTOCOL}_s${SEED}${TOY_SUFFIX}}"
+EXP_NAME="${EXP_NAME:-${CONDITION}_${MODEL_TAG}_${PROTOCOL}_s${SEED}${TOY_SUFFIX}${LAM_SUFFIX}}"
 CKPT_DIR="${CKPT_DIR:-$HDFS_PROJECT/checkpoints/$EXP_NAME}"
 
 # Critic settings only for value-based arms (critic auto-on for gae / gae_turn).
