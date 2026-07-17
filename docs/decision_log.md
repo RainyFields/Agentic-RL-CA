@@ -450,3 +450,24 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Grid {0.5,0.8,0.9,0.95} (user-expanded 2026-07-17) NOT launched per gate. If the user
   wants a confirmatory sweep despite the gate, it's their explicit override call; no slots
   free anyway (6 runs hung awaiting relaunch). Results backed to HDFS logs/diag_results/.
+
+## 2026-07-17 12:45 PDT (FLEET-WIDE HANG incident + recovery — user-approved kill/relaunch)
+- INCIDENT: at ~10:32, my f8a-v2 diagnostic merges filled the SHARED /dev/vdp (/home)
+  to 100%. Root/home is shared-backed across client+workers (confirmed: a remote worker's
+  retriever writes its log onto this node's FS). At 0 bytes free, all 6 co-located
+  retrievers failed (frozen logs end on 500/connection errors) and the 6 trainers hung in
+  retrieval retry loops. wandb heartbeats stayed CURRENT while global_step froze — alive
+  but not stepping. worker_train.sh only restarts a retriever on trainer EXIT, so a HANG
+  (not exit) got no self-heal. Idle for ~2h13m.
+- DIAGNOSIS PATH: local logs wedged (blind) -> used wandb heartbeat+step as the FS-
+  independent freshness signal (definitive). HDFS ckpt mtimes too coarse (save_freq=50).
+- RECOVERY (user "go ahead" 12:45): killed the 6 hung mlx clients (token_grpo-s1 spared),
+  relaunched all 6 from HDFS ckpts (resume auto): b1-s2@450, b1sh-s2@350, gigpo-s1@250,
+  b0-8t@200, hcapo@200, b1-8t@150 (~134 steps redo total). Env verified healthy first
+  (21G free, HDFS index readable). Digest LOGS repointed, err-baselines cleared,
+  recovery watcher armed.
+- FIXES/LESSONS: (1) disk janitor now reaps each diag/eval merged model the instant its
+  scores land (merges are the ONE heavy local-disk consumer; training writes to HDFS).
+  (2) launch logs now sync to HDFS each digest cycle (durable + survives a local-disk
+  wedge). (3) NEVER run diagnostic merges without the janitor active; keep >5G headroom.
+  (4) wandb heartbeat is the canonical "alive vs hung" probe when local logs wedge.
