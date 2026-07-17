@@ -91,8 +91,9 @@ class Generator:
 
 
 def run_turns(mgr, gen, obs, size, max_iters, snapshot_sink=None, depths0=None):
-    """Drive `size` env slots from `obs` to termination. snapshot_sink(slot, depth, snap)
-    is called pre-action at every visited depth (base-trajectory phase). Returns
+    """Drive `size` env slots from `obs` to termination. snapshot_sink(slot, depth, snap,
+    obs_text) is called pre-action at every visited depth (base-trajectory phase); obs_text
+    is the exact state prompt at that depth (what a critic V_phi(s_t) scores). Returns
     (terminal_rewards, n_turns_done) per slot."""
     depths0 = depths0 if depths0 is not None else np.zeros(size, dtype=np.int64)
     is_done = np.zeros(size, dtype=bool)
@@ -104,7 +105,7 @@ def run_turns(mgr, gen, obs, size, max_iters, snapshot_sink=None, depths0=None):
             act_idx = [i for i in range(size) if active[i]]
             snaps = mgr.snapshot(act_idx)
             for i, sn in zip(act_idx, snaps):
-                snapshot_sink(i, int(depths0[i] + it), sn)
+                snapshot_sink(i, int(depths0[i] + it), sn, obs["text"][i])
         texts = gen.generate([obs["text"][i] for i in range(size)])
         obs, rewards, dones, infos = mgr.step(texts)
         rewards = np.asarray(rewards, dtype=np.float32)
@@ -158,14 +159,16 @@ def main():
 
     # ---------------- phase A: base trajectories + per-depth snapshots -------------
     snapshots = {}      # traj_id -> {depth: snapshot}
+    states = {}         # traj_id -> {depth: obs text} — persisted for offline critic V_phi
     base = {}           # traj_id -> {"question", "data_source", "final_reward", "turns"}
     for start in range(0, len(kwargs_all), args.pool):
         chunk = kwargs_all[start:start + args.pool]
         size = len(chunk)
         obs, _ = mgr.reset(kwargs=chunk)
 
-        def sink(i, depth, snap, _start=start):
+        def sink(i, depth, snap, obs_text, _start=start):
             snapshots.setdefault(f"t{_start + i}", {})[depth] = snap
+            states.setdefault(f"t{_start + i}", {})[depth] = obs_text
 
         terminal, turns_done = run_turns(mgr, gen, obs, size, args.max_turns,
                                          snapshot_sink=sink)
@@ -208,6 +211,7 @@ def main():
         "config": {k: v for k, v in vars(args).items()},
         "base": base,
         "vhat": {t: {str(d): v for d, v in per.items()} for t, per in vhat.items()},
+        "states": {t: {str(d): s for d, s in per.items()} for t, per in states.items()},
     }
     out_path = os.path.join(args.out, "prefix_values.json")
     with open(out_path, "w") as fh:

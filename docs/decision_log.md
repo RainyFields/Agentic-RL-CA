@@ -388,3 +388,17 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   drifted; both step-reward-content seeds <= their shuffle counterparts.
 - Queue #5 STARTED: hcapo-s0 launched 17:59 PDT into token_ppo's slot. Remaining:
   gigpo-s1, token_grpo-s1 (wrappers staged), then lambda sweep if F8a gate passes.
+
+## 2026-07-16 18:40 PDT (F8a gap closed in code: diag runs lacked critic-side states)
+- Gap found on gate-analysis attempt: diag_runner persisted vhat only — no prefix states —
+  so critic V_phi could not be scored on the diag prefixes and the gate's
+  Spearman(critic dV, MC dVhat) was uncomputable from v1 outputs.
+- Landed (33/33 unit tests pass): diag_runner now dumps per-(traj,depth) obs text
+  ("states" in prefix_values.json); credit_assignment/critic_score.py scores merged
+  critics (model_merger handles value models) at the last prompt token;
+  credit_assignment/lambda_gate.py computes the pre-registered trigger on identical
+  non-terminal turn-pair support. Wrapper .arlca-diag-f8a-v2.sh reruns the full set
+  (s1 {100,200,500} + s0 {500}) with states + critic scoring + gate readout.
+- Slot plan: f8a-v2 takes the NEXT freed slot (queue #4.5 continuation — completing the
+  user-confirmed diagnostic), then token_grpo-s1 (#5 last item) the one after. v1 vhat
+  outputs preserved as prefix_values_v1.json for provenance.
