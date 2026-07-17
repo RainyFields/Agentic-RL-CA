@@ -410,3 +410,16 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   lambda-sweep interpretation band (plan Q4).
 - f8a-v2 launched 09:53 PDT into the freed slot: diag rerun with state dumping + critic
   merge/scoring + pre-registered gate readout on s1 {100,200,500} + s0 {500}.
+
+## 2026-07-17 10:50 PDT (user: add lambda 0.9 + 0.95; disk-full incident on client node)
+- USER DECISION (main session): stage-1 lambda grid expanded to {0.5, 0.8, 0.9, 0.95}
+  (0.9/0.95 for dose-response + comparability with classic PPO values; pre-registered
+  expectation: 0.9/0.95 land inside the B0 band {0.343,0.330,0.324} at this horizon).
+  All four wrappers staged (.arlca-b0-lam{05,08,09,095}-s0.sh). Still gated on the F8a
+  verdict; launch order after token_grpo-s1 per queue #6.
+- INCIDENT: client-node root disk hit 100% mid f8a-v2 (merged-model copies in
+  outputs/diag: ~3.8G per actor + per critic × 6 labels + eval hf_merged). Freed 7.6G
+  (eval hf_merged, step100 hf_merged post-diag, dead failed-label dirs); janitor armed
+  to delete each label's hf_merged+critic_merged once critic_values.json exists (all
+  regenerable from HDFS via model_merger). Rule: merged-model copies on the client FS
+  are cache, not artifacts — clean as you go.

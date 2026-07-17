@@ -63,7 +63,7 @@ sweep is then the causal confirmation, not a fishing trip.
   (data, seeds, batch, lengths, KL, penalty, eval cadence) identical to B0 — single-variable
   contrast, same as the rest of the benchmark.
 - **Grid (staged; grill Q3/Q4 decisions):**
-  - Stage 1 (2 workers): **λ = 0.5, λ = 0.8**, seed 0. (0.9 rejected: with γ=1 and ≤4 turns
+  - Stage 1 (4 workers; user expanded 2026-07-17): **λ = 0.5, 0.8, 0.9, 0.95**, seed 0. (0.9/0.95 added at user request for dose-response shape and comparability with the classic PPO regime — pre-registered expectation: both sit inside the B0 seed band at this ≤4-turn horizon, so they read as horizon-calibration points, not likely winners.) (0.9 rejected: with γ=1 and ≤4 turns
     the λ^l weights at 0.9 keep ≥0.73 of MC weight even at max distance — indistinguishable
     from λ=1 within the ±0.013 B0 seed band. 0.8 → final-step weight 0.51 = real
     bootstrapping; 0.5 → 0.13 = aggressive.) λ=1 s0/s1/s2 already exist (B0); λ=0 deferred.
