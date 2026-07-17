@@ -471,3 +471,39 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   (2) launch logs now sync to HDFS each digest cycle (durable + survives a local-disk
   wedge). (3) NEVER run diagnostic merges without the janitor active; keep >5G headroom.
   (4) wandb heartbeat is the canonical "alive vs hung" probe when local logs wedge.
+
+## 2026-07-17 16:12 PDT (12:45 recovery was INCOMPLETE — 6 zombie workers killed; 3 user decisions)
+- RECOVERY VERIFIED: all 7 relaunches stepping past their resume points (fresh logs +
+  wandb heartbeat probe): b1-s2 466, b1sh-s2 362, gigpo-s1 268 (val 0.370, clip 0.000),
+  b0-8t 207, hcapo 213 (clip 0.707 — collapse continues as intended), b1-8t 159,
+  token-grpo-s1 38. Clip clean on all but hcapo. Recovery of the fleet = SUCCESS.
+- NEW INCIDENT (the recovery leaked workers): the 12:45 kill hit only the local mlx
+  CLIENT wrappers; the 6 remote Ray jobs KEPT their workers and stayed alive-but-hung
+  (wandb heartbeat live 0.1m, gstep FROZEN 59-203m at the hang steps). `mlx worker list`
+  showed 13 workers, not 7. Each experiment had TWO running wandb runs — the relaunch
+  (created ~13:00, advancing) + the original (created 07-16, frozen). Zombie->worker map
+  by launch time: 999538(b1-s2) 999980(b1sh-s2) 1000197(b0-8t) 1000274(b1-8t)
+  1000585(hcapo) 1000595(gigpo-s1) = ~48 H100 burning for nothing.
+- RESOLUTION (user OK): `mlx worker kill 999538 999980 1000197 1000274 1000585 1000595`;
+  verified exactly 7 workers remain (all keepers 1001849/1001853-58). ~48 H100 freed.
+  Zombies were frozen between steps (not mid-ckpt) so kill was ckpt-safe.
+- LESSON: after any hang-kill, kill the WORKER IDs and verify `mlx worker list` COUNT —
+  killing the mlx client wrapper alone leaves the remote Ray job (+worker +heartbeat)
+  alive. pgrep of clients is NOT sufficient. Two heartbeating runs per experiment_name
+  with one frozen gstep == a leaked zombie; disambiguate by createdAt + last-step age.
+- MONITORING: digest task was lost across the session /clear. Replaced with event-driven
+  Monitor (task bvijlvomf, persistent): syncs launch logs to HDFS each cycle + emits ONLY
+  on RUN-COMPLETE / NEW-ERRS / STALE(possible hang, log idle >25m) / LOW-DISK(<8G).
+  Probe scripts in job tmp: wandb_heartbeat.py, wandb_disambig.py, wandb_freeze_check.py
+  (heartbeatAt is UTC — parse with calendar.timegm, NOT mktime; node is PDT so mktime is
+  off by the DST hour).
+- USER DECISIONS (this session):
+  * lambda-sweep: HONOR the gate — DROPPED, report the pre-registered negative. Override
+    declined. The {0.5,0.8,0.9,0.95} wrappers stay unlaunched. FINAL.
+  * Proposal PDF push: approved as PRIVATE. BLOCKED — RainyFields/Agentic-RL-CA is
+    currently PUBLIC (unauth GitHub API GET=200, "private":false). No gh CLI + no token on
+    this node -> cannot flip visibility from here (SSH push works, auth=RainyFields).
+    Awaiting user to set the repo Private (Settings->Change visibility) or supply a token;
+    then `git push -u origin agentic-rl-ca` (52M). WILL NOT push to a public repo — history
+    carries cluster/HDFS paths.
+  * Zombie workers: approved kill (done, above).
