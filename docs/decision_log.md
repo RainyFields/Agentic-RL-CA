@@ -507,3 +507,35 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
     then `git push -u origin agentic-rl-ca` (52M). WILL NOT push to a public repo — history
     carries cluster/HDFS paths.
   * Zombie workers: approved kill (done, above).
+
+## 2026-07-18 23:26 PDT (4 runs COMPLETE post-recovery — RQ3 triad + GiGPO/GRPO now at 3/2 seeds; home-disk cleanup)
+- RECOVERY OUTCOME: all 6 relaunches ran clean through the ~31h gap; 4 reached 500/500 with
+  NO further incidents (disk stayed healthy, workers auto-released on completion — no new
+  zombie leak). FINALS (val_2048 macro-EM; base 0.2246):
+    * gigpo-s1      0.398  (clip 0.000) -> GiGPO band {s0 0.396, s1 0.398}, mean 0.397
+    * token-grpo-s1 0.399  (clip 0.000) -> token-GRPO band {s0 0.391, s1 0.399}, mean 0.395
+    * b1-s2         0.372  (clip 0.019) -> B1 3-seed band {0.352, 0.318, 0.372}, mean 0.347
+    * b1sh-s2       0.340  (clip 0.007) -> B1-shuffle 3-seed band {0.356, 0.363, 0.340}, mean 0.353
+- RQ3 READOUT NOW AT 3 SEEDS EACH (the pre-registered comparison):
+    B1-shuffle 0.353  >=  B1 0.347  >  B0(turn-PPO) 0.332   (B0 band {0.343,0.330,0.324})
+  Per the pre-registered rule "B1 ~= B1-shuffle > B0 => density/optimization effect, not
+  supervision": CONFIRMED at 3 seeds. Both B-arms beat sparse B0 (a small density benefit),
+  but the SHUFFLED placebo >= the real content signal — the privileged answer-exposure
+  content adds nothing over its shuffle at this 4-turn horizon. (B1 variance is wide,
+  0.318-0.372; shuffle tighter 0.340-0.363 — note for the report.) Crystallized finding #2
+  solidified. Finding #1 also solidified: critic-free group-relative (GiGPO 0.397, GRPO
+  0.395) beats every critic/step-reward arm by ~4-6 pts.
+- STILL RUNNING (8-turn + hcapo, slow): b0-8t ~492/500 (val 0.360), hcapo ~474/500
+  (val 0.356, clip 0.753 = full truncation collapse, the intended key negative), b1-8t
+  ~429/500 (val 0.341). ETAs ~1h / ~3h / ~10h. Monitor bsrjzy45p (step-freeze-aware) watching.
+- HOME-DISK CLEANUP (user request; /home was the 07-17 hang root cause): 19G->31G free.
+  Cleared rebuildable caches (uv/npm/pip/nvm ~5.6G, HF-dataset Arrow cache + vllm compile
+  cache — jobs read PARQUET not the Arrow cache, base model on HDFS, so safe). Archived to
+  HDFS then deleted local: external/alfworld_dl (2.3G SP6 game data) + outputs/{search_toy_*,
+  eval_full*} (866M toy/eval results) -> /mnt/hdfs/mlsys/users/xiaoxuan/archive/
+  2026-07-18_home_cleanup/{alfworld_dl.tar, outputs_toy_eval.tar} (copy verified by file-count
+  before delete). KEPT (in-use): envs 17G, tools/mamba 4.8G (co-located retriever conda env),
+  outputs/retriever (active). ~13G more (deleted HF Arrow cache held open by a remote worker
+  mmap) auto-frees when the 3 running jobs end. POST-JOB cleanup candidates: Agentic-RL-CA/
+  wandb completed-run dirs (1.9G), external/verl-agent (1G SP6 fork, venv verl is editable
+  from Agentic-RL-CA/verl not external — safe to archive).
