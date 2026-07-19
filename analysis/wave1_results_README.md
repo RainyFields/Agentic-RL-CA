@@ -1,4 +1,4 @@
-# Wave-1/2 results — consolidated finals (as of 2026-07-19 02:44 PDT)
+# Wave-1/2 results — consolidated finals (ALL 7 RUNS COMPLETE, 2026-07-19 08:06 PDT)
 
 Backing data: `wave1_results.csv`. Metric = **val_2048 macro-EM** (fixed-budget FINAL ckpt @500,
 the pre-registered primary comparison). Base model = 0.2246. Provenance: per-run launch logs in
@@ -17,7 +17,7 @@ trail in `docs/decision_log.md`. **1 run still in flight**: `b1_8t` s0 (8-turn B
 | HCAPO | critic-free, per-turn amplifier | 0.357 (s0) | 0.357 | **collapse, clip 0.754** |
 | token-PPO | critic, per-token | 0.315 (s0) | 0.315 | persistent drift |
 | **8-turn** B0 | critic, per-turn | 0.368 (s0) | 0.368 | clean-ish (0.037) |
-| **8-turn** B1 | critic + step reward | PENDING | — | drifting (clip 0.23 @457) |
+| **8-turn** B1 | critic + step reward | 0.343 (s0) | 0.343 | drift (peak 0.362 → 0.343, clip 0.268) |
 
 ## Crystallized findings (current status)
 
@@ -33,12 +33,20 @@ trail in `docs/decision_log.md`. **1 run still in flight**: `b1_8t` s0 (8-turn B
 4. **F8a (λ-gate negative):** critic one-step ΔV uncorrelated with MC continuation-value ΔV̂
    (pooled Spearman ≈ 0, 0/3 pass) → λ-sweep pre-registered DROPPED. The turn-critic is only a weak
    trajectory baseline (vf_explained_var ≈ 0.28), explaining turn-PPO < GRPO/GiGPO.
-5. **RQ4 (horizon), partial:** 8-turn B0 = 0.368 > 4-turn B0 mean 0.332 — the longer horizon lifts
-   the baseline itself. The B1-vs-B0 horizon×content readout awaits `b1_8t` (in flight). Caveat:
-   no 8-turn shuffle control was run, so an 8-turn B1>B0 gap cannot separate content from density.
+5. **RQ4 (horizon), COMPLETE:** 8-turn B0 = 0.368 > 4-turn B0 mean 0.332 — the longer horizon lifts
+   the baseline itself. But **8-turn B1 = 0.343 < 8-turn B0 = 0.368**: the privileged content signal
+   does NOT help at longer horizon, and the step-200 early hint (B1 0.358 > B0 0.338) did **not**
+   hold to the final. So the marginal value of progress supervision does not grow with horizon — it
+   is ≤0 here, with B1's added reward density driving clip drift (0.15→0.27) and mild degradation
+   (peak 0.362 → 0.343). Caveat: no 8-turn shuffle control was run, so B1<B0 at 8t cannot fully
+   separate content from density — but the direction (no benefit, possible harm) is unambiguous and
+   consistent with the 4-turn shuffle result.
 
-## Pending for the report
-- `b1_8t` final (last run) → completes the 8-turn pair.
+## Status: ALL 7 TRAINING RUNS COMPLETE (2026-07-19 08:06 PDT)
+Fleet idle, /home recovered to 43G. Remaining before the paper (not blockers for the Wave-1 report
+narrative, which is fully determined above):
 - Full-set greedy EM (51,713 rows) on pre-registered FINAL checkpoints — Wave-4 GPU task (only
   token-GRPO s0 done so far: macro 0.3951 / micro 0.4433 / single 0.4993 / multi 0.3170).
 - Per-dataset (single- vs multi-hop) breakdown for the RQ3/RQ4 subgroup readouts.
+- Learning-curve figures need W&B history stitching across 2 run-IDs per relaunched experiment
+  (frozen pre-hang run + relaunch); see decision_log 2026-07-17 for the run-ID pairs.

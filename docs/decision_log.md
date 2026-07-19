@@ -539,3 +539,26 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   mmap) auto-frees when the 3 running jobs end. POST-JOB cleanup candidates: Agentic-RL-CA/
   wandb completed-run dirs (1.9G), external/verl-agent (1G SP6 fork, venv verl is editable
   from Agentic-RL-CA/verl not external — safe to archive).
+
+## 2026-07-19 08:06 PDT (WAVE-1/2 TRAINING COMPLETE — all 7 runs done; fleet idle; disk fully recovered)
+- b1-8t (8-turn B1, the last run) DONE: final val_2048 macro-EM 0.343 (peak 0.362 then drifted,
+  clip 0.15->0.27). Fleet now 0 workers. /home recovered 31G->43G (the deleted HF Arrow cache
+  handles closed when the last jobs exited — the 07-18 cleanup fully realized: 19G->43G).
+- RQ4 (horizon) COMPLETE + decisive: 8-turn B0 0.368 > 8-turn B1 0.343. The privileged content
+  signal does NOT help at longer horizon; the step-200 early hint (b1-8t 0.358 > b0-8t 0.338) did
+  NOT hold to the final. Combined with 4-turn (shuffle 0.353 >= B1 0.347 > B0 0.332), the thesis is
+  robust: privileged answer-exposure supervision adds no value over outcome-only; its 4-turn edge
+  over sparse B0 is pure density (shuffle matches it) and at 8-turn even that vanishes/reverses
+  (B1's added density drives clip drift + mild degradation). Caveat logged: no 8-turn shuffle
+  control, so 8t B1<B0 can't fully isolate content vs density — but direction is unambiguous.
+- FULL FINALS TABLE (val_2048 macro-EM; consolidated in analysis/wave1_results.csv + _README.md):
+    4-turn: GiGPO 0.397 (2s) | token-GRPO 0.395 (2s) | B1-shuffle 0.353 (3s) | B1 0.347 (3s) |
+            turn-PPO/B0 0.332 (3s) | HCAPO 0.357/clip0.754 | token-PPO 0.315
+    8-turn: B0 0.368 | B1 0.343
+- NEXT DELIVERABLE = Wave-1 report (experiment-report standard: PDF + rerunnable script + assets +
+  filled survey checklist per docs/CREDIT_ASSIGNMENT_CHECKLIST.md). MUST include: RQ3 shuffle
+  result (3 seeds), the truncation tripwire (all critic arms + HCAPO collapse), the F8a lambda-gate
+  negative, and the RQ4 horizon result. Data all consolidated + committed. Figures F2 (learning
+  curves) need W&B history stitched across 2 run-IDs per relaunched experiment (pairs in the
+  2026-07-17 entry). Open: full-set eval on FINAL ckpts (Wave-4 GPU) + proposal push (repo still
+  PUBLIC — awaiting user to set private).

@@ -16,4 +16,4 @@ b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s0,0.356,<=0.006,the KEY c
 b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s1,0.363,~0.00,clip clean throughout
 b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s2,0.340,0.007,resumed ckpt350
 turn_ppo_b0_8t,critic,per-turn,RQ4,8,s0,0.368,0.037,8-turn horizon stress (B0); NB > 4-turn B0 mean 0.332
-b1_8t,critic+step-reward,per-turn,RQ4,8,s0,PENDING,PENDING,8-turn horizon stress (B1); running ~457/500 clip drifting 0.23, ETA ~08:30 07-19
+b1_8t,critic+step-reward,per-turn,RQ4,8,s0,0.343,0.268,8-turn horizon stress (B1); peak 0.362 then drifted; NB 8-turn B1 0.343 < 8-turn B0 0.368 (content does NOT help at horizon)
