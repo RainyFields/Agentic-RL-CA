@@ -1,0 +1,19 @@
+method,arm_family,credit_granularity,rq,horizon_turns,seed,final_val2048_macro_em,final_clip_ratio,notes
+base_qwen3_1.7b,untrained,none,ref,4,-,0.2246,-,base model reference (val_2048 macro-EM)
+token_ppo,critic,per-token,RQ1,4,s0,0.315,0.05-0.16,persistent clip drift post-resume; weakest arm
+turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s0,0.343,drift,B0 sparse outcome-only (=RQ1 turn-PPO arm)
+turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s1,0.330,drift,
+turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s2,0.324,0.06-0.15,mid-run clip drift from ~step270
+token_grpo,critic-free,group-trajectory,RQ2,4,s0,0.391,~0.00,full-set macro 0.3951/micro 0.4433 (single 0.4993 multi 0.3170); clip clean
+token_grpo,critic-free,group-trajectory,RQ2,4,s1,0.399,0.005,clip clean
+gigpo,critic-free,group-turn,RQ2,4,s0,0.396,~0.00,peak 0.410 @350; clip clean; BEST arm
+gigpo,critic-free,group-turn,RQ2,4,s1,0.398,0.000,clip clean
+hcapo,critic-free,per-turn-amplifier,RQ2,4,s0,0.357,0.754,TRUNCATION COLLAPSE (length runaway); EM plateaus ~0.35 while clip->0.75
+b1,critic+step-reward,per-turn,RQ3,4,s0,0.352,mild-osc,privileged answer-exposure step reward w_step=0.2
+b1,critic+step-reward,per-turn,RQ3,4,s1,0.318,0.06-0.21,severe late clip drift; collapsed
+b1,critic+step-reward,per-turn,RQ3,4,s2,0.372,0.019,resumed ckpt450 post 07-17 hang
+b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s0,0.356,<=0.006,the KEY control (placebo: same rewards, shuffled timing)
+b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s1,0.363,~0.00,clip clean throughout
+b1_shuffle,critic+step-reward,per-turn-shuffled,RQ3,4,s2,0.340,0.007,resumed ckpt350
+turn_ppo_b0_8t,critic,per-turn,RQ4,8,s0,0.368,0.037,8-turn horizon stress (B0); NB > 4-turn B0 mean 0.332
+b1_8t,critic+step-reward,per-turn,RQ4,8,s0,PENDING,PENDING,8-turn horizon stress (B1); running ~457/500 clip drifting 0.23, ETA ~08:30 07-19
