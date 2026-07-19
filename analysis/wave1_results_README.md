@@ -10,7 +10,7 @@ trail in `docs/decision_log.md`. **1 run still in flight**: `b1_8t` s0 (8-turn B
 | arm | credit assignment | seeds | mean | clip health |
 |---|---|---|---|---|
 | **GiGPO** | critic-free, group-relative, turn | 0.396, 0.398 | **0.397** | clean (~0) |
-| **token-GRPO** | critic-free, group-relative, trajectory | 0.391, 0.399 | **0.395** | clean (~0) |
+| **token-GRPO** | critic-free, group-relative, trajectory | 0.389, 0.399 | **0.394** | clean (~0) |
 | B1-shuffle | critic + shuffled step reward (placebo) | 0.356, 0.363, 0.340 | 0.353 | clean |
 | B1 | critic + privileged step reward | 0.352, 0.318, 0.372 | 0.347 | drift; s1 collapsed |
 | turn-PPO (B0) | critic, per-turn | 0.343, 0.330, 0.324 | 0.332 | drift, all seeds |
@@ -21,7 +21,7 @@ trail in `docs/decision_log.md`. **1 run still in flight**: `b1_8t` s0 (8-turn B
 
 ## Crystallized findings (current status)
 
-1. **Critic-free group-relative wins.** GiGPO 0.397 / GRPO 0.395 beat every critic and hand-designed
+1. **Critic-free group-relative wins.** GiGPO 0.397 / GRPO 0.394 beat every critic and hand-designed
    step-reward arm by ~4–6 pts. Solidified at 2 seeds each.
 2. **RQ3 — content adds nothing over its shuffle (3 seeds each):**
    `B1-shuffle 0.353 ≥ B1 0.347 > B0 0.332`. Both B-arms beat sparse B0 (small density benefit),

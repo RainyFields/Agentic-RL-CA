@@ -4,7 +4,7 @@ token_ppo,critic,per-token,RQ1,4,s0,0.315,0.05-0.16,persistent clip drift post-r
 turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s0,0.343,drift,B0 sparse outcome-only (=RQ1 turn-PPO arm)
 turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s1,0.330,drift,
 turn_ppo_b0,critic,per-turn,RQ1/RQ3,4,s2,0.324,0.06-0.15,mid-run clip drift from ~step270
-token_grpo,critic-free,group-trajectory,RQ2,4,s0,0.391,~0.00,full-set macro 0.3951/micro 0.4433 (single 0.4993 multi 0.3170); clip clean
+token_grpo,critic-free,group-trajectory,RQ2,4,s0,0.389,~0.00,FINAL@500 (0.391 was step-475 peak); full-set macro 0.3951/micro 0.4433 (single 0.4993 multi 0.3170); clip clean
 token_grpo,critic-free,group-trajectory,RQ2,4,s1,0.399,0.005,clip clean
 gigpo,critic-free,group-turn,RQ2,4,s0,0.396,~0.00,peak 0.410 @350; clip clean; BEST arm
 gigpo,critic-free,group-turn,RQ2,4,s1,0.398,0.000,clip clean

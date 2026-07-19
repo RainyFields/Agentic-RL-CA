@@ -1,0 +1,18 @@
+arm,label,family,horizon,seed_run,final_val2048_macro_em,final_clip_ratio,final_avg_turns
+gigpo,GiGPO,critic-free group-relative (turn),4,gigpo_s0,0.3960,0.0000,3.538
+gigpo,GiGPO,critic-free group-relative (turn),4,gigpo_s1,0.3980,0.0000,3.991
+token_grpo,token-GRPO,critic-free group-relative (traj),4,token_grpo_s0,0.3890,0.0000,3.426
+token_grpo,token-GRPO,critic-free group-relative (traj),4,token_grpo_s1,0.3990,0.0000,3.527
+hcapo,HCAPO,critic-free per-turn amplifier,4,hcapo_s0,0.3570,0.7540,3.977
+b1_shuffle,B1-shuffle,critic + shuffled step reward,4,b1_shuffle_s0,0.3560,0.0030,4.000
+b1_shuffle,B1-shuffle,critic + shuffled step reward,4,b1_shuffle_s1,0.3630,0.0020,4.000
+b1_shuffle,B1-shuffle,critic + shuffled step reward,4,b1_shuffle_s2,0.3400,0.0070,3.996
+b1,B1,critic + privileged step reward,4,b1_s0,0.3520,0.0550,3.003
+b1,B1,critic + privileged step reward,4,b1_s1,0.3180,0.1880,2.885
+b1,B1,critic + privileged step reward,4,b1_s2,0.3720,0.0190,3.109
+b0,turn-PPO (B0),"critic, per-turn",4,turn_ppo_b0_s0,0.3430,0.0350,2.826
+b0,turn-PPO (B0),"critic, per-turn",4,turn_ppo_b0_s1,0.3300,0.0910,2.686
+b0,turn-PPO (B0),"critic, per-turn",4,turn_ppo_b0_s2,0.3240,0.1370,2.897
+token_ppo,token-PPO,"critic, per-token",4,token_ppo_s0,0.3150,0.1010,2.534
+b0_8t,"turn-PPO (B0), 8-turn",8-turn,8,turn_ppo_b0_8t_s0,0.3680,0.0370,4.381
+b1_8t,"B1, 8-turn",8-turn,8,b1_8t_s0,0.3430,0.2680,3.636

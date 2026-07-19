@@ -562,3 +562,34 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   curves) need W&B history stitched across 2 run-IDs per relaunched experiment (pairs in the
   2026-07-17 entry). Open: full-set eval on FINAL ckpts (Wave-4 GPU) + proposal push (repo still
   PUBLIC — awaiting user to set private).
+
+## 2026-07-19 13:00 PDT (WAVE-1 REPORT BUILT — experiment-report-standard, all deliverables)
+- Built `docs/reports/2026-07-19_wave1_report/`: report.pdf (10pp, A4) + rerunnable pipeline
+  (assets/{extract_metrics,build_figures,build_f8a,build_taxonomy}.py) + assets/{csv/*, figs/*
+  (png+pdf), finals.csv, figs/README.md} + top-level README. Covers all 5 findings + filled
+  survey checklist (Table 11 + Table 12 scorecard, all 3 systemic gaps closed) + annotated
+  per-method trajectory appendix (trained token-GRPO full-set rollout a1c80bb0, HotpotQA EM=1).
+  8 figures: F1 taxonomy, F2 learning curves (3 panels RQ1/2/RQ3/RQ4), headline final bars,
+  RQ3 density, RQ4 horizon, tripwire, reward+turns, F8a credit-alignment.
+- PIPELINE = launch-log extraction (NOT W&B stitching): extract_metrics.py lists pre-hang +
+  post-hang-relaunch logs per run in chronological order, last-occurrence-per-step dedupes the
+  resume overlap. All 17 runs extract to 500/500 w/ 21 aligned evals (0..500 @25). Simpler &
+  self-contained vs the W&B 2-run-ID stitch the handoff flagged. finals.csv (per-seed @500) is
+  generated straight from the step-500 CSV rows — no hand-entered bar numbers.
+- RECONCILIATION (pre-registered rule enforced): token-GRPO s0 FINAL@500 = 0.389, NOT 0.391
+  (0.391 was the step-475 peak; every other arm's consolidated final already matched @500 exactly).
+  Fixed analysis/wave1_results.csv + _README (token-GRPO mean 0.395 -> 0.394). NO finding or
+  ordering changes: GiGPO 0.397 > token-GRPO 0.394 still lead by 4-6 pts; full-set anchor 0.3951
+  now within ~0.006 of the 0.389 val proxy (was ~0.004).
+- shuffle_active_frac narrative crystallized for the report: 0.035 on BASE dist (fired plan B ->
+  8-turn REQUIRED), then INVERTED during RL to ~0.97-1.0 as policy searched more -> the 4-turn
+  control WAS fully discriminating for the finals (density reading doesn't hinge on a degenerate
+  control). GPU-hours reported: ~4.7k training (17 runs, wall-clock measured launch->mtime on
+  clean runs: 4t critic-free ~29-30h, 4t critic ~33-37h, 8t ~45h, x8 GPU) / ~5.5k total incl.
+  failed-attempt reruns + F8a diag + full-set eval + Wave-0/toy gate.
+- Restored from HDFS archive (outputs_toy_eval.tar) for the report: token-GRPO s0 full-set
+  paper_table (per-dataset EM: nq .445 tqa .602 popqa .450 hotpot .396 2wiki .378 musique .142
+  bamboogle .352; single .499 / multi .317) + base-model full-set + the eval trajectory example.
+- COMMITTED to branch agentic-rl-ca (local). Push STILL BLOCKED — repo PUBLIC (history carries
+  cluster/HDFS paths); awaiting user to set Private or supply a token. NEXT: full-set evals on the
+  remaining FINAL ckpts (Wave-4 GPU, needs worker launch + user OK) -> per-arm per-dataset dEM.
