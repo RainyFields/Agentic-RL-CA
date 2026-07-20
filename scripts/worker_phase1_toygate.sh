@@ -77,7 +77,11 @@ EOF
 bash "$REPO/scripts/retriever_serve.sh" || { echo "retriever failed"; exit 1; }
 
 # ---- 4. base-model Wave-0 gate eval on val_2048 (once per label, greedy) ----
-if [ -f "$REPO/outputs/eval_full/$BASE_LABEL/paper_table.json" ]; then
+# SKIP_BASE_EVAL=1 (wave-2+): the base floor is already established; toy-gating new
+# algorithm code paths doesn't need it.
+if [ "${SKIP_BASE_EVAL:-0}" = "1" ]; then
+  echo "[worker] SKIP_BASE_EVAL=1 — skipping base-model eval"
+elif [ -f "$REPO/outputs/eval_full/$BASE_LABEL/paper_table.json" ]; then
   echo "[worker] $BASE_LABEL eval already done — skipping"
 else
   VAL_FILES="$REPO/data/searchR1_processed_direct/val_2048.parquet" EVAL_VAL_BATCH=1024 \
@@ -85,8 +89,9 @@ else
     || { echo "base-model val failed"; exit 1; }
 fi
 
-# ---- 5. toy gate (7 conditions) ----
-PROTOCOL="$PROTOCOL" TOY_OUT="$TOY_OUT" bash "$REPO/scripts/run_toy_gate.sh" || { echo "toy gate failed"; exit 1; }
+# ---- 5. toy gate (default: all 7 conditions; TOYGATE_CONDS="a b" restricts) ----
+# shellcheck disable=SC2086
+PROTOCOL="$PROTOCOL" TOY_OUT="$TOY_OUT" bash "$REPO/scripts/run_toy_gate.sh" ${TOYGATE_CONDS:-} || { echo "toy gate failed"; exit 1; }
 
 status=DONE
 echo "==== Phase1 worker complete $(date -u) ===="

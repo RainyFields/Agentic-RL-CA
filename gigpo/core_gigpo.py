@@ -171,6 +171,36 @@ def compute_gigpo_outcome_advantage(token_level_rewards: torch.Tensor,
     return scores, scores
 
 
+def compute_turn_grpo_outcome_advantage(step_rewards: torch.Tensor,
+                                        response_mask: torch.Tensor,
+                                        anchor_obs: np.array,
+                                        index: np.array,
+                                        epsilon: float = 1e-6,
+                                        mode: str = "mean_std_norm",
+                                        enable_similarity: bool = False,
+                                        similarity_thresh: float = 0.95,
+                                        ):
+    """Agentic-RL-CA Wave 2: turn-GRPO = GiGPO's anchor-state step component ONLY.
+
+    Critic-free, turn-granularity group-relative advantage: per-turn reward-to-go
+    (compute_step_discounted_returns) normalized within anchor-state groups and
+    broadcast to that turn's response tokens. No episode term — the ablation ladder is
+    token_grpo (episode term) / turn_grpo (step term) / gigpo (sum of both). A turn
+    whose anchor state is unique in the batch forms a singleton group and gets
+    advantage 0 (no counterfactual sibling).
+    """
+    if mode == "mean_std_norm":
+        remove_std = False
+    elif mode == "mean_norm":
+        remove_std = True
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    step_group_uids = build_step_group(anchor_obs, index, enable_similarity, similarity_thresh)
+    step_advantages = step_norm_reward(step_rewards, response_mask, step_group_uids, epsilon, remove_std)
+    return step_advantages, step_advantages
+
+
 def episode_norm_reward(token_level_rewards: torch.Tensor,
                         response_mask: torch.Tensor,
                         index: np.array,

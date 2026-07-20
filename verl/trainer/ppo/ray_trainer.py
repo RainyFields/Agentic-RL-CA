@@ -96,6 +96,7 @@ class AdvantageEstimator(str, Enum):
     RLOO = "rloo"
     GRPO_PASSK = "grpo_passk"
     GiGPO = 'gigpo'
+    TURN_GRPO = 'turn_grpo'  # Wave 2: critic-free turn-granularity group-relative (GiGPO step term only)
     GAE_TURN = 'gae_turn'  # true turn-level PPO: learned critic + cross-turn GAE (SP3)
     HCAPO = 'hcapo'        # SP4: hindsight credit assignment, value-free (macro GRPO + micro hindsight)
     CARL = 'carl'          # Agentic-RL-CA Phase 2b: criticality-aware tree rollouts (arXiv 2512.04949), value-free
@@ -362,6 +363,18 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
+    elif adv_estimator == AdvantageEstimator.TURN_GRPO:
+        advantages, returns = core_gigpo.compute_turn_grpo_outcome_advantage(
+            step_rewards=data.batch['step_rewards'],
+            response_mask=data.batch['response_mask'],
+            anchor_obs=data.non_tensor_batch['anchor_obs'],
+            index=data.non_tensor_batch['uid'],
+            mode=gigpo_mode,
+            enable_similarity=gigpo_enable_similarity,
+            similarity_thresh=gigpo_similarity_thresh,
+            )
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
     elif adv_estimator == AdvantageEstimator.GAE_TURN:
         # SP3: true turn-level PPO — cross-turn GAE over per-turn scalar V(s_t) from the critic.
         advantages, returns = core_turn_ppo.compute_gae_turn_advantage_return(
@@ -565,6 +578,7 @@ class RayPPOTrainer:
             AdvantageEstimator.RLOO,
             AdvantageEstimator.REINFORCE_PLUS_PLUS_BASELINE,
             AdvantageEstimator.GiGPO,
+            AdvantageEstimator.TURN_GRPO,
             AdvantageEstimator.HCAPO,
             AdvantageEstimator.CARL,
         ]:
@@ -1269,7 +1283,21 @@ class RayPPOTrainer:
                         metrics.update(_shuffle_metrics)
                     metrics.update(step_reward_stats(batch))
 
-                    if self.config.algorithm.adv_estimator == AdvantageEstimator.GiGPO:
+                    # Agentic-RL-CA Wave 2 (turn_ppo_redist): random Dirichlet redistribution
+                    # of the terminal outcome across the trajectory's turns. Same placement
+                    # contract as the shuffle hook above.
+                    if self.config.algorithm.get('reward_redistribute', False):
+                        assert not self.config.algorithm.get('step_reward_shuffle', False), (
+                            "reward_redistribute and step_reward_shuffle are mutually exclusive"
+                        )
+                        from credit_assignment.reward_redistribute import redistribute_terminal_reward
+                        batch, _redist_metrics = redistribute_terminal_reward(
+                            batch,
+                            seed=int(self.config.algorithm.get('reward_redistribute_seed', 1234)),
+                        )
+                        metrics.update(_redist_metrics)
+
+                    if self.config.algorithm.adv_estimator in (AdvantageEstimator.GiGPO, AdvantageEstimator.TURN_GRPO):
                         step_rewards_tensor = core_gigpo.compute_step_discounted_returns(
                             batch=batch,
                             gamma=self.config.algorithm.gamma

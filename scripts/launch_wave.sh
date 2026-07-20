@@ -32,7 +32,10 @@ mkdir -p "$LAUNCH_DIR" "$REPO_DIR/scripts/wave_wrappers"
 
 for run in "${RUNS[@]}"; do
   cond="${run%%:*}"; seed="${run##*:}"
-  alias="arlca-${cond//_/-}-s${seed}"
+  # ALIAS_TAG (e.g. "250") namespaces alias + wrapper filename so a new wave can reuse a
+  # cond:seed without overwriting the previous wave's wrapper (a live worker crash-resume
+  # re-execs its wrapper — overwriting one would silently switch its protocol).
+  alias="arlca-${ALIAS_TAG:+${ALIAS_TAG}-}${cond//_/-}-s${seed}"
   wrapper="$REPO_DIR/scripts/wave_wrappers/.${alias}.sh"
   cat > "$wrapper" <<EOF
 #!/bin/bash

@@ -618,3 +618,32 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   Fix: request 3-GPU (diag only needs ~1 GPU vLLM + retriever) -> scheduled + ran immediately.
   LESSON: for small offline jobs, request few GPUs; 8-GPU needs a whole free node. Auto-retry loop
   (diag_autoretry.sh) added for "keep requesting until a slot holds".
+## 2026-07-20 ~14:00 PDT (Wave-2 implemented: non-thinking @512 7-arm re-run, s0, 250 steps)
+- USER-LOCKED design: re-run the credit-assignment comparison on the ORIGINAL Search-R1/
+  verl-agent setting (non-thinking, MAX_RESPONSE_LENGTH=512, CUDA graphs already on) to remove
+  the think-length runaway confound. 7 arms: turn_ppo_b0, token_ppo, token_grpo,
+  turn_grpo (NEW), gigpo, b1, turn_ppo_redist (NEW). s0 only, TOTAL_STEPS=250
+  (configs/protocol_4turn_250.sh -> EXP names *_4turn_250_s0).
+- NEW turn_grpo estimator = GiGPO's anchor-state step component ONLY (no episode term) ->
+  ablation ladder token_grpo (episode) / turn_grpo (step) / gigpo (both). ~10-line
+  compute_turn_grpo_outcome_advantage in gigpo/core_gigpo.py reusing build_step_group +
+  step_norm_reward; enum/critic-free/step-rewards-gate/dispatch wired in ray_trainer.py;
+  cond_turn_grpo.sh mirrors cond_gigpo.sh knobs (mean_std_norm, similarity 0.9).
+- NEW turn_ppo_redist arm: terminal outcome R redistributed across ALL the trajectory's turns
+  via per-traj Dirichlet(1,..,1) (r_t = w_t*R, sum=R; terminal keeps only its share);
+  driver-side credit_assignment/reward_redistribute.py patterned on b1_shuffle (crc32^seed
+  RNG, mass asserts, redist/* metrics), hook in ray_trainer.py next to the shuffle hook
+  (+algorithm.reward_redistribute=True), mutually exclusive with step_reward_shuffle;
+  no-env_done trajectories skipped (watch redist/n_no_terminal). gae_turn consumes.
+- ALL ray_trainer.py changes are condition-gated (safe for the running 4B wave's
+  crash-resumes: gigpo behavior unchanged, new hook default-off, enum addition inert).
+- launch_wave.sh: ALIAS_TAG namespacing added (wave-2 uses ALIAS_TAG=250) so wrappers/aliases
+  can't overwrite Wave-1 wrappers (live-worker crash-resume hazard).
+- Unit tests: credit_assignment/tests/test_turn_grpo.py + test_reward_redistribute.py
+  (21 passed incl. existing shaping tests; identity turn_grpo == gigpo - episode term locked).
+- TOY GATE launched 14:00 PDT (worker arlca-w2-toygate, wrapper .arlca-w2-toygate.sh:
+  PROTOCOL=4turn TOY_OUT=search_toy_wave2 SKIP_BASE_EVAL=1 conds turn_grpo+turn_ppo_redist;
+  worker_phase1_toygate.sh gained TOYGATE_CONDS/SKIP_BASE_EVAL env knobs). HARD GATE: user
+  reviews dumps before the 7-run fleet launch (CONFIRM_WORKER=1 PROTOCOL=4turn_250
+  ALIAS_TAG=250 launch_wave.sh custom ...). NOTE 8-GPU scheduling may queue behind the 4B
+  wave (node fragmentation lesson above).
