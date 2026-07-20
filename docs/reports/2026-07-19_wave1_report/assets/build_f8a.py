@@ -88,3 +88,40 @@ ax.set_title(f"(b) Credit alignment $\\approx$ 0 at every checkpoint\n"
              f"0/{len(GATE['gate_labels'])} gate ckpts pass $\\Rightarrow$ $\\lambda$-sweep {verdict}", fontsize=11)
 finalize_figure(fig, os.path.join(FIGS, "fig_f8a_credit_alignment.png"))
 print("F8a figure written; scatter n_pairs =", len(pairs), "verdict =", verdict)
+
+# ============ Fig: matched assigned-advantage alignment (GiGPO vs critic) ============
+# Apples-to-apples RQ2 readout: each method's ASSIGNED per-turn advantage A_t vs the ideal
+# dV-hat_t, same terminal-appended pairing (method_align / critic_align_matched). Contrasted
+# with the critic VALUE-DELTA (the lambda-gate quantity) to separate two questions:
+#   value-delta ~0  -> the critic can't be bootstrapped through (lambda-sweep dropped);
+#   advantage  ~0.2 -> but the assigned advantage is weakly outcome-aligned for BOTH methods,
+#                      and GiGPO is NOT better than the critic -> GiGPO's EM win is variance/
+#                      stability, not superior per-turn credit.
+GA = json.load(open(os.path.join(REPO, "outputs", "diag_methods", "gigpo_align.json")))["gigpo_1p7b_s0_step500"]
+CM = json.load(open(os.path.join(DIAG, "critic_align_matched.json")))
+ROWS = [  # (label, colorkey, stats, is_delta)
+    ("critic value-$\\Delta$  $V(s_{t+1}){-}V(s_t)$\n(s1@500, the $\\lambda$-gate quantity)", "neutral", GATE["per_label"]["b0_s1_step500"], True),
+    ("GiGPO advantage $A_t$  (s0@500)", "teal", GA, False),
+    ("critic advantage $R{-}V(s_t)$  (s0@500)", "blue_main", CM["b0_s0_step500"], False),
+    ("critic advantage $R{-}V(s_t)$  (s1@500)", "blue_main", CM["b0_s1_step500"], False),
+]
+fig, ax = plt.subplots(figsize=(9.6, 3.9))
+ys = list(range(len(ROWS)))[::-1]
+ax.axvspan(0.5, 1.0, color="#e8f3e8", zorder=0)
+ax.text(0.61, 1.5, "strong\nalignment", color="#4a7a4a", fontsize=8.5, va="center", ha="center")
+for (lab, ck, s, is_delta), y in zip(ROWS, ys):
+    rho = s["pooled_spearman"]; lo, hi = s["pooled_spearman_ci95"]
+    c = PALETTE[ck]; mk = "s" if is_delta else "o"
+    ax.plot([lo, hi], [y, y], color=c, lw=3, solid_capstyle="round", alpha=0.9)
+    ax.plot(rho, y, mk, color=c, markersize=10, markeredgecolor="black", markeredgewidth=1.1)
+    ax.text(hi + 0.012, y, f"$\\rho$={rho:+.2f}  rank={s['pairwise_ranking_accuracy']:.2f}",
+            va="center", fontsize=9, color="#333")
+ax.axvline(0, color="#888", lw=1.2, ls="--")
+ax.set_yticks(ys); ax.set_yticklabels([r[0] for r in ROWS], fontsize=9.3)
+ax.set_xlim(-0.15, 0.72)
+ax.set_xlabel(r"pooled Spearman $\rho$(assigned credit, $\Delta\hat{V}_t$)  with bootstrap 95% CI")
+ax.set_title("Matched credit-alignment: the critic's VALUE can't track progress ($\\rho{\\approx}0$),\n"
+             "yet both ASSIGNED advantages are only weakly outcome-aligned ($\\rho{\\approx}0.2$) — GiGPO not $>$ critic",
+             fontsize=10.5)
+finalize_figure(fig, os.path.join(FIGS, "fig_credit_align_matched.png"))
+print(f"matched fig: GiGPO rho={GA['pooled_spearman']:+.3f}  critic-s0 rho={CM['b0_s0_step500']['pooled_spearman']:+.3f}")

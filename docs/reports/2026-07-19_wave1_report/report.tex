@@ -48,7 +48,10 @@ per-turn credit: HCAPO's per-turn amplifier collapses (clip $\to0.75$, no EM gai
 arm drifts, and everything group-relative-and-flat stays clean. (4) A Monte-Carlo
 \emph{credit-alignment diagnostic} shows the turn critic's one-step value delta is uncorrelated
 with true continuation-value progress (pooled Spearman $\approx0$), so the pre-registered
-$\lambda$-bootstrapping sweep was dropped as a reported negative. (5) At an \emph{8-turn horizon}
+$\lambda$-bootstrapping sweep was dropped as a reported negative; a matched recompute adds that
+neither the critic's nor GiGPO's \emph{assigned} advantage is more than weakly outcome-aligned
+(GiGPO \emph{not} better than the critic), so the group-relative win is variance/stability, not
+credit fidelity. (5) At an \emph{8-turn horizon}
 the longer budget lifts the sparse baseline (B0 $0.332\to0.368$) but the privileged content still
 does not help (8-turn B1 $0.343 <$ 8-turn B0 $0.368$). Together these close all three of the CA
 survey's systemic reporting gaps (GPU-hours, a compute-controlled baseline, and variance) in one
@@ -280,7 +283,7 @@ the length runaway yields no accuracy, it is pure degeneration.}
 \label{fig:trip}
 \end{figure}
 
-\subsection{Finding 4 (F8a) --- the critic assigns credit uncorrelated with true progress}
+\subsection{Finding 4 (F8a) --- the critic's value can't be bootstrapped, and no method recovers strong per-turn credit}
 
 To test H2 quantitatively --- does a method assign \emph{correct} intermediate credit, not just
 train a better policy? --- we ran the pre-registered credit-alignment diagnostic on the turn
@@ -295,18 +298,48 @@ Fig.~\ref{fig:f8a}), so \textbf{0 of 3 gate checkpoints passed the pre-registere
 ($\rho>0.2$ with CI excluding 0) and the planned $\lambda$-bootstrapping sweep was
 \textbf{dropped and is reported here as a negative}. The turn critic functions only as a weak
 trajectory-level baseline (value explained-variance $\approx$0.28), \emph{not} as a per-turn
-reward model. This is the mechanism behind Finding~1: bootstrapping through a critic that carries
-essentially no per-turn progress information ($\lambda<1$) has no basis here, which is exactly why
-the critic arms trail the flat group-relative baselines.
+reward model, so bootstrapping through it ($\lambda<1$) has no basis and the $\lambda$-sweep is
+dropped.
 
 \begin{figure}[t]
 \centering\includegraphics[width=\textwidth]{fig_f8a_credit_alignment.pdf}
-\caption{\textbf{Finding 4 --- credit alignment $\approx0$.} \textbf{(a)} Critic one-step delta
-$A_t$ vs.\ the Monte-Carlo continuation delta $\Delta\hat V_t$ (the ``ideal'' credit), pooled over
-turn-pairs at the best-populated checkpoint (n=495); the least-squares fit is nearly flat.
-\textbf{(b)} Pooled Spearman with bootstrap 95\% CI at every diagnostic checkpoint; none clears the
-$\rho>0.2$ unlock threshold, so the $\lambda$-sweep is dropped as a pre-registered negative.}
+\caption{\textbf{Finding 4a --- the critic's value-delta $\approx0$.} \textbf{(a)} Critic one-step
+delta $V_\phi(s_{t+1}){-}V_\phi(s_t)$ vs.\ the MC continuation delta $\Delta\hat V_t$ (the ``ideal''
+credit), pooled turn-pairs at the best-populated checkpoint (n=495); the least-squares fit is nearly
+flat. \textbf{(b)} Pooled Spearman with bootstrap 95\% CI at every diagnostic checkpoint; none clears
+the $\rho>0.2$ unlock threshold, so the $\lambda$-sweep is dropped as a pre-registered negative.}
 \label{fig:f8a}
+\end{figure}
+
+\textbf{Matched comparison --- does GiGPO assign \emph{better}-aligned credit than the critic?}
+The value-delta above asks whether the critic's \emph{value function} tracks progress (it does
+not). A different question --- RQ2's real target --- is whether each method's \emph{assigned
+advantage}, the quantity that actually weights the policy gradient, aligns with $\Delta\hat V_t$.
+Reconstructing each method's on-policy assigned advantage exactly as training computes it (GiGPO's
+episode$+$anchor-step advantage via \texttt{core\_gigpo}; the critic's $A_t=R_\tau-V_\phi(s_t)$
+under $\lambda{=}\gamma{=}1$) on the \emph{identical} terminal-appended pairing gives a sharp null
+(Fig.~\ref{fig:f8amatch}): \textbf{both} assigned advantages are only weakly outcome-aligned, and
+\textbf{GiGPO ($\rho=+0.16$, CI $[0.10,0.21]$) is \emph{not} better than the critic ($\rho=+0.21$,
+CI $[0.15,0.27]$ at both seeds)} --- if anything marginally worse, with a \emph{below}-chance
+within-trajectory turn-ranking (0.37 vs.\ the critic's 0.52--0.57). Both methods' weak positive
+$\rho$ is carried by the outcome term separating winning from losing trajectories, not by correct
+per-turn ordering. So GiGPO's 4--6-point EM win over the critic is \textbf{not} explained by more
+accurate per-turn credit --- it comes from the group baseline's lower variance and its freedom from
+the critic's truncation drift (Finding~3). This is the honest RQ2 answer and it reinforces the
+horizon reading: at 4 turns there is little per-turn credit to recover, so a stable, low-variance
+\emph{outcome-level} baseline is what wins. (Caveat: 1 checkpoint/method, each on its own on-policy
+rollouts and MC continuations --- an on-policy comparison, but not the identical trajectories.)
+
+\begin{figure}[t]
+\centering\includegraphics[width=0.96\textwidth]{fig_credit_align_matched.pdf}
+\caption{\textbf{Finding 4b --- matched assigned-advantage alignment.} Each method's assigned
+per-turn credit vs.\ the ideal $\Delta\hat V_t$, same terminal-appended pairing, pooled Spearman
+$\pm$ bootstrap 95\% CI (within-trajectory ranking accuracy annotated). The critic's \emph{value}-
+delta (grey, the $\lambda$-gate quantity) is $\approx0$, but both \emph{assigned advantages} sit at
+$\rho\approx0.16$--$0.21$ --- far from strong alignment ($\rho>0.5$, shaded) and with GiGPO
+\emph{not} above the critic. Outcome-only group-relative CA recovers credit no better-aligned than
+the learned critic; its edge is variance and stability, not credit fidelity.}
+\label{fig:f8amatch}
 \end{figure}
 
 \subsection{Finding 5 (RQ4) --- horizon lifts the baseline, content still does not help}
@@ -380,10 +413,13 @@ per prefix), one worker for a few hours.
 The five findings converge on one thesis: \textbf{for this multi-turn search task, outcome-only
 group-relative credit assignment is the right default} --- it is the most accurate, the most
 stable, and the cheapest, and explicit privileged progress supervision adds no value that its own
-density-matched shuffle does not already provide, at either 4 or 8 turns. The critic-based
-alternative is not merely weaker but \emph{mechanistically} deficient: its per-turn value deltas
-carry essentially no true-progress information (Finding~4), which explains both its accuracy gap
-and --- through aggressive per-turn credit weighting --- its truncation instability (Finding~3).
+density-matched shuffle does not already provide, at either 4 or 8 turns. The critic's deficiency
+is subtler than it first appears: its value function carries essentially no per-turn progress
+information (Finding~4a), yet on a matched comparison its \emph{assigned advantage} is no less
+aligned with the ideal per-turn credit than GiGPO's (Finding~4b). So the group-relative methods'
+edge over the critic is one of \emph{variance and stability} --- a lower-variance outcome baseline,
+free of the critic's aggressive per-turn weighting and truncation drift (Finding~3) --- \emph{not}
+of more accurate per-turn credit assignment.
 
 \textbf{Scope of the claim (from the pre-registration, not hedging after the fact).} This is
 evidence about \emph{this} privileged answer-exposure signal at \emph{this} horizon on \emph{this}

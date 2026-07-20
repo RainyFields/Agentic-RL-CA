@@ -25,7 +25,9 @@ checklist.
 cd assets
 python3 extract_metrics.py     # launch logs -> csv/<run>.csv  (17 runs, all seeds)
 python3 build_figures.py       # -> figs/fig_{learning_curves,final_bars,rq3_density,rq4_horizon,tripwire,reward_turns}.{png,pdf} + figs/finals.csv
-python3 build_f8a.py           # -> figs/fig_f8a_credit_alignment.{png,pdf}  (needs outputs/diag/, repo on path)
+python3 -m credit_assignment.critic_align_matched --diag-root outputs/diag \
+    --labels b0_s0_step500 b0_s1_step500 --out outputs/diag/critic_align_matched.json   # matched critic ρ
+python3 build_f8a.py           # -> figs/fig_{f8a_credit_alignment,credit_align_matched}.{png,pdf}  (needs outputs/diag[_methods]/)
 python3 build_taxonomy.py      # -> figs/fig_taxonomy.{png,pdf}
 cd .. && tectonic report.tex   # -> report.pdf
 ```
@@ -33,9 +35,12 @@ cd .. && tectonic report.tex   # -> report.pdf
 - `assets/extract_metrics.py` — parses per-step metrics from `~/xiaoxuan/worker_logs/launches/`
   (last-occurrence-per-step; pre-hang + post-hang-relaunch logs merged chronologically per run).
 - `assets/build_figures.py` — the 6 data figures + `finals.csv` (the per-seed @500 bar source).
-- `assets/build_f8a.py` — the credit-alignment figure; reuses `credit_assignment.lambda_gate` +
-  `diagnostic.build_pairs` so the plotted Spearman/CI are the exact gate numbers
-  (`outputs/diag/lambda_gate.json`).
+- `assets/build_f8a.py` — the two credit-alignment figures (4a: critic value-Δ λ-gate; 4b: matched
+  assigned-advantage GiGPO-vs-critic); reuses `credit_assignment.{lambda_gate,diagnostic}` so the
+  plotted Spearman/CI are the exact diagnostic numbers (`outputs/diag/lambda_gate.json`,
+  `outputs/diag_methods/gigpo_align.json`, `outputs/diag/critic_align_matched.json`). The GiGPO
+  number comes from the GPU run (`credit_assignment.diag_runner_methods` on the GiGPO 1.7B s0 step500
+  checkpoint); the matched critic number is CPU-only from the existing B0 diagnostic data.
 - `assets/build_taxonomy.py` — the F1 taxonomy schematic.
 - Per-figure data map: `assets/figs/README.md`.
 

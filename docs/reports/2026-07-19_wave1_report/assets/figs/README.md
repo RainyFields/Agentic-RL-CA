@@ -13,7 +13,8 @@ python3 build_f8a.py && python3 build_taxonomy.py` (writes both `.png` and `.pdf
 | `fig_rq4_horizon` | `build_figures.py` | `finals.csv` (4t vs 8t B0/B1) | RQ4: horizon lifts B0; content still no help |
 | `fig_tripwire` | `build_figures.py` | `csv/<run>.csv` (`clip_ratio`, `val_macro_em`) | F8/Finding-3: truncation clip runaway; HCAPO clip-vs-EM |
 | `fig_reward_turns` | `build_figures.py` | `csv/<run>.csv` (`reward_mean`, `avg_turns`) | training reward + avg turns (B1-shuffle budget saturation) |
-| `fig_f8a_credit_alignment` | `build_f8a.py` | `outputs/diag/lambda_gate.json` + `outputs/diag/<label>/{critic_values,prefix_values}.json` | F8a: critic ΔV vs MC ΔV̂; pooled Spearman ≈ 0 → λ-sweep dropped |
+| `fig_f8a_credit_alignment` | `build_f8a.py` | `outputs/diag/lambda_gate.json` + `outputs/diag/<label>/{critic_values,prefix_values}.json` | F8a (4a): critic value-Δ vs MC ΔV̂; pooled Spearman ≈ 0 → λ-sweep dropped |
+| `fig_credit_align_matched` | `build_f8a.py` | `outputs/diag_methods/gigpo_align.json` + `outputs/diag/critic_align_matched.json` + `lambda_gate.json` | F8a (4b): matched assigned-advantage alignment — GiGPO ρ=+0.16 vs critic ρ=+0.21 (both weak, GiGPO not better) |
 
 ## Backing tables
 

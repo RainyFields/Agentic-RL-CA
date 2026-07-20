@@ -593,3 +593,28 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - COMMITTED to branch agentic-rl-ca (local). Push STILL BLOCKED — repo PUBLIC (history carries
   cluster/HDFS paths); awaiting user to set Private or supply a token. NEXT: full-set evals on the
   remaining FINAL ckpts (Wave-4 GPU, needs worker launch + user OK) -> per-arm per-dataset dEM.
+
+## 2026-07-19 21:30–2026-07-20 00:00 PDT (Qwen3-4B scale-up launched + per-method credit-alignment)
+- 4B SCALE-UP (user OK): launched 4x Qwen3-4B s0 (token_ppo, turn_ppo_b0, token_grpo, gigpo),
+  4turn_think2k, matched budget. Tests the critic-quality-vs-scale diagnosis (1.7B turn-PPO trails;
+  SP6/ALFWorld turn-PPO WON at 1.7B, tr1 token-PPO critic healthy at 7B -> scale/horizon not impl).
+  4B memory: MICRO_BSZ 8->4, vLLM util 0.6->0.5, PPO arms OPTIM_OFFLOAD=True (2 new backward-compat
+  env hooks in run_condition.sh). OOM TEST PASSED — all 4 cleared step 50+ (PPO arms incl.); config
+  validated. ETA ~2-3 days.
+- CREDIT-ALIGNMENT (user OK): built + ran the per-method diagnostic (credit_assignment/
+  {method_advantage,diag_runner_methods,method_align,critic_align_matched}.py). GiGPO 1.7B s0 step500
+  (only ckpt w/ actor weights under keep=1): grouped rollout -> GiGPO assigned advantage -> MC dV-hat.
+- KEY FINDING (surprising; the matched recompute overturned the naive reading):
+  * critic VALUE-delta (V(t+1)-V(t), the lambda-gate quantity): rho~0 (F8a, unchanged).
+  * MATCHED assigned-advantage pairing (A_t vs dV-hat, terminal-appended, same methodology):
+    GiGPO rho=+0.16 [0.10,0.21] rank0.37  |  critic A_t=R-V rho=+0.21 [0.15,0.27] rank0.52-0.57.
+  * => GiGPO's assigned credit is NOT better-aligned than the critic's (marginally worse, below-
+    chance within-traj ranking). Both weak, outcome-term-driven. So GiGPO's 4-6pt EM win is
+    VARIANCE/STABILITY (group baseline + no truncation drift), NOT superior per-turn credit.
+    Reinforces the horizon reading. GRPO=0 structural (trajectory-level). HCAPO deferred (hindsight
+    pass). Folded into report Finding 4a/4b (+ new fig_credit_align_matched, abstract, discussion).
+- INFRA lesson: 8-GPU diag pods couldn't SCHEDULE (node fragmentation w/ 4x 8-GPU 4B runs holding
+  nodes) — allocated an ID then reaped pre-run ("worker 不存在") twice. NOT a quota cap (quota ~8).
+  Fix: request 3-GPU (diag only needs ~1 GPU vLLM + retriever) -> scheduled + ran immediately.
+  LESSON: for small offline jobs, request few GPUs; 8-GPU needs a whole free node. Auto-retry loop
+  (diag_autoretry.sh) added for "keep requesting until a slot holds".
