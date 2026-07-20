@@ -647,3 +647,22 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   reviews dumps before the 7-run fleet launch (CONFIRM_WORKER=1 PROTOCOL=4turn_250
   ALIAS_TAG=250 launch_wave.sh custom ...). NOTE 8-GPU scheduling may queue behind the 4B
   wave (node fragmentation lesson above).
+
+## 2026-07-20 14:32 PDT (Wave-2 FLEET LAUNCHED — 7 runs, 4turn_250)
+- TOY GATE PASSED (worker arlca-w2-toygate, 14:00-14:30 PDT, DONE marker on HDFS):
+  turn_ppo_redist: redist mass conserved exactly (sum_before==sum_after, max_traj_mass_err 0),
+  n_redistributed 5->14 of 32 traj/step, n_no_terminal 0, terminal_share_mean 0.34-0.56 (~1/K);
+  turn_grpo: NO critic instantiated, step-group avg size 3.43/2.56 (>1), advantages
+  non-degenerate (±1.5), both arms 2/2 steps + val (macro_em 0.241/0.271). Dumps:
+  outputs/search_toy_wave2/ (+HDFS logs/phase1_search_toy_wave2/).
+- FLEET LAUNCH 14:32 PDT (user pre-OK "launch as many as you can" + approved plan;
+  CONFIRM_WORKER=1 PROTOCOL=4turn_250 ALIAS_TAG=250): 7 aliases arlca-250-<cond>-s0 for
+  turn_grpo, turn_ppo_redist, turn_ppo_b0, token_ppo, b1, token_grpo, gigpo. All wrappers
+  verified PROTOCOL=4turn_250. mlx worker list: 11 workers (4x 4B + 7 wave-2) — ALL SCHEDULED
+  IMMEDIATELY (no queueing; quota evidently ~8+ per the 07-20 fragmentation note, and free
+  nodes available). EXP names <cond>_qwen3-1.7b_4turn_250_s0; ckpts under
+  agentic_rl_ca/checkpoints/; W&B project agentic-rl-ca.
+- Watch list (first hours): redist/* only on turn_ppo_redist, b1/* only on b1;
+  response_length/clip_ratio (the arm-differentiating metric this wave); MICRO_BSZ=8 OOM
+  surface on the 3 critic arms at 512 resp len (expected safe — wave-1 validated micro8 at
+  2048).
