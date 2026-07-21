@@ -666,3 +666,22 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   response_length/clip_ratio (the arm-differentiating metric this wave); MICRO_BSZ=8 OOM
   surface on the 3 critic arms at 512 resp len (expected safe — wave-1 validated micro8 at
   2048).
+
+## 2026-07-21 ~03:30 PDT (Wave-2 COMPLETE — all 7 runs 250/250, zero crashes)
+- Finals (val_2048 macro-EM @250; base 0.2691; full curves in analysis/wave2_results.json):
+  token_grpo 0.3974 > gigpo 0.3876 > turn_grpo 0.3789 (NEW) > b1 0.3688 >
+  token_ppo 0.3496 > turn_ppo_b0 0.3441 > turn_ppo_redist 0.3285 (NEW).
+- TRUNCATION: clip_ratio ~0.000-0.0006 on ALL arms for the entire run (incl. b1) —
+  the wave-1 length runaway did NOT reproduce at 512 non-thinking. Supports the
+  think-block-as-degree-of-freedom reading.
+- Notable: (1) group-relative ordering replicates; turn_grpo (step term only) lands
+  between token_grpo and b1 — step-level grouping alone is competitive, and gigpo
+  (episode+step) is NOT above token_grpo (episode only) at this seed/horizon.
+  (2) b1 +2.5pts over b0 WITHOUT truncation pathology — but NO shuffle control in this
+  wave, so density-vs-content is NOT separated here (wave-1 says density).
+  (3) turn_ppo_redist 0.3285 < b0 0.3441: randomly relocating outcome mass across turns
+  HURTS vs terminal-only, even with mass conserved and a critic — misleading credit
+  timing is worse than sparse credit. (4) token_ppo healthy at 512 (no drift), unlike
+  wave-1. CAVEATS: single seed s0, 250 steps, val_2048 (no full-set eval yet).
+- All 7 final ckpts on HDFS (checkpoints/<cond>_qwen3-1.7b_4turn_250_s0). Fleet: wave-2
+  workers tore down on DONE; 4B wave still running.
