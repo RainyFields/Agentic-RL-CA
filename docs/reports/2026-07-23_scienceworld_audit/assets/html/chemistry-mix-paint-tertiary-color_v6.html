@@ -1,0 +1,28 @@
+<meta charset="utf-8"><title>chemistry-mix-paint-tertiary-color v6</title>
+<style>
+ body{font:14px/1.4 system-ui;margin:2em;max-width:1100px}
+ table{border-collapse:collapse;width:100%} td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
+ tr.fire{background:#e6ffe6} tr.neg{background:#ffe6e6}
+ .badge{background:#2a2;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px}
+ .badge.neg{background:#c33} .obs{color:#555;font-size:12px} code{white-space:pre-wrap}
+</style>
+<h2>chemistry-mix-paint-tertiary-color — variation 6 (gold replay)</h2>
+<p><b>Task:</b> Your task is to use chemistry to create yellow-green paint. When you are part-way done, focus on the intermediate (secondary color) paint you created.  When you are completely done, focus on the green paint.</p>
+<p>gold_len=30 · final_score=100 · done=True
+ · subgoal firings=8 at steps [1, 15, 18, 19, 21, 25, 26, 28]
+ (magnitudes [3, 10, 4, 10, 50, 3, 3, 17]) · negative deltas: none</p>
+<table><tr><th>t</th><th>action (green = subgoal fired)</th><th>observation (first 200 chars)</th></tr>
+<tr class=""><td>0</td><td><code>open door to outside</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>1</td><td><code>go to outside</code> <span class="badge">+3 → 3</span></td><td class="obs">You move to the outside.</td></tr><tr class=""><td>2</td><td><code>open door to foundry</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>3</td><td><code>go to foundry</code> </td><td class="obs">You move to the foundry.</td></tr><tr class=""><td>4</td><td><code>open door to outside</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>5</td><td><code>go to outside</code> </td><td class="obs">You move to the outside.</td></tr><tr class=""><td>6</td><td><code>open door to kitchen</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>7</td><td><code>go to kitchen</code> </td><td class="obs">You move to the kitchen.</td></tr><tr class=""><td>8</td><td><code>open door to bathroom</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>9</td><td><code>go to bathroom</code> </td><td class="obs">You move to the bathroom.</td></tr><tr class=""><td>10</td><td><code>open door to kitchen</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>11</td><td><code>go to kitchen</code> </td><td class="obs">You move to the kitchen.</td></tr><tr class=""><td>12</td><td><code>open door to hallway</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>13</td><td><code>go to hallway</code> </td><td class="obs">You move to the hallway.</td></tr><tr class=""><td>14</td><td><code>open door to art studio</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>15</td><td><code>go to art studio</code> <span class="badge">+10 → 13</span></td><td class="obs">You move to the art studio.</td></tr><tr class=""><td>16</td><td><code>look around</code> </td><td class="obs">This room is called the art studio. In it, you see: 
+	the agent
+	a substance called air
+	a large cupboard. The large cupboard door is closed. 
+	a paint cupboard. The paint cupboard door is closed. 
+	a</td></tr><tr class=""><td>17</td><td><code>pour cup containing blue paint in art studio in jug</code> </td><td class="obs">You pour the contents of the wood cup into the jug.</td></tr><tr class="fire"><td>18</td><td><code>pour cup containing yellow paint in art studio in jug</code> <span class="badge">+4 → 17</span></td><td class="obs">You pour the contents of the wood cup into the jug.</td></tr><tr class="fire"><td>19</td><td><code>mix jug</code> <span class="badge">+10 → 27</span></td><td class="obs">Blue and yellow paint mix to produce green paint.</td></tr><tr class=""><td>20</td><td><code>look around</code> </td><td class="obs">This room is called the art studio. In it, you see: 
+	the agent
+	a substance called air
+	a large cupboard. The large cupboard door is closed. 
+	a paint cupboard. The paint cupboard door is closed. 
+	a</td></tr><tr class="fire"><td>21</td><td><code>focus on green paint</code> <span class="badge">+50 → 77</span></td><td class="obs">You focus on the green paint.</td></tr><tr class=""><td>22</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>23</td><td><code>pour jug in jug</code> </td><td class="obs">You can&#x27;t move something into itself.</td></tr><tr class=""><td>24</td><td><code>open large cupboard</code> </td><td class="obs">The large cupboard is now open.</td></tr><tr class="fire"><td>25</td><td><code>pour cup containing yellow paint in jug</code> <span class="badge">+3 → 80</span></td><td class="obs">You pour the contents of the wood cup into the jug.</td></tr><tr class="fire"><td>26</td><td><code>mix jug</code> <span class="badge">+3 → 83</span></td><td class="obs">Green and yellow paint mix to produce yellow-green paint.</td></tr><tr class=""><td>27</td><td><code>look around</code> </td><td class="obs">This room is called the art studio. In it, you see: 
+	the agent
+	a substance called air
+	a large cupboard. The large cupboard door is open. In the large cupboard is: a drawer, a wood cup (containing b</td></tr><tr class="fire"><td>28</td><td><code>focus on paint in jug</code> <span class="badge">+17 → 100</span></td><td class="obs">You focus on the yellow-green paint.</td></tr></table>

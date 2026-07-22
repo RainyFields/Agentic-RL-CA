@@ -1,0 +1,23 @@
+<meta charset="utf-8"><title>change-the-state-of-matter-of v8</title>
+<style>
+ body{font:14px/1.4 system-ui;margin:2em;max-width:1100px}
+ table{border-collapse:collapse;width:100%} td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
+ tr.fire{background:#e6ffe6} tr.neg{background:#ffe6e6}
+ .badge{background:#2a2;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px}
+ .badge.neg{background:#c33} .obs{color:#555;font-size:12px} code{white-space:pre-wrap}
+</style>
+<h2>change-the-state-of-matter-of — variation 8 (gold replay)</h2>
+<p><b>Task:</b> Your task is to change the state of matter of apple juice. First, focus on the substance. Then, take actions that will cause it to change its state of matter.</p>
+<p>gold_len=27 · final_score=100 · done=True
+ · subgoal firings=4 at steps [1, 12, 16, 22]
+ (magnitudes [3, 68, 1, 28]) · negative deltas: none</p>
+<table><tr><th>t</th><th>action (green = subgoal fired)</th><th>observation (first 200 chars)</th></tr>
+<tr class=""><td>0</td><td><code>open door to kitchen</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>1</td><td><code>go to kitchen</code> <span class="badge">+3 → 3</span></td><td class="obs">You move to the kitchen.</td></tr><tr class=""><td>2</td><td><code>look around</code> </td><td class="obs">This room is called the kitchen. In it, you see: 
+	the agent
+	a substance called air
+	a chair. On the chair is: nothing.
+	a counter. On the counter is: a bowl (containing a red apple, a banana, an ora</td></tr><tr class=""><td>3</td><td><code>pick up thermometer</code> </td><td class="obs">You move the thermometer to the inventory.</td></tr><tr class=""><td>4</td><td><code>open cupboard</code> </td><td class="obs">The cupboard is now open.</td></tr><tr class=""><td>5</td><td><code>pick up metal pot</code> </td><td class="obs">You move the metal pot to the inventory.</td></tr><tr class=""><td>6</td><td><code>look around</code> </td><td class="obs">This room is called the kitchen. In it, you see: 
+	the agent
+	a substance called air
+	a chair. On the chair is: nothing.
+	a counter. On the counter is: a bowl (containing a red apple, a banana, an ora</td></tr><tr class=""><td>7</td><td><code>open glass jar</code> </td><td class="obs">The glass jar is now open.</td></tr><tr class=""><td>8</td><td><code>open freezer</code> </td><td class="obs">The freezer is now open.</td></tr><tr class=""><td>9</td><td><code>open drawer in cupboard</code> </td><td class="obs">The drawer is now open.</td></tr><tr class=""><td>10</td><td><code>open drawer in counter</code> </td><td class="obs">The drawer is now open.</td></tr><tr class=""><td>11</td><td><code>open fridge</code> </td><td class="obs">The fridge is now open.</td></tr><tr class="fire"><td>12</td><td><code>focus on apple juice</code> <span class="badge">+68 → 71</span></td><td class="obs">You focus on the apple juice.</td></tr><tr class=""><td>13</td><td><code>pour cup containing apple juice into metal pot</code> </td><td class="obs">You pour the contents of the plastic cup into the metal pot.</td></tr><tr class=""><td>14</td><td><code>pick up metal pot</code> </td><td class="obs">You move the metal pot to the inventory.</td></tr><tr class=""><td>15</td><td><code>open freezer</code> </td><td class="obs">The freezer is already open.</td></tr><tr class="fire"><td>16</td><td><code>move metal pot to freezer</code> <span class="badge">+1 → 72</span></td><td class="obs">You move the metal pot to the freezer.</td></tr><tr class=""><td>17</td><td><code>examine apple juice</code> </td><td class="obs">apple juice</td></tr><tr class=""><td>18</td><td><code>use thermometer in inventory on apple juice</code> </td><td class="obs">the thermometer measures a temperature of 9 degrees celsius</td></tr><tr class=""><td>19</td><td><code>wait</code> </td><td class="obs">You decide to wait for 10 iterations.</td></tr><tr class=""><td>20</td><td><code>examine apple juice</code> </td><td class="obs">apple juice</td></tr><tr class=""><td>21</td><td><code>use thermometer in inventory on apple juice</code> </td><td class="obs">the thermometer measures a temperature of 2 degrees celsius</td></tr><tr class="fire"><td>22</td><td><code>wait</code> <span class="badge">+28 → 100</span></td><td class="obs">You decide to wait for 10 iterations.</td></tr></table>

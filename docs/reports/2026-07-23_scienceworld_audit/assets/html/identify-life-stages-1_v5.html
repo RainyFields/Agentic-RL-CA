@@ -1,0 +1,36 @@
+<meta charset="utf-8"><title>identify-life-stages-1 v5</title>
+<style>
+ body{font:14px/1.4 system-ui;margin:2em;max-width:1100px}
+ table{border-collapse:collapse;width:100%} td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
+ tr.fire{background:#e6ffe6} tr.neg{background:#ffe6e6}
+ .badge{background:#2a2;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px}
+ .badge.neg{background:#c33} .obs{color:#555;font-size:12px} code{white-space:pre-wrap}
+</style>
+<h2>identify-life-stages-1 — variation 5 (gold replay)</h2>
+<p><b>Task:</b> Your task is to focus on the 3 life stages of the elephant, starting from earliest to latest.</p>
+<p>gold_len=30 · final_score=100 · done=True
+ · subgoal firings=8 at steps [1, 5, 7, 9, 11, 13, 16, 27]
+ (magnitudes [5, 5, 33, 5, 5, 5, 34, 8]) · negative deltas: none</p>
+<table><tr><th>t</th><th>action (green = subgoal fired)</th><th>observation (first 200 chars)</th></tr>
+<tr class=""><td>0</td><td><code>open door to hallway</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>1</td><td><code>go to hallway</code> <span class="badge">+5 → 5</span></td><td class="obs">You move to the hallway.</td></tr><tr class=""><td>2</td><td><code>open door to greenhouse</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>3</td><td><code>go to greenhouse</code> </td><td class="obs">You move to the greenhouse.</td></tr><tr class=""><td>4</td><td><code>open door to outside</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>5</td><td><code>go to outside</code> <span class="badge">+5 → 10</span></td><td class="obs">You move to the outside.</td></tr><tr class=""><td>6</td><td><code>look around</code> </td><td class="obs">This outside location is called the outside. Here you see: 
+	the agent
+	a substance called air
+	an axe
+	a butterfly egg
+	a baby elephant
+	a fire pit (containing nothing)
+	a fountain (containing a subs</td></tr><tr class="fire"><td>7</td><td><code>focus on baby elephant in outside</code> <span class="badge">+33 → 43</span></td><td class="obs">You focus on the baby elephant.</td></tr><tr class=""><td>8</td><td><code>look around</code> </td><td class="obs">This outside location is called the outside. Here you see: 
+	the agent
+	a substance called air
+	an axe
+	a butterfly egg
+	a baby elephant
+	a fire pit (containing nothing)
+	a fountain (containing a subs</td></tr><tr class="fire"><td>9</td><td><code>wait1</code> <span class="badge">+5 → 48</span></td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>10</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class="fire"><td>11</td><td><code>wait1</code> <span class="badge">+5 → 53</span></td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>12</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class="fire"><td>13</td><td><code>wait1</code> <span class="badge">+5 → 58</span></td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>14</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>15</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class="fire"><td>16</td><td><code>focus on juvenile elephant in outside</code> <span class="badge">+34 → 92</span></td><td class="obs">You focus on the juvenile elephant.</td></tr><tr class=""><td>17</td><td><code>look around</code> </td><td class="obs">This outside location is called the outside. Here you see: 
+	the agent
+	a substance called air
+	an axe
+	a caterpillar
+	a juvenile elephant
+	a fire pit (containing nothing)
+	a fountain (containing a su</td></tr><tr class=""><td>18</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>19</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>20</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>21</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>22</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>23</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>24</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>25</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class=""><td>26</td><td><code>wait1</code> </td><td class="obs">You decide to wait for 1 iterations.</td></tr><tr class="fire"><td>27</td><td><code>focus on adult elephant in outside</code> <span class="badge">+8 → 100</span></td><td class="obs">You focus on the adult elephant.</td></tr></table>

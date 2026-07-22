@@ -1,0 +1,11 @@
+family,n_sampled,gold_len_min,gold_len_max,proposed_turn_cap
+chemistry-mix,9,11,30,60
+electricity,12,9,45,90
+find-thing,12,5,16,32
+genetics,6,123,130,260
+inclined-plane,9,53,202,404
+life-stages,6,10,30,60
+lifespan,9,6,9,18
+matter-state,12,20,143,286
+plant-growth,6,66,85,170
+thermal-measure,9,18,94,188

@@ -1,0 +1,20 @@
+<meta charset="utf-8"><title>find-non-living-thing v18</title>
+<style>
+ body{font:14px/1.4 system-ui;margin:2em;max-width:1100px}
+ table{border-collapse:collapse;width:100%} td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
+ tr.fire{background:#e6ffe6} tr.neg{background:#ffe6e6}
+ .badge{background:#2a2;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px}
+ .badge.neg{background:#c33} .obs{color:#555;font-size:12px} code{white-space:pre-wrap}
+</style>
+<h2>find-non-living-thing — variation 18 (gold replay)</h2>
+<p><b>Task:</b> Your task is to find a(n) non-living thing. First, focus on the thing. Then, move it to the red box in the bedroom.</p>
+<p>gold_len=5 · final_score=100 · done=True
+ · subgoal firings=3 at steps [1, 3, 4]
+ (magnitudes [17, 50, 25]) · negative deltas: none</p>
+<table><tr><th>t</th><th>action (green = subgoal fired)</th><th>observation (first 200 chars)</th></tr>
+<tr class=""><td>0</td><td><code>open door to bedroom</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>1</td><td><code>go to bedroom</code> <span class="badge">+17 → 25</span></td><td class="obs">You move to the bedroom.</td></tr><tr class=""><td>2</td><td><code>look around</code> </td><td class="obs">This room is called the bedroom. In it, you see: 
+	the agent
+	a substance called air
+	a bed. On the bed is: a mattress. On the mattress is: a white pillow..
+	a closet. The closet door is closed. 
+	a f</td></tr><tr class="fire"><td>3</td><td><code>focus on object</code> <span class="badge">+50 → 75</span></td><td class="obs">You focus on the pillow.</td></tr><tr class="fire"><td>4</td><td><code>move object to red box</code> <span class="badge">+25 → 100</span></td><td class="obs">You move the pillow to the red box.</td></tr></table>

@@ -1,0 +1,15 @@
+<meta charset="utf-8"><title>lifespan-longest-lived-then-shortest-lived v12</title>
+<style>
+ body{font:14px/1.4 system-ui;margin:2em;max-width:1100px}
+ table{border-collapse:collapse;width:100%} td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
+ tr.fire{background:#e6ffe6} tr.neg{background:#ffe6e6}
+ .badge{background:#2a2;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px}
+ .badge.neg{background:#c33} .obs{color:#555;font-size:12px} code{white-space:pre-wrap}
+</style>
+<h2>lifespan-longest-lived-then-shortest-lived — variation 12 (gold replay)</h2>
+<p><b>Task:</b> Your task is to find the animal with the longest life span, then the shortest life span. First, focus on the animal with the longest life span.  Then, focus on the animal with the shortest life span. The animals are in the &#x27;outside&#x27; location.</p>
+<p>gold_len=9 · final_score=100 · done=True
+ · subgoal firings=4 at steps [1, 5, 6, 7]
+ (magnitudes [17, 16, 50, 17]) · negative deltas: none</p>
+<table><tr><th>t</th><th>action (green = subgoal fired)</th><th>observation (first 200 chars)</th></tr>
+<tr class=""><td>0</td><td><code>open door to hallway</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>1</td><td><code>go to hallway</code> <span class="badge">+17 → 17</span></td><td class="obs">You move to the hallway.</td></tr><tr class=""><td>2</td><td><code>open door to kitchen</code> </td><td class="obs">The door is already open.</td></tr><tr class=""><td>3</td><td><code>go to kitchen</code> </td><td class="obs">You move to the kitchen.</td></tr><tr class=""><td>4</td><td><code>open door to outside</code> </td><td class="obs">The door is already open.</td></tr><tr class="fire"><td>5</td><td><code>go to outside</code> <span class="badge">+16 → 33</span></td><td class="obs">You move to the outside.</td></tr><tr class="fire"><td>6</td><td><code>focus on baby baby brown bear</code> <span class="badge">+50 → 83</span></td><td class="obs">You focus on the baby brown bear.</td></tr><tr class="fire"><td>7</td><td><code>focus on chameleon</code> <span class="badge">+17 → 100</span></td><td class="obs">You focus on the chameleon egg.</td></tr></table>
