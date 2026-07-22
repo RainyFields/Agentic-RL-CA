@@ -316,3 +316,22 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
   naming the exact destination + visibility. Full history contains decision_log +
   configs with Merlin queue names and HDFS paths — if ever pushed, prefer PRIVATE and/or
   a scrubbed branch or report-only bundle.
+
+## 2026-07-23 (CA-benchmark project kickoff: overview saved + grilling decisions A1-A11)
+- New project phase: "Structured Benchmark of Credit-Assignment Methods for LLM Agents"
+  (proposal v1 of 2026-07-19) saved verbatim + amendments as docs/PROJECT_OVERVIEW.md.
+  This repo is the single project home (A5); reward_models is the frozen pilot archive.
+- Grilling-session decisions A1-A11 recorded in PROJECT_OVERVIEW.md Amendments table:
+  deadlines dropped (A1); 8 workers (A2); judge=gpt-oss-120b everywhere (A3); 3 seeds
+  a priori on headline cells (A4); one W&B project ca-benchmark (A5); retrieval=existing
+  e5/wiki-18 stack (A6); rung-1 re-run fresh at 4B non-thinking, July campaign = pilot
+  evidence #2 (A7); enforce_eager=False w/ smoke gate + resume-only fallback (A8); SFT
+  sizing = earliest-90%-of-plateau + shared entropy floor (A9); per-wave launch manifests,
+  pushes to own remotes pre-approved (A10); round-1 scope = W0 inspection (ScienceWorld
+  first) + W1 anchors PPO gae_turn + token-GRPO only, screening deferred (A11).
+- KNOWN LOSS: sp6-alfworld verl-agent fork branch (Seq-MIS, NaN tripwires, SPA hook)
+  unrecoverable — never pushed to a writable remote; node it lived on was reprovisioned
+  2026-07-18. Docs survive in reward_models reports; re-port required before ALFWorld cells.
+- M5 (ScienceWorld structure audit) started: scienceworld 1.2.3 + OpenJDK 17 installed
+  in ~/xiaoxuan/envs/sw_inspect; audit script scripts/scienceworld/audit_structure.py;
+  outputs under docs/reports/2026-07-23_scienceworld_audit/.
