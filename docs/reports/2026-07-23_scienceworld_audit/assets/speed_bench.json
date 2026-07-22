@@ -1,0 +1,13 @@
+{
+  "load_plus_reset_sec": {
+    "mean": 0.20718035697937012,
+    "min": 0.14598798751831055,
+    "max": 0.3328530788421631
+  },
+  "gold_steps_per_sec": 14.850100217702344,
+  "gold_ms_per_step": 67.33961288745587,
+  "random_steps_per_sec_incl_validactions": 9.032204214490559,
+  "random_ms_per_step_incl_validactions": 110.71494579315186,
+  "random_steps_per_sec_step_only": 14.903913502733294,
+  "random_ms_per_step_step_only": 67.09647099177043
+}

@@ -1,0 +1,213 @@
+{
+  "task": "change-the-state-of-matter-of",
+  "variation": 0,
+  "task_description": "Your task is to change the state of matter of water. First, focus on the substance. Then, take actions that will cause it to change its state of matter.",
+  "gold_len": 26,
+  "final_score": 100,
+  "steps": [
+    {
+      "t": -1,
+      "action": "(reset)",
+      "obs": "This room is called the hallway. In it, you see: \n\tthe agent\n\ta substance called air\n\ta picture\nYou also see:\n\tA door to the art studio (that is open)\n\tA door to the bedroom (that is open)\n\tA door to the greenhouse (that is open)\n\tA door to the kitchen (that is open)\n\tA door to the living room (that is open)\n\tA door to the workshop (that is open)",
+      "score": 0
+    },
+    {
+      "t": 0,
+      "action": "open door to kitchen",
+      "obs": "The door is already open.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 1,
+      "action": "go to kitchen",
+      "obs": "You move to the kitchen.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 2,
+      "action": "look around",
+      "obs": "This room is called the kitchen. In it, you see: \n\tthe agent\n\ta substance called air\n\ta chair. On the chair is: nothing.\n\ta counter. On the counter is: a bowl (containing a red apple, a banana, an orange, a potato), a drawer.\n\ta cupboard. The cupboard door is closed. \n\ta freezer. The freezer door is closed. \n\ta fridge. The fridge door is closed. \n\ta glass jar (containing a substance called sodium chloride)\n\ta lighter\n\ta oven, which is turned off. The oven door is closed. \n\ta painting\n\ta sink, which is turned off. In the sink is: nothing.\n\ta substance called soap\n\ta stopwatch, which is deactivated. \n\ta stove, which is turned off. On the stove is: nothing.\n\ta table. On the table is: a glass cup (containing nothing).\n\ta thermometer, currently reading a temperature of 10 degrees celsius\nYou also see:\n\tA door to the bathroom (that is open)\n\tA door to the hallway (that is open)\n\tA door to the outside (that is open)",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 3,
+      "action": "pick up thermometer",
+      "obs": "You move the thermometer to the inventory.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 4,
+      "action": "open cupboard",
+      "obs": "The cupboard is now open.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 5,
+      "action": "pick up metal pot",
+      "obs": "You move the metal pot to the inventory.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 6,
+      "action": "look around",
+      "obs": "This room is called the kitchen. In it, you see: \n\tthe agent\n\ta substance called air\n\ta chair. On the chair is: nothing.\n\ta counter. On the counter is: a bowl (containing a red apple, a banana, an orange, a potato), a drawer.\n\ta cupboard. The cupboard door is open. In the cupboard is: a ceramic cup (containing nothing), a drawer, a tin cup (containing nothing).\n\ta freezer. The freezer door is closed. \n\ta fridge. The fridge door is closed. \n\ta glass jar (containing a substance called sodium chloride)\n\ta lighter\n\ta oven, which is turned off. The oven door is closed. \n\ta painting\n\ta sink, which is turned off. In the sink is: nothing.\n\ta substance called soap\n\ta stopwatch, which is deactivated. \n\ta stove, which is turned off. On the stove is: nothing.\n\ta table. On the table is: a glass cup (containing nothing).\nYou also see:\n\tA door to the bathroom (that is open)\n\tA door to the hallway (that is open)\n\tA door to the outside (that is open)",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 7,
+      "action": "move metal pot to sink",
+      "obs": "You move the metal pot to the sink.",
+      "reward": 0,
+      "score": 0,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 8,
+      "action": "activate sink",
+      "obs": "The sink is now activated.",
+      "reward": 3,
+      "score": 3,
+      "score_delta": 3,
+      "done": false
+    },
+    {
+      "t": 9,
+      "action": "deactivate sink",
+      "obs": "The sink is now deactivated.",
+      "reward": 0,
+      "score": 3,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 10,
+      "action": "pick up metal pot",
+      "obs": "You move the metal pot to the inventory.",
+      "reward": 0,
+      "score": 3,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 11,
+      "action": "focus on substance in metal pot",
+      "obs": "You focus on the water.",
+      "reward": 66,
+      "score": 69,
+      "score_delta": 66,
+      "done": false
+    },
+    {
+      "t": 12,
+      "action": "pour metal pot into metal pot",
+      "obs": "You can't move something into itself.",
+      "reward": 0,
+      "score": 69,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 13,
+      "action": "pick up metal pot",
+      "obs": "You move the metal pot to the inventory.",
+      "reward": 0,
+      "score": 69,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 14,
+      "action": "open freezer",
+      "obs": "The freezer is now open.",
+      "reward": 0,
+      "score": 69,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 15,
+      "action": "move metal pot to freezer",
+      "obs": "You move the metal pot to the freezer.",
+      "reward": 2,
+      "score": 71,
+      "score_delta": 2,
+      "done": false
+    },
+    {
+      "t": 16,
+      "action": "examine substance in metal pot",
+      "obs": "a substance called water",
+      "reward": 0,
+      "score": 71,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 17,
+      "action": "use thermometer in inventory on substance in metal pot",
+      "obs": "the thermometer measures a temperature of 10 degrees celsius",
+      "reward": 0,
+      "score": 71,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 18,
+      "action": "wait",
+      "obs": "You decide to wait for 10 iterations.",
+      "reward": 0,
+      "score": 71,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 19,
+      "action": "examine substance in metal pot",
+      "obs": "a substance called water",
+      "reward": 0,
+      "score": 71,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 20,
+      "action": "use thermometer in inventory on substance in metal pot",
+      "obs": "the thermometer measures a temperature of 3 degrees celsius",
+      "reward": 0,
+      "score": 71,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 21,
+      "action": "wait",
+      "obs": "You decide to wait for 10 iterations.",
+      "reward": 29,
+      "score": 100,
+      "score_delta": 29,
+      "done": true
+    }
+  ]
+}

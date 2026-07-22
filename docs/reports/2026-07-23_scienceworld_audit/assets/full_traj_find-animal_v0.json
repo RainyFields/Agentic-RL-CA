@@ -1,0 +1,105 @@
+{
+  "task": "find-animal",
+  "variation": 0,
+  "task_description": "Your task is to find a(n) animal. First, focus on the thing. Then, move it to the red box in the kitchen.",
+  "gold_len": 10,
+  "final_score": 100,
+  "steps": [
+    {
+      "t": -1,
+      "action": "(reset)",
+      "obs": "This room is called the hallway. In it, you see: \n\tthe agent\n\ta substance called air\n\ta picture\nYou also see:\n\tA door to the art studio (that is open)\n\tA door to the bedroom (that is open)\n\tA door to the greenhouse (that is open)\n\tA door to the kitchen (that is open)\n\tA door to the living room (that is open)\n\tA door to the workshop (that is open)",
+      "score": 0
+    },
+    {
+      "t": 0,
+      "action": "open door to greenhouse",
+      "obs": "The door is already open.",
+      "reward": 0,
+      "score": 8,
+      "score_delta": 8,
+      "done": false
+    },
+    {
+      "t": 1,
+      "action": "go to greenhouse",
+      "obs": "You move to the greenhouse.",
+      "reward": 9,
+      "score": 17,
+      "score_delta": 9,
+      "done": false
+    },
+    {
+      "t": 2,
+      "action": "open door to outside",
+      "obs": "The door is already open.",
+      "reward": 0,
+      "score": 17,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 3,
+      "action": "go to outside",
+      "obs": "You move to the outside.",
+      "reward": 0,
+      "score": 17,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 4,
+      "action": "look around",
+      "obs": "This outside location is called the outside. Here you see: \n\tthe agent\n\ta substance called air\n\tan axe\n\ta blue jay egg\n\ta butterfly egg\n\ta dove egg\n\ta fire pit (containing nothing)\n\ta fountain (containing a substance called water)\n\tthe ground\n\ta substance called wood\nYou also see:\n\tA door to the foundry (that is open)\n\tA door to the greenhouse (that is open)\n\tA door to the kitchen (that is open)",
+      "reward": 0,
+      "score": 17,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 5,
+      "action": "focus on blue jay",
+      "obs": "You focus on the blue jay egg.",
+      "reward": 50,
+      "score": 67,
+      "score_delta": 50,
+      "done": false
+    },
+    {
+      "t": 6,
+      "action": "pick up blue jay",
+      "obs": "You move the blue jay to the inventory.",
+      "reward": 8,
+      "score": 75,
+      "score_delta": 8,
+      "done": false
+    },
+    {
+      "t": 7,
+      "action": "open door to kitchen",
+      "obs": "The door is already open.",
+      "reward": 0,
+      "score": 75,
+      "score_delta": 0,
+      "done": false
+    },
+    {
+      "t": 8,
+      "action": "go to kitchen",
+      "obs": "You move to the kitchen.",
+      "reward": 8,
+      "score": 83,
+      "score_delta": 8,
+      "done": false
+    },
+    {
+      "t": 9,
+      "action": "move egg blue jay egg in inventory to red box",
+      "obs": "You move the blue jay to the red box.",
+      "reward": 17,
+      "score": 100,
+      "score_delta": 17,
+      "done": true
+    }
+  ]
+}
