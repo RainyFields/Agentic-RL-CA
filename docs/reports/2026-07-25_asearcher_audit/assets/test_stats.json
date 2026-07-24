@@ -1,0 +1,133 @@
+{
+  "GAIA": {
+    "rows": 103,
+    "fields": [
+      "id",
+      "task_id",
+      "question",
+      "answer",
+      "Level",
+      "Annotator_Metadata",
+      "source"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": true
+  },
+  "frames": {
+    "rows": 824,
+    "fields": [
+      "id",
+      "answer",
+      "wikipedia_link_1",
+      "wikipedia_link_2",
+      "wikipedia_link_3",
+      "wikipedia_link_4",
+      "wikipedia_link_5",
+      "wikipedia_link_6",
+      "wikipedia_link_7",
+      "wikipedia_link_8",
+      "wikipedia_link_9",
+      "wikipedia_link_10",
+      "wikipedia_link_11+",
+      "reasoning_types",
+      "wiki_links",
+      "answers",
+      "Question"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "xbench-deepsearch": {
+    "rows": 100,
+    "fields": [
+      "id",
+      "prompt",
+      "answer",
+      "reference_steps",
+      "canary",
+      "question"
+    ],
+    "trajectory_fields": [
+      "reference_steps"
+    ],
+    "has_reference_steps": true
+  },
+  "Bamboogle": {
+    "rows": 125,
+    "fields": [
+      "question",
+      "answer"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "2WikiMultihopQA_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "_id",
+      "type",
+      "question",
+      "context",
+      "supporting_facts",
+      "evidences",
+      "answer"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "HotpotQA_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "_id",
+      "answer",
+      "question",
+      "supporting_facts",
+      "context",
+      "type",
+      "level"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "Musique_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "id",
+      "paragraphs",
+      "question",
+      "question_decomposition",
+      "answer",
+      "answer_aliases",
+      "answerable"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "NQ_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "question",
+      "answer"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "PopQA_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "question",
+      "answer"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  },
+  "TriviaQA_rand1000": {
+    "rows": 1000,
+    "fields": [
+      "question",
+      "answer"
+    ],
+    "trajectory_fields": "NONE",
+    "has_reference_steps": false
+  }
+}

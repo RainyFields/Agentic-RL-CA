@@ -1,0 +1,166 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\titlespacing*{\section}{0pt}{1.2ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{0.9ex}{0.4ex}
+\setlist{nosep,leftmargin=1.4em}
+\definecolor{hdr}{RGB}{235,235,240}
+\definecolor{warn}{RGB}{255,244,222}
+\newcommand{\cmd}[1]{\texttt{\small #1}}
+
+\title{\vspace{-1.5cm}\textbf{ASearcher: dataset inspection report}\\[2pt]
+\large Wave-0 M7 (rung 3, long-horizon web search), CA-Benchmark project}
+\author{}
+\date{2026-07-25}
+
+\begin{document}
+\maketitle
+\vspace{-0.6cm}
+
+\noindent\small\textit{Scope.} Direct inspection of the ASearcher datasets (inclusionAI) for rung~3 of
+the credit-assignment benchmark, answering the three questions posed: \textbf{how many turns},
+\textbf{whether expert trajectories exist}, and \textbf{whether there is a train/eval split}. All counts
+come from downloading and parsing the raw files (the HF dataset viewer is broken for these repos);
+reproduce with \cmd{scripts/asearcher/inspect\_dataset.py}, assets in \cmd{assets/}. Paper facts are from
+arXiv 2508.07976 (verified).\normalsize
+
+\section{Headline answers}
+\begin{enumerate}
+\item \textbf{Turns: none in the data; horizon is a training-time setting.} ASearcher's data is
+(question, answer) pairs with \emph{no} interaction traces, so it carries no turn counts. The paper sets
+the RL \emph{turn budget} to \textbf{32 turns} for the 7B/14B agents and \textbf{128 turns} for the
+QwQ-32B agent, with emergent behaviour exceeding \textbf{40 tool calls / 150k tokens} per trajectory. Our
+benchmark caps rung~3 at \textbf{30 turns} by design, so we sit at the 7B/14B operating point, not the
+128-turn regime the ``Beyond Ten Turns'' title advertises.
+\item \textbf{Expert trajectories: NO.} Neither training split contains any thought / search-query /
+retrieved-doc / turn field --- verified by scanning every row's schema. There is no published SFT /
+cold-start / demonstration dataset either. ASearcher trains RL (GRPO) \emph{directly} from base models
+with no behaviour-cloning warm start. The closest thing to ``expert'' guidance anywhere is a human
+\emph{reference-solution outline} attached to two \emph{eval} sets (GAIA \cmd{Annotator\_Metadata.Steps},
+xbench \cmd{reference\_steps}) --- prose plans, not agent rollouts, and eval-only.
+\item \textbf{Train/eval split: yes, as two separate repositories.} \cmd{ASearcher-train-data} holds two
+\emph{training} splits ($\sim$70.6k QA pairs total, no held-out test inside it); evaluation is a distinct
+repo \cmd{ASearcher-test-data} with 10 benchmark subsets. Train and eval never live in one file.
+\end{enumerate}
+
+\noindent\textbf{Consequence for our plan.} The proposal already anticipated this: rung~3's SFT
+$\pi_\text{base}$ must be \emph{self-generated} (strong-model rollouts in our capped 30-turn setup, or
+DR-Tulu remap) because ASearcher ships none. And the solvability diagnostic (M7 step~4) is unavoidable ---
+the data gives us questions, but whether \emph{our} 4B agent under \emph{our} wiki-18 corpus at 30 turns
+can answer them is exactly what the go/no-go gate must measure.
+
+\section{The training data: \cmd{inclusionAI/ASearcher-train-data}}
+Two JSONL files, both \textbf{QA pairs only}, Apache-2.0. Data is \emph{synthesized}: a prompt-based LLM
+agent starts from 14,107 seed questions and applies ``Injection'' (add related facts) and ``Fuzz''
+(obscure identifying details) operations, then a 3-step quality/difficulty/uniqueness filter. It is
+QA-pair synthesis, \emph{not} trajectory synthesis.
+
+\begin{center}\small
+\begin{tabular}{lrl}
+\toprule
+Split & Rows & Fields \\
+\midrule
+\cmd{ASearcher-Base-35k} & 35{,}583 & \cmd{question}, \cmd{answer} (list), \cmd{source}, \cmd{aug\_answer} (aliases), \cmd{qid} \\
+\cmd{ASearcher-LRM-35k} & 35{,}054 & \cmd{question}, \cmd{answer} (string), \cmd{source}, \cmd{id}, \cmd{idx} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The two splits are genuinely different products, not a random partition:
+\begin{itemize}
+\item \textbf{Base-35k} --- shorter multi-hop questions (median \textbf{23} words, p95 60), a list-valued
+answer, and \emph{heavy alias augmentation} (\cmd{aug\_answer}: median 4 paraphrases, max 1454). Sources:
+\cmd{compose\_chain\_qa} 8{,}537, \cmd{opensource-fm8k} 7{,}991, \cmd{opensource} 7{,}927,
+\cmd{compose\_group\_qa} 6{,}375, and \cmd{compose\_chain\_qa\_invalid} \textbf{4{,}753}. Note that last
+tag: $\sim$13\% of Base is flagged \emph{invalid} yet shipped --- we must decide to drop or keep it (drop,
+unless the diagnostic says otherwise).
+\item \textbf{LRM-35k} --- longer, more convoluted ``chain'' questions (median \textbf{43} words, p95 88,
+max 639) aimed at large-reasoning-model agents; string answer, no aliases. Sources: 24{,}026 rows carry
+\emph{no source tag} (bare numeric ids), \cmd{chain\_qa\_fuzzy} 3{,}527, \cmd{math} 2{,}930,
+\cmd{train\_v1:webwalker\_hard} \textbf{2{,}572}, \cmd{train\_v1:compose\_group\_qa} 1{,}999.
+\end{itemize}
+
+\noindent The question-length gap (23 vs 43 median words) is itself a within-rung difficulty axis. The
+\cmd{math} slice in LRM and the missing aliases mean LRM is the harder, noisier half --- relevant to which
+split we draw the frozen training set from.
+
+\section{The eval data: \cmd{inclusionAI/ASearcher-test-data}}
+A separate repo, one \cmd{test} split per benchmark subdirectory, all QA pairs (+ metadata), no
+trajectories. Row counts verified by download:
+
+\begin{center}\small
+\begin{tabular}{lrl}
+\toprule
+Subset & Rows & Notes \\
+\midrule
+GAIA & 103 & has human \cmd{Annotator\_Metadata.Steps} (reference plan); Level 1--3 \\
+frames (FRAMES) & 824 & multi-constraint; gold Wikipedia link chains + \cmd{reasoning\_types} \\
+xbench-deepsearch & 100 & Chinese deep-search; has \cmd{reference\_steps}; canary-guarded \\
+Bamboogle & 125 & short multi-hop QA \\
+2WikiMultihopQA\_rand1000 & 1{,}000 & random-1000 subsample \\
+HotpotQA\_rand1000 & 1{,}000 & random-1000 subsample \\
+Musique\_rand1000 & 1{,}000 & random-1000 subsample \\
+NQ\_rand1000 & 1{,}000 & random-1000 subsample \\
+PopQA\_rand1000 & 1{,}000 & random-1000 subsample \\
+TriviaQA\_rand1000 & 1{,}000 & random-1000 subsample \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Total 7{,}277 eval items across 10 benchmarks. The paper's headline (web setting, ASearcher-Web-QwQ)
+reports GAIA $\sim$53--59, xbench $\sim$42--51, FRAMES $\sim$71--75 (exact numbers are checkpoint-dependent
+between the arXiv version and the repo leaderboard --- pin the checkpoint before citing).
+
+\section{Two leakage vectors we must handle (important)}
+\begin{enumerate}
+\item \textbf{ASearcher train $\cap$ WebWalkerQA.} The LRM split contains \textbf{2{,}572
+\cmd{webwalker\_hard} items}. WebWalkerQA is one of \emph{our} rung-3 transfer-eval benchmarks (proposal
+§4). Training on webwalker-derived questions and then reporting WebWalkerQA transfer would be leakage ---
+the proposal's ``fuzzy dedup vs WebWalkerQA'' step is therefore load-bearing, and may require dropping the
+whole \cmd{webwalker\_hard} slice, not just exact-match hits.
+\item \textbf{ASearcher eval $\cap$ our rung-1 SearchQA.} \cmd{ASearcher-test-data} \emph{is}
+HotpotQA / 2Wiki / Musique / NQ / TriviaQA / PopQA / Bamboogle --- the same families we \emph{train on and
+eval} at rung~1. We must not let rung-3 training questions (composed from these) overlap rung-1 eval, and
+we should use \emph{our own} rung-1 eval splits, not ASearcher's rand1000 subsamples, to keep cross-rung
+comparisons clean. (Spot check: 0/125 exact-normalized overlap between ASearcher-train and the Bamboogle
+test file --- reassuring for exact matches, but the composed questions demand fuzzy dedup, not exact.)
+\end{enumerate}
+
+\section{Environment / answerability note}
+ASearcher ships \emph{two} settings: a \textbf{local-RAG} setting (Wikipedia-2018 corpus --- the same
+wiki-18 dump we already host for rung~1) for its Local models, and a \textbf{live-web} setting (Serper +
+Jina) for its Web models. Its strongest published numbers are the \emph{live-web} QwQ-32B agent. We run the
+\textbf{local-RAG, 30-turn, Qwen3-4B} configuration --- strictly harder on answerability than live web and
+much smaller than QwQ-32B. \textbf{This is precisely why the M7 solvability diagnostic gates the rung:} the
+questions were synthesized to be hard for a 7B--32B agent with strong retrieval; our answerable-fraction
+check on 200--300 items under wiki-18 decides regime (i)/(ii)/(iii) before we spend training budget.
+
+\section{Challenges (rung-3 specific)}
+\begin{itemize}
+\item \textbf{No warm start.} No expert trajectories $\Rightarrow$ rung-3 SFT $\pi_\text{base}$ must be
+generated by us (strong-model rollouts in-setup, EM-verified), which is extra W0 inference cost and its own
+quality-control pass.
+\item \textbf{Answerability is unknown and setting-dependent.} Data is tuned for live-web / large models;
+under our capped local-RAG 4B agent the learnable-band fraction is the open question --- the go/no-go gate.
+\item \textbf{Leakage on both sides} (webwalker into training, rand1000 benchmarks overlapping rung~1) ---
+fuzzy dedup required, not exact.
+\item \textbf{Long, variable horizon} (paper 32--128 turn budgets; we cap 30) with retrieved-doc context
+that will not fit full-history --- the rung-3 truncation policy (per-doc caps + drop-oldest
+\cmd{<information>}) is binding here, unlike the QA rung.
+\item \textbf{Noisy/heterogeneous training pool} --- a 13\% ``invalid'' slice in Base, a 40\% source-less
+slice and a \cmd{math} slice in LRM; the frozen training draw needs an explicit inclusion policy.
+\end{itemize}
+
+\section*{Reproduce}
+\cmd{python scripts/asearcher/inspect\_dataset.py --out <dir>} downloads both repos (public, no token) and
+regenerates \cmd{train\_stats.json}, \cmd{test\_stats.json}, \cmd{sample\_rows.json}, \cmd{summary.md}.
+
+\end{document}

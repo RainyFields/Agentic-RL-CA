@@ -1,0 +1,526 @@
+{
+  "ASearcher-Base-35k.jsonl": [
+    {
+      "question": "What nationality is the director of film Queensland (Film)?",
+      "answer": [
+        "Australian"
+      ],
+      "source": "opensource",
+      "aug_answer": [
+        "Aussie",
+        "Australian national",
+        "From Australia",
+        "Australian citizen",
+        "Australians",
+        "Australian"
+      ],
+      "qid": 1
+    },
+    {
+      "question": "Dee Brown and Howard Norman are both librarians, correct?",
+      "answer": [
+        "no"
+      ],
+      "source": "opensource",
+      "aug_answer": [
+        "at least one of them is not a librarian",
+        "not true",
+        "false",
+        "no",
+        "they are not both librarians",
+        "incorrect"
+      ],
+      "qid": 5
+    }
+  ],
+  "ASearcher-LRM-35k.jsonl": [
+    {
+      "question": "Which international financial institution, established in the early 1930s, was originally tasked with facilitating the reparations imposed on Germany by the Treaty of Versailles, which followed a significant global conflict that led to the collapse of the Austro-Hungarian Empire and the region where a prolific book publisher and translator, Josef Florian, was born and published his works, losing its status as a crown land?",
+      "answer": "Bank for International Settlements (BIS)",
+      "source": "chain_qa_fuzzy",
+      "id": "1",
+      "idx": "1"
+    },
+    {
+      "question": "In which city did the famous conqueror, who founded a city near a significant historical site in modern-day Pakistan, die?",
+      "answer": "Babylon",
+      "source": "chain_qa_fuzzy",
+      "id": "2",
+      "idx": "2"
+    }
+  ],
+  "test/GAIA": [
+    {
+      "id": 1,
+      "task_id": "17b5a6a3-bc87-42e8-b0fb-6ab0781ef2cc",
+      "question": "I’m researching species that became invasive after people who kept them as pets released them. There’s a certain species of fish that was popularized as a pet by being the main character of the movie Finding Nemo. According to the USGS, where was this fish found as a nonnative species, before the year 2020? I need the answer formatted as the five-digit zip codes of the places the species was found, separated by commas if there is more than one place.",
+      "answer": [
+        "34689"
+      ],
+      "Level": 2,
+      "Annotator_Metadata": {
+        "Steps": "1. Search the web for “finding nemo main character”.\n2. Note the results, which state that the main character is a clownfish.\n3. Search the web for “usgs nonnative species database”.\n4. Click result for the Nonindigenous Aquatic Species site.\n5. Click “Marine Fishes”.\n6. Click “Species List of Nonindigenous Marine Fish”.\n7. Scroll through the list until I find the clown anenomefish, and click “Collection info”.\n8. Note the place that a clown anenomefish was found, in Fred Howard Park at the Gulf of Mexico.\n9. Search the web for “fred howard park florida zip code”.\n10. Note the zip code, 34689. Since only one clownfish was found before the year 2020, this is the answer.",
+        "Number of steps": "10",
+        "How long did this take?": "5 minutes",
+        "Tools": "1. Search engine\n2. Web browser",
+        "Number of tools": "2"
+      },
+      "source": "gaia_level2"
+    }
+  ],
+  "test/frames": [
+    {
+      "id": "0",
+      "answer": "Jane Ballou",
+      "wikipedia_link_1": "https://en.wikipedia.org/wiki/President_of_the_United_States",
+      "wikipedia_link_2": "https://en.wikipedia.org/wiki/James_Buchanan",
+      "wikipedia_link_3": "https://en.wikipedia.org/wiki/Harriet_Lane",
+      "wikipedia_link_4": "https://en.wikipedia.org/wiki/List_of_presidents_of_the_United_States_who_died_in_office",
+      "wikipedia_link_5": "https://en.wikipedia.org/wiki/James_A._Garfield",
+      "wikipedia_link_6": "",
+      "wikipedia_link_7": "",
+      "wikipedia_link_8": "",
+      "wikipedia_link_9": "",
+      "wikipedia_link_10": "",
+      "wikipedia_link_11+": "",
+      "reasoning_types": "Multiple constraints",
+      "wiki_links": "['https://en.wikipedia.org/wiki/President_of_the_United_States', 'https://en.wikipedia.org/wiki/James_Buchanan', 'https://en.wikipedia.org/wiki/Harriet_Lane', 'https://en.wikipedia.org/wiki/List_of_presidents_of_the_United_States_who_died_in_office', 'https://en.wikipedia.org/wiki/James_A._Garfield']",
+      "answers": [
+        "Jane Ballou"
+      ],
+      "Question": "If my future wife has the same first name as the 15th first lady of the United States' mother and her surname is the same as the second assassinated president's mother's maiden name, what is my future wife's name? "
+    }
+  ],
+  "test/xbench-deepsearch": [
+    {
+      "id": "1",
+      "prompt": "截至2024年12月31日，2024年上海黄金交易所Au(T+D)合约的“最高价”与“最低价”之差约为多少元/克？",
+      "answer": "161.27元",
+      "reference_steps": "1. 访问官方行情页面：https://www.sge.com.cn/sjzx/quotation_daily_new\n2. 设置查询区间：在页面中，按月度查询：如将“查询日期（开始）”设为 2024‑01‑01、“查询日期（结束）”设为 2024‑01‑31，点击“查询”，累计下载12个月数据，即12个excel；（由于限制，每次只能下载一个月）\n3. 使用python合并excel\n4. 打开excel，查询找到“Au(T+D)”这一行，并记下其“最高价”列（637.3 元/克）和“最低价”列（476.03 元/克）。\n5. 计算差值：637.30 – 476.03 = 161.27 （元/克）",
+      "canary": "BENCHMARK DATA SHOULD NEVER APPEAR AS PLAIN TEXT ONLINE. canary GUID xbench-DeepSearch:beab185e-cc30-4b33-a1bf-bf1a01982696",
+      "question": "截至2024年12月31日，2024年上海黄金交易所Au(T+D)合约的“最高价”与“最低价”之差约为多少元/克？"
+    }
+  ],
+  "test/Bamboogle": [
+    {
+      "question": "Who was president of the United States in the year that Citibank was founded?",
+      "answer": "james madison"
+    }
+  ],
+  "test/2WikiMultihopQA_rand1000": [
+    {
+      "_id": "d72f1c660bdd11eba7f7acde48001122",
+      "type": "compositional",
+      "question": "Where did Khanzada Begum's father die?",
+      "context": [
+        [
+          "Khanzada Begum",
+          [
+            "Khanzada Begum (1478 – 1545) was a Timurid princess and the eldest daughter of Umar Shaikh Mirza II, the \"amir\" of Ferghana.",
+            "She was also the elder sister of Babur, the founder of the Mughal Empire.",
+            "She and her brother remained deeply attached to each other all their lives, a period during which the family progressed from ruling a tiny and obscure principality in Central Asia to ruling a large portion of the Indian subcontinent.",
+            "Babur conferred on his sister, the honorable title of \"Padshah Begum\" and she was really the first lady of his Empire after his death.",
+            "Khanzada Begum is frequently mentioned in the \"Baburnama,\" her brother's memoirs, and always with affection and respect.",
+            "She is also frequently mentioned in the \"Humayun-nama\" by her niece Gulbadan Begum, who calls her aunt 'Dearest Lady' (\"aka janam\").",
+            "Many occasions are described where she intervened during political difficulties between her relatives and more specifically her nephews."
+          ]
+        ],
+        [
+          "Motherland (disambiguation)",
+          [
+            "Motherland is the place of one's birth, the place of one's ancestors, or the place of origin of an ethnic group.",
+            "Motherland may also refer to:"
+          ]
+        ],
+        [
+          "Place of birth",
+          [
+            "The place of birth( POB) or birthplace is the place where a person was born.",
+            "This place is often used in legal documents, together with name and date of birth, to uniquely identify a person.",
+            "As a general rule with respect to passports, the place of birth is determined to be the country that currently has\" sovereignty\" over the actual place of birth, regardless of when the birth actually occurred.",
+            "The place of birth is not necessarily the place where the parents of the new baby live.",
+            "If the baby is born in a hospital in another place, that place is the place of birth.",
+            "In many countries, this also means that the government requires that the birth of the new baby is registered in the place of birth.",
+            "Some countries place less or no importance on the place of birth, instead using alternative geographical characteristics for the purpose of identity documents.",
+            "For example, Sweden has used the concept of\" födelsehemortdomicile of birth\") since 1947.",
+            "This means that the domicile of the baby's mother is the registered place of birth.",
+            "The location of the maternity ward or other physical birthplace is considered unimportant.",
+            "Similarly, Switzerland uses the concept of\" Heimatortlieu d'origineluogo d'origineplace of origin\" in German, French and Italian respectively).",
+            "A child born to Swiss parents is automatically assigned the place of origin of the parent with the same last name, so the child either gets their mother's or father's place of origin.",
+            "A child born to one Swiss parent and one foreign parent acquires the place of origin of their Swiss parent.",
+            "In a Swiss passport and identity card, the holder's place of origin is stated, not their place of birth.",
+            "In some countries( primarily in the Americas), the place of birth automatically determines the nationality of the baby, a practice often referred to by the Latin phrase\" jus soli\".",
+            "Almost all countries outside the Americas instead attribute nationality based on the nationality( ies) of the baby's parents( referred to as\" jus sanguinis\").",
+            "There can be some confusion regarding the place of birth if the birth takes place in an unusual way: when babies are born on an airplane or at sea, difficulties can arise.",
+            "The place of birth of such a person depends on the law of the countries involved, which include the nationality of the plane or ship, the nationality( ies) of the parents and/ or the location of the plane or ship( if the birth occurs in the territorial waters or airspace of a country).",
+            "Some administrative forms may request the applicant's\" country of birth\".",
+            "It is important to determine from the requester whether the information requested refers to the applicant's\" place of birth\" or\" nationality at birth\".",
+            "For US citizens born abroad who under the US Constitution acquire US citizenship at the time of birth, the nationality at birth will be USA( American), while the place of birth would be the country in which the actual birth takes place."
+          ]
+        ],
+        [
+          "Valley of Death",
+          [
+            "Valley of Death may refer to:"
+          ]
+        ],
+        [
+          "Place of origin",
+          [
+            "In Switzerland, the place of origin( literally\" home place\" or\" citizen place\") denotes where a Swiss citizen has their municipal citizenship.",
+            "It is not to be confused with the place of birth or place of residence, although two or all three of these locations may be identical depending on the person's circumstances."
+          ]
+        ],
+        [
+          "Where Was I",
+          [
+            "\" Where Was I?\" may refer to:"
+          ]
+        ],
+        [
+          "Akleem Khan",
+          [
+            "Wali-e-Mewat Raja Khanzada Akleem Khan, Bahadur, son of Khanzada Bahadur Khan, was the Khanzada Rajput ruler of Mewat from 1412 until 1417.",
+            "He was succeeded by his brother Khanzada Feroz Khan as Wali-e-Mewat in 1417."
+          ]
+        ],
+        [
+          "Beaulieu-sur-Loire",
+          [
+            "Beaulieu- sur- Loire is a commune in the Loiret department in north -central France.",
+            "It is also the place of death of Jacques MacDonald, a French general who served in the Napoleonic Wars"
+          ]
+        ],
+        [
+          "Dance of Death (disambiguation)",
+          [
+            "Dance of Death, also called\" Danse Macabre\", is a late- medieval allegory of the universality of death.",
+            "Dance of Death or The Dance of Death may also refer to:"
+          ]
+        ],
+        [
+          "Umar Shaikh Mirza II",
+          [
+            "Umar Shaikh Mirza II (1456–1494 C.E.) was the ruler of the Fergana Valley.",
+            "He was the fourth son of Abu Sa'id Mirza, the Emperor of the Timurid Empire in what is now Kazakhstan, Uzbekistan, Afghanistan and eastern Iran.",
+            "His first wife and chief consort was Qutlugh Nigar Khanum, a princess of the Chagatai Khanate and daughter of Yunus Khan of Moghulistan.",
+            "Umar had two other wives and had three sons and five daughters from his wives.",
+            "His eldest son was Babur Mirza from his wife Qutlugh Nigar Khanum.",
+            "His sons from this other two wives were Jahangir Mirza II and Nasir Mirza.",
+            "His eldest son Babur Mirza founded the Mughal Empire in 1526 and was the first Mughal Emperor of India.",
+            "Umar Shaikh Mirza died in a freak accident in Aksi fort, North Fergana, on 10 June 1494.",
+            "It occurred when he was in his dovecote, which was built at the edge of the building, collapsed, thus making eleven-year-old Babur, the ruler of Fergana."
+          ]
+        ]
+      ],
+      "supporting_facts": [
+        [
+          "Khanzada Begum",
+          0
+        ],
+        [
+          "Umar Shaikh Mirza II",
+          0
+        ]
+      ],
+      "evidences": [
+        [
+          "Khanzada Begum",
+          "father",
+          "Umar Shaikh Mirza II"
+        ],
+        [
+          "Umar Shaikh Mirza II",
+          "place of death",
+          "Fergana"
+        ]
+      ],
+      "answer": "Fergana"
+    }
+  ],
+  "test/HotpotQA_rand1000": [
+    {
+      "_id": "5ab8903555429916710eb08e",
+      "answer": "Clark County",
+      "question": "What city is the flying component of the United States Air Force 432d Wing stationed in",
+      "supporting_facts": [
+        [
+          "432d Operations Group",
+          0
+        ],
+        [
+          "Creech Air Force Base",
+          0
+        ],
+        [
+          "Creech Air Force Base",
+          1
+        ]
+      ],
+      "context": [
+        [
+          "2d Operations Group",
+          [
+            "The 2d Operations Group (2 OG) is the flying component of the United States Air Force 2d Bomb Wing, assigned to the Air Force Global Strike Command Eighth Air Force.",
+            " The group is stationed at Barksdale Air Force Base, Louisiana."
+          ]
+        ],
+        [
+          "92d Operations Group",
+          [
+            "The 92d Operations Group (92 OG) is the flying component of the 92d Air Refueling Wing, assigned to the United States Air Force Air Mobility Command Eighteenth Air Force.",
+            " The group is stationed at Fairchild Air Force Base, Washington."
+          ]
+        ],
+        [
+          "380th Expeditionary Operations Group",
+          [
+            "The 380th Expeditionary Operations Group (380 EOG) is the operational flying component of the United States Air Force 380th Air Expeditionary Wing.",
+            " It is a provisional unit stationed at Al Dhafra Air Base, United Arab Emirates, and is assigned to the United States Air Forces Central component of Air Combat Command (ACC)."
+          ]
+        ],
+        [
+          "432d Wing",
+          [
+            "The 432d Wing is a United States Air Force unit assigned to Air Combat Command, stationed at Creech Air Force Base, Nevada.",
+            " The group operates unmanned reconnaissance aircraft which provide real-time reconnaissance, surveillance, and precision attack against fixed and time-critical targets.",
+            " The 432d Air Expeditionary Wing is a provisional unit assigned to Air Combat Command and is the designation for components of the 432d Wing when deployed into combat areas as part of the Global War on Terror."
+          ]
+        ],
+        [
+          "67th Cyberspace Wing",
+          [
+            "The 67th Cyberspace Wing is a United States Air Force wing stationed at Lackland Air Force Base, Texas.",
+            " It was activated in October 1993 as a military intelligence unit and is assigned to Twenty-Fourth Air Force.",
+            " The wing was first activated at March Field as the 67th Reconnaissance Wing as part of the wing base organization system.",
+            " However, only its 67th Tactical Reconnaissance Group ever became operational and it relied on another wing for support.",
+            " It was inactivated in the 1949 Truman reductions in the Department of Defense budget."
+          ]
+        ],
+        [
+          "22d Operations Group",
+          [
+            "The 22d Operations Group is the operational flying component of the United States Air Force 22d Air Refueling Wing.",
+            " It is stationed at McConnell Air Force Base, Kansas, and is part of Air Mobility Command (AMC)'s Eighteenth Air Force."
+          ]
+        ],
+        [
+          "432d Operations Group",
+          [
+            "The 432d Operations Group is the flying component of the United States Air Force 432d Wing, stationed at Creech Air Force Base, Nevada."
+          ]
+        ],
+        [
+          "3d Operations Group",
+          [
+            "The 3d Operations Group is the operational flying component of the United States Air Force 3d Wing.",
+            " It is stationed at Elmendorf Air Force Base, Alaska, and is assigned to Pacific Air Forces' Eleventh Air Force."
+          ]
+        ],
+        [
+          "1st Operations Group",
+          [
+            "The 1st Operations Group (1 OG) is the flying component of the 1st Fighter Wing, assigned to the USAF Air Combat Command.",
+            " The group is stationed at Langley Air Force Base, Virginia.",
+            " The 1st Operations Group is the oldest major air combat unit in the United States Air Force, being the successor organization of the 1st Pursuit Group.",
+            " The 1st Pursuit Group was the first air combat group formed by the Air Service, American Expeditionary Force, on 5 May 1918."
+          ]
+        ],
+        [
+          "437th Operations Group",
+          [
+            "The 437th Operations Group (437 OG) is an active United States Air Force unit.",
+            " It is the flying component of the Twenty-First Air Force 437th Airlift Wing, stationed at Charleston Air Force Base, South Carolina."
+          ]
+        ]
+      ],
+      "type": "bridge",
+      "level": "hard"
+    }
+  ],
+  "test/Musique_rand1000": [
+    {
+      "id": "3hop1__131783_131926_89261",
+      "paragraphs": [
+        {
+          "idx": 0,
+          "title": "Cedar Bayou",
+          "paragraph_text": "Cedar Bayou is a salt water channel on the Texas coast that separates San Jose Island from Matagorda Island. The pass serves as a water exchange between the Gulf of Mexico and the San Antonio, Matagorda and Aransas Bay systems.",
+          "is_supporting": false
+        },
+        {
+          "idx": 1,
+          "title": "The Minikahda Club",
+          "paragraph_text": "The Minikahda Club is a golf club and course located in southwest Minneapolis, Minnesota, just west of Lake Calhoun. The course hosted the U.S. Open in 1916, the U.S. Amateur in 1927, and the Walker Cup in 1957.",
+          "is_supporting": true
+        },
+        {
+          "idx": 2,
+          "title": "Sam's Club",
+          "paragraph_text": "As of January 31, 2017, Sam's Club operates 660 membership warehouse clubs in 47 U.S. states and Puerto Rico. Oregon, Rhode Island (which that state's only location closed in February 2016) and Vermont are the only states where Sam's Club does not operate, as is the case for the District of Columbia. Walmart International also operates Sam's Clubs in Mexico, Brazil, and China. It has 160 locations in Mexico, 27 locations in Brazil, and 15 in China. Locations generally range in size from 71,000 -- 168,000 sq ft (6,600 -- 15,600 m), with an average club size of approximately 134,000 sq ft (12,400 m).",
+          "is_supporting": false
+        },
+        {
+          "idx": 3,
+          "title": "Winding Gulf, West Virginia",
+          "paragraph_text": "Winding Gulf is an unincorporated community in Raleigh County, West Virginia, United States. Winding Gulf is located on Winding Gulf south of Sophia.",
+          "is_supporting": false
+        },
+        {
+          "idx": 4,
+          "title": "Valdes Peninsula",
+          "paragraph_text": "The coastline is inhabited by marine mammals, like sea lions, elephant seals and fur seals. Southern right whales can be found in Golfo Nuevo and Golfo San José, protected bodies of water located between the peninsula and the Patagonian mainland. These baleen whales come here between May and December, for mating and giving birth, because the water in the gulf is quieter and warmer than in the open sea. Orcas can be found off the coast, in the open sea off the peninsula. In this area, they are known to beach themselves on shore to capture sea lions and elephant seals.",
+          "is_supporting": false
+        },
+        {
+          "idx": 5,
+          "title": "Minneapolis",
+          "paragraph_text": "Minneapolis lies on both banks of the Mississippi River, just north of the river's confluence with the Minnesota River, and adjoins Saint Paul, the state's capital. The city is abundantly rich in water, with 13 lakes, wetlands, the Mississippi River, creeks and waterfalls; many connected by parkways in the Chain of Lakes and the Grand Rounds National Scenic Byway. It was once the world's flour milling capital and a hub for timber. The city and surrounding region is the primary business center between Chicago and Seattle. As of 2018, Minneapolis was home to 6 Fortune 500 companies, and the Twin Cities were the fifth-largest hub of major corporate headquarters in the United States. As an integral link to the global economy, Minneapolis is categorized as a global city.",
+          "is_supporting": true
+        },
+        {
+          "idx": 6,
+          "title": "Gulf of Mexico",
+          "paragraph_text": "The Gulf of Mexico formed approximately 300 million years ago as a result of plate tectonics. The Gulf of Mexico basin is roughly oval and is approximately 810 nautical miles (1,500 km; 930 mi) wide and floored by sedimentary rocks and recent sediments. It is connected to part of the Atlantic Ocean through the Florida Straits between the U.S. and Cuba, and with the Caribbean Sea (with which it forms the American Mediterranean Sea) via the Yucatán Channel between Mexico and Cuba. With the narrow connection to the Atlantic, the Gulf experiences very small tidal ranges. The size of the Gulf basin is approximately 1.6 million km (615,000 sq mi). Almost half of the basin is shallow continental shelf waters. The basin contains a volume of roughly 2,500 quadrillion liters (550 quadrillion Imperial gallons, 660 quadrillion US gallons, 2.5 million km or 600,000 cu mi). The Gulf of Mexico is one of the most important offshore petroleum production regions in the world, comprising one - sixth of the United States' total production.",
+          "is_supporting": false
+        },
+        {
+          "idx": 7,
+          "title": "Silver Lake (Harrisville, New Hampshire)",
+          "paragraph_text": "Silver Lake is a water body located in Cheshire County in southwestern New Hampshire, United States, in the towns of Harrisville and Nelson. Water from Silver Lake flows via Minnewawa Brook and The Branch to the Ashuelot River, a tributary of the Connecticut River.",
+          "is_supporting": false
+        },
+        {
+          "idx": 8,
+          "title": "Geography of the United States",
+          "paragraph_text": "The United States shares land borders with Canada (to the north) and Mexico (to the south), and a territorial water border with Russia in the northwest, and two territorial water borders in the southeast between Florida and Cuba, and Florida and the Bahamas. The contiguous forty-eight states are otherwise bounded by the Pacific Ocean on the west, the Atlantic Ocean on the east, and the Gulf of Mexico to the southeast. Alaska borders the Pacific Ocean to the south, the Bering Strait to the west, and the Arctic Ocean to the north, while Hawaii lies far to the southwest of the mainland in the Pacific Ocean.",
+          "is_supporting": false
+        },
+        {
+          "idx": 9,
+          "title": "Clearwater River (Quebec)",
+          "paragraph_text": "The Clearwater River (in French: Rivière à l'Eau Claire) is a river flowing on the east shore of Lake Guillaume-Delisle (formerly designated \"Richmond Gulf\"), which empties into the Hudson Bay. The \"Clearwater River\" is located in Nunavik, in the west of the Labrador peninsula, in the administrative region of Nord-du-Québec, in Quebec, in Canada. This river drains Clearwater Lake into Lac Guillaume-Delisle.",
+          "is_supporting": false
+        },
+        {
+          "idx": 10,
+          "title": "Silver Lake (Madison, New Hampshire)",
+          "paragraph_text": "Silver Lake is a water body located in Carroll County in eastern New Hampshire, United States, in the town of Madison. The village of Silver Lake within Madison lies at the north end of the lake. Water from Silver Lake flows via the West Branch, through the Ossipee Pine Barrens to Ossipee Lake and ultimately to the Saco River in Maine.",
+          "is_supporting": false
+        },
+        {
+          "idx": 11,
+          "title": "Lanark Village, Florida",
+          "paragraph_text": "Lanark Village is an unincorporated community in Franklin County, Florida, United States, located along U.S. 98 on St. James Island, on the Gulf of Mexico.",
+          "is_supporting": false
+        },
+        {
+          "idx": 12,
+          "title": "Gulf of Mexico",
+          "paragraph_text": "The Gulf of Mexico (Spanish: Golfo de México) is an ocean basin and a marginal sea of the Atlantic Ocean,  largely surrounded by the North American continent. It is bounded on the northeast, north and northwest by the Gulf Coast of the United States, on the southwest and south by Mexico, and on the southeast by Cuba. The U.S. states of Texas, Louisiana, Mississippi, Alabama, and Florida border the Gulf on the north, which are often referred to as the \"Third Coast\", in comparison with the U.S. Atlantic and Pacific coasts.",
+          "is_supporting": false
+        },
+        {
+          "idx": 13,
+          "title": "Beaurivage River",
+          "paragraph_text": "The Beaurivage River is a river in Quebec that flows from Thetford Mines and empties in the Chaudière River, near Saint-Romuald, Quebec. It is a body of water mostly known for its annual canoe race beginning at Saint-Patrice-de-Beaurivage, Quebec and finishing at Saint-Gilles, Quebec.",
+          "is_supporting": false
+        },
+        {
+          "idx": 14,
+          "title": "Perdido River",
+          "paragraph_text": "Perdido River, historically Rio Perdido (1763), is a river in the U.S. states of Alabama and Florida; the Perdido, a designated Outstanding Florida Waters river, forms part of the boundary between the two states along nearly its entire length and drains into the Gulf of Mexico. During the early 19th century it played a central role in a series of rotating boundary changes and disputes among France, Spain, Great Britain, and the United States.",
+          "is_supporting": false
+        },
+        {
+          "idx": 15,
+          "title": "Southern Yacht Club",
+          "paragraph_text": "The Southern Yacht Club is located in New Orleans, Louisiana's West End neighborhood, on the shores of Lake Pontchartrain. Established on July 21, 1849, it is the second oldest yacht club in the United States and a founding member of the Gulf Yachting Association.",
+          "is_supporting": false
+        },
+        {
+          "idx": 16,
+          "title": "Mississippi River",
+          "paragraph_text": "The Mississippi River is the chief river of the second - largest drainage system on the North American continent, second only to the Hudson Bay drainage system. Flowing entirely in the United States (although its drainage basin reaches into Canada), it rises in northern Minnesota and meanders slowly southwards for 2,320 miles (3,730 km) to the Mississippi River Delta at the Gulf of Mexico. With its many tributaries, the Mississippi's watershed drains all or parts of 31 U.S. states and 2 Canadian provinces between the Rocky and Appalachian Mountains. The Mississippi ranks as the fourth - longest and fifteenth - largest river in the world by discharge. The river either borders or passes through the states of Minnesota, Wisconsin, Iowa, Illinois, Missouri, Kentucky, Tennessee, Arkansas, Mississippi, and Louisiana.",
+          "is_supporting": true
+        },
+        {
+          "idx": 17,
+          "title": "Mississippi River",
+          "paragraph_text": "The Mississippi River has the world's fourth - largest drainage basin (``watershed ''or`` catchment''). The basin covers more than 1,245,000 square miles (3,220,000 km), including all or parts of 31 U.S. states and two Canadian provinces. The drainage basin empties into the Gulf of Mexico, part of the Atlantic Ocean. The total catchment of the Mississippi River covers nearly 40% of the landmass of the continental United States. The highest point within the watershed is also the highest point of the Rocky Mountains, Mount Elbert at 14,440 feet (4,400 m).",
+          "is_supporting": false
+        },
+        {
+          "idx": 18,
+          "title": "Bras d'Or Yacht Club",
+          "paragraph_text": "The Bras d'Or Yacht Club is a yacht club in Baddeck, Nova Scotia. It is located on its namesake body of water, the Bras d'Or Lakes. The club was founded in 1904. Among its founding members were Gilbert Hovey Grosvenor, H. Percy Blanchard and Arthur Williams McCurdy. The clubhouse was constructed in 1913. Longtime member J.A. McCurdy, while serving as Lieutenant Governor of Nova Scotia, donated the McCurdy Cup to the club. This cup serves as the club championship. Alexander Graham Bell frequently attended club functions and even composed a song about it.",
+          "is_supporting": false
+        },
+        {
+          "idx": 19,
+          "title": "Dry Tortugas",
+          "paragraph_text": "The Dry Tortugas are a small group of islands, located in the Gulf of Mexico at the end of the Florida Keys, United States, about west of Key West, and west of the Marquesas Keys, the closest islands. Still farther west is the Tortugas Bank, which is submerged. The first Europeans to discover the islands were the Spanish in 1513, led by explorer Juan Ponce de León. The archipelago's name derives from the lack of fresh water springs, and the presence of turtles. They are an unincorporated area of Monroe County, Florida, and belong to the Lower Keys Census County Division. With their surrounding waters, they constitute the Dry Tortugas National Park.",
+          "is_supporting": false
+        }
+      ],
+      "question": "Where does the body of water by the city where The Minikahda Club empty into the Gulf of Mexico?",
+      "question_decomposition": [
+        {
+          "id": 131783,
+          "question": "Which state is The Minikahda Club located?",
+          "answer": "Minneapolis",
+          "paragraph_support_idx": 1
+        },
+        {
+          "id": 131926,
+          "question": "Which is the body of water by #1 ?",
+          "answer": "Mississippi River",
+          "paragraph_support_idx": 5
+        },
+        {
+          "id": 89261,
+          "question": "where does #2 empty into the gulf of mexico",
+          "answer": "the Mississippi River Delta",
+          "paragraph_support_idx": 16
+        }
+      ],
+      "answer": "the Mississippi River Delta",
+      "answer_aliases": [
+        "Mississippi River Delta"
+      ],
+      "answerable": true
+    }
+  ],
+  "test/NQ_rand1000": [
+    {
+      "question": "who played dorcas in chilling adventures of sabrina",
+      "answer": [
+        "Abigail Cowen"
+      ]
+    }
+  ],
+  "test/PopQA_rand1000": [
+    {
+      "question": "In what city was Erika M. Anderson born?",
+      "answer": [
+        "South Dakota",
+        "SD",
+        "South Dakota",
+        "United States",
+        "State of South Dakota",
+        "SoDak",
+        "S. Dakota",
+        "The Mount Rushmore State",
+        "The Coyote State",
+        "S. Dak.",
+        "S.D."
+      ]
+    }
+  ],
+  "test/TriviaQA_rand1000": [
+    {
+      "question": "The advance south into England by Bonnie Prince Charlie in 1745 reached approximately as far as the Swarkstone Bridge on which major English River?",
+      "answer": "TRENT"
+    }
+  ]
+}

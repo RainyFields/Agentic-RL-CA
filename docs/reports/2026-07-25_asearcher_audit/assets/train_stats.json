@@ -1,0 +1,75 @@
+{
+  "ASearcher-Base-35k.jsonl": {
+    "rows": 35583,
+    "fields": [
+      "question",
+      "answer",
+      "source",
+      "aug_answer",
+      "qid"
+    ],
+    "schema_variants": {
+      "answer, aug_answer, qid, question, source": 35583
+    },
+    "source_distribution": {
+      "compose_chain_qa": 8537,
+      "opensource-fm8k": 7991,
+      "opensource": 7927,
+      "compose_group_qa": 6375,
+      "compose_chain_qa_invalid": 4753
+    },
+    "answer_type": [
+      [
+        "list",
+        35583
+      ]
+    ],
+    "question_words": {
+      "min": 4,
+      "median": 23,
+      "mean": 28.3,
+      "p95": 60,
+      "max": 485
+    },
+    "trajectory_fields": "NONE",
+    "aug_answer_aliases": {
+      "median": 4,
+      "max": 1454
+    }
+  },
+  "ASearcher-LRM-35k.jsonl": {
+    "rows": 35054,
+    "fields": [
+      "question",
+      "answer",
+      "source",
+      "id",
+      "idx"
+    ],
+    "schema_variants": {
+      "answer, id, idx, question, source": 11028,
+      "answer, id, idx, question": 24026
+    },
+    "source_distribution": {
+      "(no source field)": 24026,
+      "chain_qa_fuzzy": 3527,
+      "math": 2930,
+      "train_v1:webwalker_hard": 2572,
+      "train_v1:compose_group_qa": 1999
+    },
+    "answer_type": [
+      [
+        "str",
+        35054
+      ]
+    ],
+    "question_words": {
+      "min": 1,
+      "median": 43,
+      "mean": 45.8,
+      "p95": 88,
+      "max": 639
+    },
+    "trajectory_fields": "NONE"
+  }
+}
