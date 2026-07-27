@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import requests
 import uuid
 import time
@@ -134,10 +135,27 @@ def call_search_api(
     return None, last_error
 
 
+# Per-doc content cap (word boundary). Guard against context blow-up on long
+# horizons / non-wiki corpora; on wiki-18 (~103-word chunks) it never fires at the
+# default. Tune via env SEARCH_DOC_MAX_WORDS; <=0 disables. See rung-3 truncation
+# decision (docs/reports/2026-07-25_asearcher_audit).
+_DOC_MAX_WORDS = int(os.environ.get("SEARCH_DOC_MAX_WORDS", "180"))
+
+
+def _cap_doc(content: str, max_words: int = _DOC_MAX_WORDS) -> str:
+    if max_words is None or max_words <= 0:
+        return content
+    words = content.split()
+    if len(words) <= max_words:
+        return content
+    # keep the leading title + first max_words tokens, mark truncation
+    return " ".join(words[:max_words]) + " …[truncated]"
+
+
 def _passages2string(retrieval_result):
     format_reference = ""
     for idx, doc_item in enumerate(retrieval_result):
-        content = doc_item["document"]["contents"].strip()
+        content = _cap_doc(doc_item["document"]["contents"].strip())
         format_reference += f"Doc {idx+1}: {content}\n"
     return format_reference
 
