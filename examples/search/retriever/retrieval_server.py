@@ -302,7 +302,12 @@ class Config:
 
 
 class QueryRequest(BaseModel):
-    query: str
+    # BATCH schema — matches the Search-R1 tr1 retrieval contract the trainer's search
+    # client uses (agent_system .../skyrl_gym/tools/search.py posts {"queries":[...]}).
+    # The upstream singular {"query": ...} 422s on that payload (root-caused 2026-07-27
+    # after a wasted worker launch). Response {"result": [[{document, score}]]} matches
+    # the client's _passages2string(doc_item["document"]["contents"]).
+    queries: List[str]
     topk: Optional[int] = None
     return_scores: bool = False
 
@@ -312,36 +317,18 @@ app = FastAPI()
 
 @app.post("/retrieve")
 def retrieve_endpoint(request: QueryRequest):
-    """
-    Endpoint that accepts a single query and performs retrieval.
-    Input format:
-    {
-      "query": "What is Python?",
-      "topk": 3,
-      "return_scores": true
-    }
-    """
-    if not request.topk:
-        request.topk = config.retrieval_topk  # fallback to default
-
-    # Perform retrieval
+    """Batch retrieval. Input {"queries": [...], "topk": k, "return_scores": bool};
+    output {"result": [ [ {"document": {..., "contents": ...}, "score": float}, ... ], ... ]}
+    (outer list per query, inner list per retrieved doc)."""
+    topk = request.topk if request.topk else config.retrieval_topk
     if request.return_scores:
-        results, scores = retriever.search(query=request.query, num=request.topk, return_score=True)
+        results, scores = retriever.batch_search(request.queries, topk, True)
+        resp = []
+        for docs, scs in zip(results, scores):
+            resp.append([{"document": d, "score": float(s)} for d, s in zip(docs, scs)])
     else:
-        results = retriever.search(query=request.query, num=request.topk, return_score=False)
-        scores = None
-
-    # Format response
-    resp = []
-    if request.return_scores and scores is not None:
-        # If scores are returned, combine them with results
-        combined = []
-        for doc, score in zip(results, scores):
-            # Convert numpy float32 to regular Python float for JSON serialization
-            combined.append({"document": doc, "score": float(score)})
-        resp.append(combined)
-    else:
-        resp.append(results)
+        results = retriever.batch_search(request.queries, topk, False)
+        resp = [[{"document": d} for d in docs] for docs in results]
     return {"result": resp}
 
 
