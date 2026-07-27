@@ -53,7 +53,7 @@ if ! "${CLEAN[@]}" "$MM" run -p "$RETR_ENV" python -c 'import faiss,torch,transf
   echo "[conda] building faiss-gpu env (conda-forge: mkl + faiss-gpu + cpu-torch)..."
   rm -rf "$RETR_ENV"
   "${CLEAN[@]}" "$MM" create -y -p "$RETR_ENV" -c conda-forge python=3.11 \
-      mkl "faiss-gpu=1.10.0" pytorch cpuonly transformers fastapi uvicorn datasets numpy 2>&1 | tail -6 || exit 1
+      mkl "faiss-gpu=1.10.0" "pytorch=*=cpu*" transformers fastapi uvicorn datasets numpy 2>&1 | tail -6 || exit 1
 fi
 "${CLEAN[@]}" "$MM" run -p "$RETR_ENV" python -c 'import faiss,torch; print("faiss",faiss.__version__,"gpus",faiss.get_num_gpus(),"torch",torch.__version__)' || exit 1
 
