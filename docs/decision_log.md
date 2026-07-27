@@ -335,3 +335,22 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - M5 (ScienceWorld structure audit) started: scienceworld 1.2.3 + OpenJDK 17 installed
   in ~/xiaoxuan/envs/sw_inspect; audit script scripts/scienceworld/audit_structure.py;
   outputs under docs/reports/2026-07-23_scienceworld_audit/.
+
+## 2026-07-28 (rung-4 ScienceWorld ORM-vs-PRM grilling: A12-A13, spec frozen)
+- Grilling session froze the rung-4 experiment spec; full detail in
+  docs/reports/2026-07-28_sciworld_orm_prm_design/design.md. Amendments A12-A13 added to
+  PROJECT_OVERVIEW.md.
+- A12: rung-4 terminal reward is GRADED (P_T = max-cumulative clipped native score),
+  superseding the binary success==100 terminal from the M5 audit decisions. Rationale:
+  no-SFT trainability + exact return-equivalence with the PRM arm.
+- A13: rung-4 round-1 = ORM-vs-PRM on the native score channel (ordered-only PRM proven
+  vacuous: N_seq in {1..4}, 9/30 tasks have their single required state = the terminal
+  answer action); per-task caps (2x max sampled gold), 25-task roster (cap <= ~190, rule-primary);
+  turn-level group-normalized reward-to-go estimator (ORM arm degenerates to vanilla GRPO);
+  K=20 three-tier truncation as part of the MDP; zero-shot smoke GATE before launch
+  (GO >=25-30% gradient-bearing groups / middle 10-25% -> G=16+oversample / NO-GO <10%);
+  uniform-per-task sampling, G=8, 64 groups/step; W&B ca-rung4-4b, runs orm_grpo_s0 /
+  prm_rtg_s0.
+- Open item flagged: inclined-plane-friction-named-surfaces (cap 142) qualifies under the
+  per-task <=190 rule but was excluded by the session's family enumeration - confirm before
+  the protocol config freezes.

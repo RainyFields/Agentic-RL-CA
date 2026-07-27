@@ -255,7 +255,7 @@ G0: harness + frozen rung-1 data + rung-3 diagnostic (ASearcher go/no-go) + Scie
 
 ---
 
-## Amendments (2026-07-23 grilling session, recorded in decision_log)
+## Amendments (grilling sessions: A1–A11 2026-07-23, A12–A13 2026-07-28; recorded in decision_log)
 
 | # | Decision |
 |---|---|
@@ -270,6 +270,8 @@ G0: harness + frozen rung-1 data + rung-3 diagnostic (ASearcher go/no-go) + Scie
 | A9 | **SFT sizing rule**: ≤3 epochs, checkpoint every ½ epoch, select the earliest checkpoint ≥90% of SFT-val plateau subject to a shared rollout-entropy floor set once at W0 from all rungs jointly. One rule, four rungs; selection curves in the W0 report. |
 | A10 | **Per-wave launch manifests**: one user OK per wave covers all listed worker launches + auto-resumes; off-manifest changes re-ask. Pushes to own RainyFields remotes pre-approved; the verl-agent fork NEVER pushes to upstream langfengQ. |
 | A11 | **Round-1 scope (current)**: Wave 0 inspection with ScienceWorld first, then Wave 1 = PPO gae_turn + token-GRPO anchors only. Candidate screening (StepSearch/ArCHer/SweetRL/VinePPO) deferred to a later gate decision. |
+| A12 | **(2026-07-28) Rung-4 terminal reward is graded**, not binary: ORM terminal = P_T where P_t = max-cumulative clipped native score. Supersedes the M5-audit binary success==100 terminal for rung-4 training (success==100 remains the eval success metric). Rationale: no-SFT trainability + exact return-equivalence with the PRM arm. Detail: `docs/reports/2026-07-28_sciworld_orm_prm_design/design.md`. |
+| A13 | **(2026-07-28) Rung-4 round-1 = ORM-vs-PRM experiment spec frozen**: native-score PRM channel (ΔP_t) vs ORM (P_T), return-equivalent by telescoping; per-task caps 2×max-gold, 25-task roster (cap ≤ ~190, rule-primary); turn-level group-normalized reward-to-go estimator (ORM degenerates to vanilla GRPO); K=20 three-tier truncation in the MDP; zero-shot smoke gate (GO ≥25–30% gradient-bearing groups) before any launch; uniform-per-task sampling, G=8, 64 groups/step; W&B `ca-rung4-4b`. Full spec: design doc above. |
 
 **Known loss (2026-07-23):** the SP6 verl-agent fork branch `sp6-alfworld` (Seq-MIS, NaN tripwires, SPA reward hook) was never pushed to any writable remote and is not on this node; only its documentation survives (reward_models reports + memory). Re-porting into this repo's trainer is required before ALFWorld cells run (implementation spec: reward_models `docs/vllm_fsdp_mismatch.md` + 2026-07-07/08 reports).
 
