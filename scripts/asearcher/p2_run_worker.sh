@@ -40,22 +40,29 @@ uv venv -p 3.11 "$VENV" 2>/dev/null; source "$VENV/bin/activate"; export VIRTUAL
 python -c 'import vllm, flash_attn, verl, agent_system' 2>/dev/null || { echo "venv incomplete — run P1 first"; exit 1; }
 
 # ---- 2. GPU-faiss conda env (idempotent; persists on /home) ----
+# Build/run with the training venv vars UNSET so it can't leak into the conda subprocess
+# (that leak pulled transformers 5.12.1 last attempt). Full conda-forge so mkl/faiss/torch/
+# numpy are solved consistently (conda faiss-gpu needs MKL — libmkl_intel_lp64 was missing).
+# CPU-only torch: e5 encoding runs on CPU; faiss-gpu keeps its own CUDA runtime for GPU search.
+CLEAN=(env -u VIRTUAL_ENV -u PYTHONPATH -u PYTHONHOME)
 if [ ! -x "$MM" ]; then
   echo "[conda] installing micromamba..."
   curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -C "$(dirname "$(dirname "$MM")")" -xj bin/micromamba || exit 1
 fi
-if ! "$MM" run -p "$RETR_ENV" python -c 'import faiss; assert faiss.get_num_gpus()>0' 2>/dev/null; then
-  echo "[conda] building faiss-gpu env (conda-forge, sm_90)..."
-  "$MM" create -y -p "$RETR_ENV" -c conda-forge -c pytorch python=3.11 "faiss-gpu=1.10.0" 2>&1 | tail -5 || exit 1
-  "$MM" run -p "$RETR_ENV" pip install -q transformers torch fastapi uvicorn datasets numpy 2>&1 | tail -3 || exit 1
+if ! "${CLEAN[@]}" "$MM" run -p "$RETR_ENV" python -c 'import faiss,torch,transformers; assert faiss.get_num_gpus()>0' 2>/dev/null; then
+  echo "[conda] building faiss-gpu env (conda-forge: mkl + faiss-gpu + cpu-torch)..."
+  rm -rf "$RETR_ENV"
+  "${CLEAN[@]}" "$MM" create -y -p "$RETR_ENV" -c conda-forge python=3.11 \
+      mkl "faiss-gpu=1.10.0" pytorch cpuonly transformers fastapi uvicorn datasets numpy 2>&1 | tail -6 || exit 1
 fi
-"$MM" run -p "$RETR_ENV" python -c 'import faiss,torch; print("faiss",faiss.__version__,"gpus",faiss.get_num_gpus())' || exit 1
+"${CLEAN[@]}" "$MM" run -p "$RETR_ENV" python -c 'import faiss,torch; print("faiss",faiss.__version__,"gpus",faiss.get_num_gpus(),"torch",torch.__version__)' || exit 1
 
 # ---- 3. stage index + serve GPU-faiss retriever (co-located; shards flat index across GPUs) ----
 [ -f "$STAGE/e5_Flat.index" ] || cp "$SEARCHR1_DATA/e5_Flat.index" "$STAGE/" || exit 1
 [ -f "$STAGE/wiki-18.jsonl" ] || cp "$SEARCHR1_DATA/wiki-18.jsonl" "$STAGE/" || exit 1
 mkdir -p "$REPO/outputs/retriever"
-( cd "$REPO" && exec "$MM" run -p "$RETR_ENV" python examples/search/retriever/retrieval_server.py \
+( cd "$REPO" && unset VIRTUAL_ENV PYTHONPATH PYTHONHOME \
+  && exec "$MM" run -p "$RETR_ENV" python examples/search/retriever/retrieval_server.py \
     --index_path "$STAGE/e5_Flat.index" --corpus_path "$STAGE/wiki-18.jsonl" \
     --topk 3 --retriever_name e5 --retriever_model intfloat/e5-base-v2 --faiss_gpu --port 8000 \
 ) > "$REPO/outputs/retriever/retriever.log" 2>&1 &

@@ -32,11 +32,16 @@ def load_docs(corpus, doc_idxs):
     return results
 
 
+# e5 query-encoder device. Retriever env uses CPU-only torch (so conda faiss-gpu's CUDA
+# runtime doesn't conflict); faiss GPU search is unaffected. Falls back to CPU automatically.
+_ENC_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def load_model(model_path: str, use_fp16: bool = False):
     # model_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
     model.eval()
-    model.cuda()
+    model.to(_ENC_DEVICE)
     if use_fp16:
         model = model.half()
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True, trust_remote_code=True)
@@ -87,7 +92,7 @@ class Encoder:
         inputs = self.tokenizer(
             query_list, max_length=self.max_length, padding=True, truncation=True, return_tensors="pt"
         )
-        inputs = {k: v.cuda() for k, v in inputs.items()}
+        inputs = {k: v.to(_ENC_DEVICE) for k, v in inputs.items()}
 
         if "T5" in type(self.model).__name__:
             # T5-based retrieval model
