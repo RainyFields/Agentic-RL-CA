@@ -31,6 +31,12 @@ class SciworldWorker:
     """One ScienceWorldEnv (one JVM) per actor; reused across episodes via load()."""
 
     def __init__(self, env_step_limit):
+        import os
+        # Mass-spawn guard: concurrent JVMs race on /tmp/hsperfdata_<user> and print a
+        # stdout warning line that py4j's launch_gateway parses as the port -> ValueError.
+        opts = os.environ.get("JAVA_TOOL_OPTIONS", "")
+        if "UsePerfData" not in opts:
+            os.environ["JAVA_TOOL_OPTIONS"] = (opts + " -XX:-UsePerfData").strip()
         from scienceworld import ScienceWorldEnv
         self.env = ScienceWorldEnv("", envStepLimit=env_step_limit)
         self.task = None
