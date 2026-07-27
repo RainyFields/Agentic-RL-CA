@@ -21,4 +21,4 @@ done
 echo "[preflight] pod OK (NVML + HDFS)"
 export DIAG_SPLIT=base
 export DIAG_VAL_BATCH=1280
-exec bash /home/tiger/xiaoxuan/Agentic-RL-CA/scripts/asearcher/diag_worker2.sh
+exec bash /home/tiger/xiaoxuan/Agentic-RL-CA/scripts/asearcher/diag_worker3.sh
