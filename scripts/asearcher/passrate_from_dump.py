@@ -32,7 +32,13 @@ def main():
     ap.add_argument("--expected-rep", type=int, default=8)
     args = ap.parse_args()
 
-    trajs = defaultdict(lambda: {"turn0_obs": None, "min_turn": 10**9, "won": False, "rows": 0})
+    # retriever hang/timeout contamination: a hard-failed search puts these markers in the
+    # next observation (skyrl_gym tools/search.py) — such trajectories measure the retriever
+    # outage, not the question, and must not count toward pass rates.
+    FAIL_MARKERS = ("Search error:", "Search request failed or timed out")
+
+    trajs = defaultdict(lambda: {"turn0_obs": None, "min_turn": 10**9, "won": False,
+                                 "rows": 0, "dirty": False})
     n_lines = bad_lines = 0
     with open(args.dump, encoding="utf-8") as f:
         for line in f:
@@ -50,10 +56,13 @@ def main():
                 t["turn0_obs"] = r.get("observation", "")
             if r.get("env_won"):
                 t["won"] = True
+            blob = (r.get("information") or "") + (r.get("observation") or "")
+            if any(m in blob for m in FAIL_MARKERS):
+                t["dirty"] = True
 
-    per_q = defaultdict(lambda: [0, 0])  # norm_q -> [n_traj, pass_count]
+    per_q = defaultdict(lambda: [0, 0, 0])  # norm_q -> [clean_n, clean_pass, dirty_n]
     q_text = {}
-    no_q = 0
+    no_q = dirty_trajs = 0
     for t in trajs.values():
         m = Q_RE.search(t["turn0_obs"] or "")
         if not m:
@@ -62,16 +71,27 @@ def main():
         q = m.group(1).strip()
         k = norm_ws(q)
         q_text.setdefault(k, q)
+        if t["dirty"]:
+            dirty_trajs += 1
+            per_q[k][2] += 1
+            continue
         per_q[k][0] += 1
         per_q[k][1] += 1 if t["won"] else 0
 
+    MIN_CLEAN = max(1, args.expected_rep // 2)  # need >=4/8 clean rollouts to score a question
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
     hist = defaultdict(int)
+    low_clean = 0
     with open(out / "scored.jsonl", "w") as f:
-        for k, (n, p) in per_q.items():
-            hist[p] += 1
+        for k, (n, p, d) in per_q.items():
+            if n < MIN_CLEAN:
+                low_clean += 1
+            else:
+                hist[p] += 1
             f.write(json.dumps({"question": q_text[k], "n_traj": n, "pass_count": p,
-                                "pass_rate": round(p / n, 4)}, ensure_ascii=False) + "\n")
+                                "dirty_traj": d,
+                                "pass_rate": round(p / n, 4) if n else None},
+                               ensure_ascii=False) + "\n")
 
     keep_rows = [json.loads(l) for l in open(args.keep, encoding="utf-8")]
     # mirror make_diag_parquet's drop (invalid slice never entered the diag parquet)
@@ -84,24 +104,28 @@ def main():
             unmatched += 1
             continue
         matched += 1
-        n, p = per_q[k]
-        if 0 < p < n:
+        n, p, _d = per_q[k]
+        if n >= MIN_CLEAN and 0 < p < n:
             band.append(r)
     with open(out / "band_keep.jsonl", "w") as f:
         for r in band:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     total_q = len(per_q)
-    odd_rep = sum(1 for n, _ in per_q.values() if n != args.expected_rep)
+    scored_q = total_q - low_clean
+    odd_rep = sum(1 for n, _, d in per_q.values() if n + d != args.expected_rep)
+    # all-pass = clean_pass == clean_n (any n >= MIN_CLEAN), not p >= expected_rep
+    all_pass_q = sum(1 for n, p, _d in per_q.values() if n >= MIN_CLEAN and p == n)
     stats = {
         "dump_lines": n_lines, "bad_lines": bad_lines, "n_traj": len(trajs),
-        "questions_scored": total_q, "traj_without_question": no_q,
+        "dirty_trajs": dirty_trajs,
+        "questions_seen": total_q, "questions_scored": scored_q,
+        "questions_dropped_low_clean": low_clean,
+        "traj_without_question": no_q,
         "questions_not_expected_rep": odd_rep,
-        "pass_hist": {str(k): hist[k] for k in sorted(hist)},
-        "all_fail_frac": round(hist[0] / total_q, 4) if total_q else None,
-        "all_pass_frac": round(
-            sum(c for p, c in hist.items() if p >= args.expected_rep) / total_q, 4)
-            if total_q else None,
+        "clean_pass_hist": {str(k): hist[k] for k in sorted(hist)},
+        "all_fail_frac": round(hist[0] / scored_q, 4) if scored_q else None,
+        "all_pass_frac": round(all_pass_q / scored_q, 4) if scored_q else None,
         "keep_rows": len(keep_rows), "matched": matched, "unmatched": unmatched,
         "band_keep_count": len(band),
     }
