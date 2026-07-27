@@ -11,6 +11,8 @@ export VENV=/home/tiger/xiaoxuan/envs/agentic-rl-ca
 export MODEL_PATH=/mnt/hdfs/mlsys/models/Qwen3-4B-Instruct-2507
 export DATA_DIR=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/data_asearcher_base
 export SEARCHR1_DATA=/mnt/hdfs/mlsys/users/xiaoxuan/searchr1/searchr1_data
+# corpus Arrow cache -> worker-local /tmp, NOT shared /home (the July fleet-hang root cause)
+export HF_DATASETS_CACHE=/tmp/hf_datasets_cache
 PROTOCOL=asearcher_8turn_4b
 COND="${COND:?set COND=token_grpo|turn_ppo_b0}"
 STAGE=/tmp/searchR1
