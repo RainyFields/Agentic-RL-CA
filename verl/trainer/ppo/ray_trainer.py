@@ -63,6 +63,7 @@ from verl.workers.rollout.async_server import AsyncLLMServerManager
 from gigpo import core_gigpo
 from gigpo import core_hcapo  # SP4: HCAPO (hindsight credit assignment, value-free)
 from verl.trainer.ppo import core_turn_ppo  # SP3: true turn-level PPO (cross-turn GAE)
+from credit_assignment import core_turn_rtg  # rung-4: turn-level group-normalized RTG (value-free)
 
 from agent_system.multi_turn_rollout import TrajectoryCollector, adjust_batch
 
@@ -99,6 +100,7 @@ class AdvantageEstimator(str, Enum):
     GAE_TURN = 'gae_turn'  # true turn-level PPO: learned critic + cross-turn GAE (SP3)
     HCAPO = 'hcapo'        # SP4: hindsight credit assignment, value-free (macro GRPO + micro hindsight)
     CARL = 'carl'          # Agentic-RL-CA Phase 2b: criticality-aware tree rollouts (arXiv 2512.04949), value-free
+    TURN_RTG = 'turn_rtg'  # rung-4 ORM/PRM: turn-level group-normalized reward-to-go, value-free
 
 
 @dataclass
@@ -414,6 +416,20 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
                 with open(_f, "wb") as _fh:
                     _pickle.dump(_d, _fh)
                 print(f"[DUMP_TRAIN_SAMPLE] wrote {_f} ({len(_tu)} turn-samples)", flush=True)
+    elif adv_estimator == AdvantageEstimator.TURN_RTG:
+        # rung-4 ORM/PRM: value-free turn-level group-normalized reward-to-go. The ORM arm
+        # (terminal-only rewards) runs this same path — no reward-layout special-casing.
+        advantages, returns = core_turn_rtg.compute_turn_rtg_group_advantage(
+            response_mask=data.batch['response_mask'],
+            rewards=data.non_tensor_batch['rewards'],
+            uid=data.non_tensor_batch['uid'],
+            traj_uid=data.non_tensor_batch['traj_uid'],
+            turn_index=data.non_tensor_batch['turn_index'],
+            gamma=gamma,
+            active_masks=data.non_tensor_batch.get('active_masks', None),
+        )
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
     elif adv_estimator == AdvantageEstimator.HCAPO:
         # SP4: value-free hindsight credit assignment (macro GRPO + micro hindsight Q^H).
         _hc = hcapo_cfg or {}
@@ -567,6 +583,7 @@ class RayPPOTrainer:
             AdvantageEstimator.GiGPO,
             AdvantageEstimator.HCAPO,
             AdvantageEstimator.CARL,
+            AdvantageEstimator.TURN_RTG,
         ]:
             self.use_critic = False
         else:

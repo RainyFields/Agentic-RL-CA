@@ -353,6 +353,149 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                 break
 
 
+class SciWorldEnvironmentManager(EnvironmentManagerBase):
+    """Rung-4 ScienceWorld manager: ReAct grammar + three-tier K-recent truncation
+    (design doc docs/reports/2026-07-28_sciworld_orm_prm_design/design.md). The
+    truncation rule is part of the MDP: identical across arms and at eval."""
+
+    def __init__(self, envs, projection_f, config):
+        self.memory = SimpleMemory()
+        self._tokenizer = None
+        self._fixed_tokens = None
+        self.trunc_counts = {"tier2_turns": 0, "tier3_drops": 0, "emergency": 0, "prompts": 0}
+        super().__init__(envs, projection_f, config)
+
+    @property
+    def tokenizer(self):
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+            path = self.config.env.sciworld.get("tokenizer_path", None) or \
+                self.config.actor_rollout_ref.model.path
+            self._tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+        return self._tokenizer
+
+    def _ntok(self, s: str) -> int:
+        return len(self.tokenizer.encode(s, add_special_tokens=False))
+
+    def reset(self, kwargs):
+        text_obs, image_obs, infos = self.envs.reset()
+        n = len(text_obs)
+        self.memory.reset(batch_size=n)
+        self.tasks = [info["task_description"] for info in infos]
+        self.pre_text_obs = text_obs
+        fixed = [SCIWORLD_TEMPLATE.format(task_description=t, history="",
+                                          turn=0, current_observation="") for t in self.tasks]
+        self._fixed_tokens = [self._ntok(f) + 16 for f in fixed]  # +16: turn-number digits etc.
+
+        full_text_obs = self.build_text_obs(text_obs)
+        return {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}, infos
+
+    def step(self, text_actions: List[str]):
+        actions, valids, parse_statuses = self.projection_f(text_actions)
+        thoughts = [self._extract_thought(r) for r in text_actions]
+        text_obs, image_obs, rewards, dones, infos = self.envs.step(actions)
+
+        turn_nos = [len(self.memory[i]) + 1 for i in range(len(actions))]
+        hist_full = [SCIWORLD_HIST_FULL.format(thought=thoughts[i], action=actions[i],
+                                               turn=turn_nos[i], obs=self.pre_text_obs[i])
+                     for i in range(len(actions))]
+        hist_act = [SCIWORLD_HIST_ACTION_ONLY.format(turn=turn_nos[i], action=actions[i])
+                    for i in range(len(actions))]
+        self.memory.store({
+            'text_obs': self.pre_text_obs, 'action': actions,
+            'hist_full': hist_full, 'hist_act': hist_act,
+            'ntok_full': [self._ntok(s) for s in hist_full],
+            'ntok_act': [self._ntok(s) for s in hist_act],
+        })
+        self.pre_text_obs = text_obs
+
+        full_text_obs = self.build_text_obs(text_obs)
+        for i, info in enumerate(infos):
+            info['is_action_valid'] = to_numpy(bool(valids[i]) and info.get('env_action_valid', True))
+            info['parse_status'] = parse_statuses[i]
+
+        next_observations = {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}
+        return next_observations, to_numpy(rewards), to_numpy(dones), infos
+
+    @staticmethod
+    def _extract_thought(response: str) -> str:
+        if not isinstance(response, str):
+            return ""
+        m = response.split("Action:")[0]
+        m = m.replace("Thought:", "", 1).strip()
+        return m[:600]
+
+    def build_text_obs(self, text_obs: List[str]) -> List[str]:
+        K = int(self.config.env.sciworld.get("recent_k", 20))
+        margin = int(self.config.env.sciworld.get("prompt_token_margin", 768))
+        budget = int(self.config.data.max_prompt_length) - margin
+
+        out = []
+        for i in range(len(text_obs)):
+            recs = self.memory[i]
+            turn = len(recs) + 1
+            avail = budget - self._fixed_tokens[i] - self._ntok(text_obs[i])
+            recent, older = recs[-K:], recs[:-K]
+
+            older_toks = sum(r['ntok_act'] for r in older)
+            recent_toks = sum(r['ntok_full'] for r in recent)
+            self.trunc_counts["prompts"] += 1
+            self.trunc_counts["tier2_turns"] += len(older)
+
+            drop = 0
+            while older_toks + recent_toks > avail and drop < len(older):
+                older_toks -= older[drop]['ntok_act']  # tier 3: drop oldest action lines
+                drop += 1
+            if drop:
+                self.trunc_counts["tier3_drops"] += drop
+            older = older[drop:]
+
+            demote = 0  # emergency: last K full turns alone overflow -> demote oldest to action-only
+            while older_toks + recent_toks > avail and demote < len(recent) - 1:
+                recent_toks += recent[demote]['ntok_act'] - recent[demote]['ntok_full']
+                older_toks += 0
+                demote += 1
+            if demote:
+                self.trunc_counts["emergency"] += demote
+                print(f"[sciworld-trunc] EMERGENCY demote={demote} env={i} turn={turn}")
+
+            parts = [r['hist_act'] for r in older]
+            parts += [recent[j]['hist_act'] if j < demote else recent[j]['hist_full']
+                      for j in range(len(recent))]
+            history = "".join(parts)
+            if history:
+                history += "\n"
+            out.append(SCIWORLD_TEMPLATE.format(
+                task_description=self.tasks[i], history=history,
+                turn=turn, current_observation=text_obs[i]))
+        return out
+
+    def _process_batch(self, batch_idx, total_batch_list, total_infos, success):
+        for i in reversed(range(len(total_batch_list[batch_idx]))):
+            if total_batch_list[batch_idx][i]['active_masks']:
+                info = total_infos[batch_idx][i]
+                won = float(info['won'])
+                success['success_rate'].append(won)
+                success[f"{info['family']}_success_rate"].append(won)
+                success['sw_score'].append(float(info.get('progress', 0.0)))
+                seq_total = info.get('seq_total', 0)
+                success['sw_seq_progress'].append(
+                    float(info.get('seq_done', 0)) / seq_total if seq_total else 0.0)
+                success['sw_focus_death'].append(float(info.get('focus_death', False)))
+                success['sw_cap_hit'].append(float(info.get('cap_hit', False)))
+                return
+
+    def success_evaluator(self, *args, **kwargs):
+        success = super().success_evaluator(*args, **kwargs)
+        c = self.trunc_counts
+        if c["prompts"]:
+            success['sw_trunc_tier2_turns_per_prompt'] = np.array([c["tier2_turns"] / c["prompts"]])
+            success['sw_trunc_tier3_drops_per_prompt'] = np.array([c["tier3_drops"] / c["prompts"]])
+            success['sw_trunc_emergency_per_prompt'] = np.array([c["emergency"] / c["prompts"]])
+        self.trunc_counts = {"tier2_turns": 0, "tier3_drops": 0, "emergency": 0, "prompts": 0}
+        return success
+
+
 class SokobanEnvironmentManager(EnvironmentManagerBase):
     ACTION_LOOKUP = {
         0: "Still",
@@ -756,6 +899,21 @@ def make_envs(config):
         projection_f = partial(alfworld_projection)
         envs = AlfWorldEnvironmentManager(_envs, projection_f, config)
         val_envs = AlfWorldEnvironmentManager(_val_envs, projection_f, config)
+        return envs, val_envs
+    elif "sciworld" in config.env.env_name.lower():
+        from agent_system.environments.env_package.sciworld import build_sciworld_envs, sciworld_projection
+        env_kwargs = {
+            'reward_mode': config.env.sciworld.reward_mode,
+            'env_step_limit': config.env.sciworld.env_step_limit,
+        }
+        _envs = build_sciworld_envs(config.env.seed, config.data.train_batch_size, group_n,
+                                    resources_per_worker, is_train=True, env_kwargs=env_kwargs)
+        _val_envs = build_sciworld_envs(config.env.seed + 1000, config.data.val_batch_size, 1,
+                                        resources_per_worker, is_train=False, env_kwargs=env_kwargs)
+
+        projection_f = partial(sciworld_projection)
+        envs = SciWorldEnvironmentManager(_envs, projection_f, config)
+        val_envs = SciWorldEnvironmentManager(_val_envs, projection_f, config)
         return envs, val_envs
     elif "sokoban" in config.env.env_name.lower():
         from agent_system.environments.env_package.sokoban import build_sokoban_envs, sokoban_projection

@@ -468,6 +468,13 @@ class TrajectoryCollector:
                     "early_stopped": bool(early_stopped[i]), "early_stop_reason": str(early_stop_reason[i]),
                     "observation": (cur_text[i] if cur_text is not None else ""),
                     "raw_model_response": text_actions[i],
+                    # rung-4 sciworld gate fields (guarded .get: empty/False for other envs)
+                    "sw_task": str(infos[i].get("task", "")),
+                    "sw_variation": int(infos[i].get("variation", -1)),
+                    "sw_progress": float(infos[i].get("progress", 0.0)),
+                    "sw_won": bool(infos[i].get("won", False)),
+                    "sw_focus_death": bool(infos[i].get("focus_death", False)),
+                    "sw_cap_hit": bool(infos[i].get("cap_hit", False)),
                     # Agentic-RL-CA: RAW retrieved information for THIS turn's action (the
                     # anchor of next_obs, un-templated) — lets the credit-alignment
                     # diagnostic rebuild exact prefix states from dumps alone.
