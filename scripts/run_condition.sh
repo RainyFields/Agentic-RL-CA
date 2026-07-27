@@ -27,6 +27,9 @@ require_retriever
 # gradient math is identical (gradient accumulation chunking). Inert unless set.
 MICRO_BSZ="${MICRO_BSZ_OVERRIDE:-$MICRO_BSZ}"
 LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-${LOGPROB_MICRO:-32}}"
+# VAL_BATCH sizes the val env pool (env_manager: env_num=val_batch_size, group_n=1); the
+# pass-rate diagnostic needs a large pool for rollout throughput in val_only mode.
+VAL_BATCH="${VAL_BATCH_OVERRIDE:-$VAL_BATCH}"
 
 # ---- Toy-gate mode (plan Phase 1.3): tiny run + per-turn trajectory dumps ----
 TOY="${TOY:-0}"
