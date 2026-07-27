@@ -119,6 +119,85 @@ TriviaQA\_rand1000 & 1{,}000 & random-1000 subsample \\
 reports GAIA $\sim$53--59, xbench $\sim$42--51, FRAMES $\sim$71--75 (exact numbers are checkpoint-dependent
 between the arXiv version and the repo leaderboard --- pin the checkpoint before citing).
 
+\section{Evaluation metric (and the training reward --- they differ)}
+ASearcher uses \textbf{two different scoring functions} depending on whether it is training or evaluating;
+this matters because our proposal's ``EM, verifiable'' for rung~3 matches only the \emph{training} one.
+
+\smallskip
+\noindent\textbf{Eval metric = LLM-as-Judge (``MBE'', the headline reported numbers).} From
+\cmd{evaluation/evaluate.py}: the predicted answer and the gold answer are handed to a judge LLM with a
+binary-equivalence prompt --- \emph{``determine if the predicted answer is equivalent to the labeled
+answer $\ldots$ respond Correct / Incorrect''} --- returning a rationale plus a \cmd{judgement}; MBE $=1$
+iff \cmd{judgement=correct}, averaged over the set.
+\begin{itemize}
+\item \textbf{Judge model:} \cmd{Qwen2.5-72B-Instruct} (self-hosted default), or \cmd{gpt-4o-mini} via
+the OpenAI path.
+\item \textbf{Aggregation:} reported as \textbf{Avg@k} (mean correctness over $k$ sampled rollouts) and
+\textbf{Pass@k} (correct if any of $k$), eval temperature 0.6, $k=$ \cmd{--pass-at-k} (docs advise raising
+$k$ for stability). This judge metric is what they use on the free-form sets (GAIA, xbench, FRAMES) where
+exact match under-counts.
+\end{itemize}
+
+\noindent\textbf{Training reward = rule-based, verifiable, no judge in the loop} (\cmd{ASearcher/utils/rewards.py}):
+extract the last \cmd{<answer>$\ldots$</answer>}, then score by \textbf{EM} with SQuAD-style normalization
+(lowercase, strip articles, drop punctuation, whitespace-fix, plus \cmd{True}$\to$\cmd{yes} mapping and
+Chinese-token handling); \textbf{sub-EM} (substring) and token-\textbf{F1} variants are also implemented.
+No extractable answer $\Rightarrow$ reward 0. The paper stresses there is deliberately no external LLM in
+the agent/training loop.
+
+\smallskip
+\noindent\textbf{For us:} rung-3 RL reward = their training EM/sub-EM/F1 (we already have this from
+rung~1's Search-R1 harness). For the transfer eval on GAIA/xbench/FRAMES we adopt the judge track ---
+with our pinned \cmd{gpt-oss-120b} substituted for Qwen2.5-72B --- which is exactly the uniform-judge track
+in the harness (§6). \textbf{Caveat:} any ASearcher SOTA number we cite must record \emph{which judge} and
+\emph{which $k$}, or it is not comparable (different judge model $\to$ different MBE).
+
+\section{Tool-calling interface (and what changes offline)}
+\textbf{The action grammar is identical online and offline} --- only the backend behind each tool changes.
+The full ASearcher agent (\cmd{agent/asearcher.py}, \cmd{asearcher\_reasoning.py}) emits three tags,
+generation stopping at each closing tag (\cmd{</search>}, \cmd{</access>}, \cmd{</answer>}):
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+Tool tag & meaning & backend: web setting $\to$ local (offline) setting \\
+\midrule
+\cmd{<search>query</search>} & retrieval & Serper API $\to$ local dense-retriever \cmd{/retrieve} (e.g.\ e5 over wiki-18) \\
+\cmd{<access>url</access>} & browse a page & Jina live extraction $\to$ local \cmd{/access} over a \emph{prebuilt} url$\to$page store \\
+\cmd{<answer>$\ldots$</answer>} & terminate & (returns final answer for scoring) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Does offline call the same tools? Yes --- both \cmd{<search>} and \cmd{<access>} are
+supported offline.} The bundled \cmd{tools/local\_retrieval\_server.py} exposes \emph{both} a
+\cmd{POST /retrieve} (dense search over the corpus) and a \cmd{POST /access} endpoint. The crucial
+difference: \cmd{/access} is backed by a \cmd{PageAccess} class that serves pages from a \emph{pre-built
+file keyed by URL} (Wikipedia pages, with \cmd{index.php/}$\to$\cmd{index.php?title=} normalization) --- so
+offline \cmd{<access>} can only open URLs that exist in that store, whereas online Jina fetches
+\emph{any} URL live. \cmd{<search>} works over any corpus with a dense index (our existing wiki-18/e5).
+
+\smallskip
+\noindent\textbf{Tool-calling options (three agent variants ship in the repo):}
+\begin{itemize}
+\item \cmd{asearcher} --- 2 tools: \cmd{<search>} + \cmd{<access>} + \cmd{<answer>}. The design that
+produces the long-horizon behaviour (search then browse specific pages).
+\item \cmd{asearcher-reasoning} --- same 2 tools wrapped with an explicit \cmd{<thought>} block (for
+reasoning models).
+\item \cmd{search\_r1} (\cmd{agent/search\_r1.py}) --- \textbf{search-only}: \cmd{<search>} + \cmd{<answer>}
+(Search-R1 grammar), \emph{no} \cmd{<access>}. This is the variant that matches our existing rung-1 infra.
+\end{itemize}
+
+\noindent\textbf{Decision this forces for rung~3 (flag for the manifest).} Our current retrieval stack is
+\emph{search-only} (rung~1 serves \cmd{/retrieve} over wiki-18, no page store). Two options:
+\textbf{(a) search-only rung~3} using the \cmd{search\_r1} agent --- zero new infra, reuses rung~1 exactly,
+but drops the browse tool that is central to ASearcher's ``deep search'' and shortens realized horizons;
+\textbf{(b) full 2-tool} --- additionally build the wiki-18 url$\to$page store and stand up \cmd{/access},
+reproducing ASearcher-local faithfully at real extra W0 cost. This choice interacts with the horizon claim
+(RQ2): without \cmd{<access>}, rung~3's practical turn count and its separation from rung~1 both shrink, so
+\textbf{(b) is the more faithful long-horizon rung} if the budget allows. Recommend deciding at the M7 gate
+alongside the solvability diagnostic, since answerability under search-only vs search+browse can differ
+sharply.
+
 \section{Two leakage vectors we must handle (important)}
 \begin{enumerate}
 \item \textbf{ASearcher train $\cap$ WebWalkerQA.} The LRM split contains \textbf{2{,}572

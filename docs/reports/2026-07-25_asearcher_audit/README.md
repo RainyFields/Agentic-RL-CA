@@ -18,6 +18,14 @@ train-eval split) plus schemas, source distributions, leakage vectors, and rung-
   required, use our own rung-1 splits.
 - **Environment:** wiki-18 local-RAG (same corpus we host) vs live-web; strongest published numbers are
   live-web QwQ-32B. Our local-RAG/30-turn/4B config is harder → M7 solvability diagnostic is the go/no-go gate.
+- **Eval metric:** LLM-as-Judge ("MBE") binary equivalence, judge = Qwen2.5-72B-Instruct (or gpt-4o-mini),
+  reported Avg@k / Pass@k @ temp 0.6. TRAINING reward is separate: rule-based EM / sub-EM / F1 on the
+  extracted `<answer>` (no judge in loop). We use their EM for rung-3 RL, our gpt-oss-120b judge for transfer eval.
+- **Tools:** identical grammar online/offline — `<search>` (retrieve), `<access>` (browse a URL),
+  `<answer>`. Local server ships BOTH `/retrieve` and `/access`, but `/access` needs a prebuilt url→page
+  store (Wikipedia); online it's Serper+Jina. Three agent variants: `asearcher` (search+access),
+  `asearcher-reasoning` (+`<thought>`), `search_r1` (search-only = our current rung-1 infra). Rung-3
+  decision: search-only (reuse rung-1) vs full 2-tool (build wiki-18 page store) — decide at M7 gate.
 
 ## Rerun
 ```
