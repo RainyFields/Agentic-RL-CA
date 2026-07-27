@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rung-4 zero-shot gate worker (ATTACHED). Base Qwen3-4B-Instruct-2507, production
-# sciworld wrapper/prompt/truncation, GATE mode: 75 groups x G=5 = 375 episodes,
+# sciworld wrapper/prompt/truncation, GATE mode: 72 groups x G=5 = 360 episodes,
 # temp-1, one rollout, per-turn dump -> gate_analysis.py. Writes DONE/FAILED +
 # report to $HLOG. No wandb (single step; keep the ca-rung4-4b project clean).
 set -uo pipefail

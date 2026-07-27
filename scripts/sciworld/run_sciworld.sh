@@ -4,7 +4,7 @@
 #   scripts/sciworld/run_sciworld.sh <condition> [seed] [protocol]
 #     condition : configs/cond_<condition>.sh   (sw_orm_grpo | sw_prm_rtg)
 #     protocol  : default sciworld_4b
-# Env knobs: GATE=1 (zero-shot gate: 75 groups x G=5, 1 step, rollout dump, no val),
+# Env knobs: GATE=1 (zero-shot gate: 72 groups x G=5, 1 step, rollout dump, no val),
 #            GATE_GROUP_SIZE, TOTAL_STEPS, MODEL_PATH, RESUME=auto|disable.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
@@ -28,7 +28,7 @@ VAL_BATCH="${VAL_BATCH_OVERRIDE:-$VAL_BATCH}"
 GATE="${GATE:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 if [[ "$GATE" == "1" ]]; then
-  TRAIN_BATCH="${GATE_GROUPS:-75}"; GROUP_SIZE="${GATE_GROUP_SIZE:-5}"
+  TRAIN_BATCH="${GATE_GROUPS:-72}"; GROUP_SIZE="${GATE_GROUP_SIZE:-5}"
   PPO_MINI_BATCH=512
   TOTAL_STEPS=1; VAL_FREQ=1000000; SAVE_FREQ=1000000
   VAL_BATCH=8            # val pool still gets built; keep its JVM count trivial
@@ -39,7 +39,7 @@ if [[ "$GATE" == "1" ]]; then
 fi
 
 # ---- dummy dataset (modality + batch-size carrier only, alfworld pattern) ----
-DUMMY_DIR="${DUMMY_DIR:-/tmp/sciworld_dummy_data}"
+DUMMY_DIR="${DUMMY_DIR:-/tmp/sciworld_dummy_${TRAIN_BATCH}_${VAL_BATCH}}"
 if [[ ! -f "$DUMMY_DIR/text/train.parquet" ]]; then
   python3 -m examples.data_preprocess.prepare --mode text \
       --local_dir "$DUMMY_DIR" \
