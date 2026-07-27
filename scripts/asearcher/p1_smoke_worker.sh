@@ -69,11 +69,13 @@ EOF
 [ -f "$STAGE/e5_Flat.index" ] || cp "$SEARCHR1_DATA/e5_Flat.index" "$STAGE/" || exit 1
 [ -f "$STAGE/wiki-18.jsonl" ] || cp "$SEARCHR1_DATA/wiki-18.jsonl" "$STAGE/" || exit 1
 mkdir -p "$REPO/outputs/retriever"
-# Cap BLAS/OMP threads: CPU-faiss flat search segfaults OpenBLAS on many-core nodes
-# ("tried to allocate too many memory regions" — buffers exceed OpenBLAS's compiled limit).
+# OpenBLAS threads=1: FastAPI serves the sync endpoint from a ~40-thread pool, so under
+# concurrent training traffic each calling thread would spawn N BLAS sub-threads. At 32 that
+# was ~40x32 buffers >> OpenBLAS's ~128 limit -> segfault mid-training (attempt 3). At 1,
+# total buffers ~= concurrency (~40) < limit. Slower per-search but stable (P2 uses GPU faiss).
 ( cd "$REPO" \
-  && export OMP_NUM_THREADS=32 OPENBLAS_NUM_THREADS=32 MKL_NUM_THREADS=32 \
-            NUMEXPR_NUM_THREADS=32 VECLIB_MAXIMUM_THREADS=32 \
+  && export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+            NUMEXPR_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
   && exec python examples/search/retriever/retrieval_server.py \
     --index_path "$STAGE/e5_Flat.index" --corpus_path "$STAGE/wiki-18.jsonl" \
     --topk 3 --retriever_name e5 --retriever_model intfloat/e5-base-v2 --port 8000 \
