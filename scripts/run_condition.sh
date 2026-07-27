@@ -32,8 +32,10 @@ LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-${LOGPROB_MICRO:-32}}"
 TOY="${TOY:-0}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 if [[ "$TOY" == "1" ]]; then
-  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32; MICRO_BSZ=4; LOGPROB_MICRO=4
-  TOTAL_STEPS=2; VAL_FREQ=1000000; SAVE_FREQ=1000000
+  TRAIN_BATCH=8; GROUP_SIZE=4; PPO_MINI_BATCH=32
+  # MICRO_BSZ overridable (larger models / longer ctx need <4; must divide PPO_MINI/n_gpus=4).
+  MICRO_BSZ="${MICRO_BSZ_OVERRIDE:-4}"; LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-4}"
+  TOTAL_STEPS="${TOTAL_STEPS:-2}"; VAL_FREQ=1000000; SAVE_FREQ=1000000
   # verl normalizes mini by n_gpus (32/8=4): micro_per_gpu must divide it. LOGPROB_MICRO=4
   # keeps adjust_batch's lcm divisor (micro x world_size) at 32 << toy row count.
   VAL_BEFORE_TRAIN=False   # the base-model val_2048 gate runs ONCE via eval_search_full.sh, not 7x
