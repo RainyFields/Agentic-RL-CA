@@ -69,7 +69,12 @@ EOF
 [ -f "$STAGE/e5_Flat.index" ] || cp "$SEARCHR1_DATA/e5_Flat.index" "$STAGE/" || exit 1
 [ -f "$STAGE/wiki-18.jsonl" ] || cp "$SEARCHR1_DATA/wiki-18.jsonl" "$STAGE/" || exit 1
 mkdir -p "$REPO/outputs/retriever"
-( cd "$REPO" && exec python examples/search/retriever/retrieval_server.py \
+# Cap BLAS/OMP threads: CPU-faiss flat search segfaults OpenBLAS on many-core nodes
+# ("tried to allocate too many memory regions" — buffers exceed OpenBLAS's compiled limit).
+( cd "$REPO" \
+  && export OMP_NUM_THREADS=32 OPENBLAS_NUM_THREADS=32 MKL_NUM_THREADS=32 \
+            NUMEXPR_NUM_THREADS=32 VECLIB_MAXIMUM_THREADS=32 \
+  && exec python examples/search/retriever/retrieval_server.py \
     --index_path "$STAGE/e5_Flat.index" --corpus_path "$STAGE/wiki-18.jsonl" \
     --topk 3 --retriever_name e5 --retriever_model intfloat/e5-base-v2 --port 8000 \
 ) > "$REPO/outputs/retriever/retriever.log" 2>&1 &
