@@ -339,4 +339,5 @@ env:
     recent_k: 20              # tier-1 window: last K turns kept complete
     prompt_token_margin: 768  # reserved for chat template + turn digits inside max_prompt_length
     env_step_limit: 2500      # JVM tick limit; wait=10 ticks, so 188-turn cap needs >1880 ticks headroom
+    stratify_horizon: True    # A14: per-step batches drawn from one horizon stratum
     tokenizer_path: null      # default: actor_rollout_ref.model.path

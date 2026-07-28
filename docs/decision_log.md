@@ -354,3 +354,4 @@ docs/readouts/2026-07-15_wave1_rq3_s150.md. At the pre-declared window's upper b
 - Open item flagged: inclined-plane-friction-named-surfaces (cap 142) qualifies under the
   per-task <=190 rule but was excluded by the session's family enumeration - confirm before
   the protocol config freezes.
+| A14 | **(2026-07-28) Rung-4 gate PASSED (GO: 0.736 gradient-bearing ≫ 0.25) + efficiency amendments**: padding 16384→12288 (measured max prompt 5667), horizon-stratified step batches (uniform marginal preserved), dynamic bsz; JVM fault tolerance. Prompt frozen. Details: design doc gate section. |

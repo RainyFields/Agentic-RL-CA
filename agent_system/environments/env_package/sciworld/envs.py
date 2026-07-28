@@ -13,7 +13,7 @@ import numpy as np
 import gymnasium as gym
 import ray
 
-from .task_roster import ROSTER, TURN_CAP, FAMILY, SIMPLIFICATION
+from .task_roster import ROSTER, TURN_CAP, FAMILY, SIMPLIFICATION, STRATA, STRATA_SEQUENCE
 
 _NO_MATCH = "No known action matches that input"
 _SEQ_LINE = re.compile(r"^\d+\t(true|false)\t", re.M)
@@ -172,6 +172,7 @@ class SciworldEnvs(gym.Env):
         self.is_train = is_train
         self.reward_mode = env_kwargs.get("reward_mode", "prm")
         assert self.reward_mode in ("prm", "orm"), self.reward_mode
+        self.stratify = bool(env_kwargs.get("stratify_horizon", True))
         env_step_limit = env_kwargs.get("env_step_limit", 2500)
         self.rng = random.Random(seed)
         self.episode_idx = 0
@@ -191,11 +192,16 @@ class SciworldEnvs(gym.Env):
         self.last_assignment = [None] * self.num_processes
 
     def _draw_assignments(self):
-        """One (task, variation) per group; uniform-per-task then uniform-variation."""
+        """One (task, variation) per group; uniform-per-task then uniform-variation.
+        A14 stratify: the whole step draws from one horizon stratum (rotation
+        proportional to stratum sizes keeps the per-task marginal uniform)."""
+        pool = ROSTER
+        if self.stratify:
+            pool = STRATA[STRATA_SEQUENCE[self.episode_idx % len(STRATA_SEQUENCE)]]
         assignments = []
         for _ in range(self.env_num):
             if self.is_train:
-                t = self.rng.choice(ROSTER)
+                t = self.rng.choice(pool)
                 v = self.rng.choice(self.splits[t]["train"])
             else:
                 t, v = self.val_assignment[len(assignments) % len(self.val_assignment)]

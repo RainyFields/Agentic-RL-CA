@@ -5,7 +5,8 @@
 
 export MAX_STEPS=188               # global turn-loop bound = max roster cap; per-task caps bind earlier
 export HISTORY_LENGTH=999          # sciworld manager uses its own 3-tier builder; keep >= MAX_STEPS
-export MAX_PROMPT_LENGTH=16384
+export MAX_PROMPT_LENGTH=12288   # A14: padded width 16384->12288 (gate-measured real max 5667;
+                                 # manager 3-tier budget follows as 12288-768, never binds)
 export MAX_RESPONSE_LENGTH=256     # non-thinking Thought+Action; clip rate is a smoke metric
 export TRUNCATION=left             # token-side safety valve ONLY — manager keeps prompts in budget
 export ENABLE_THINKING=False

@@ -48,3 +48,15 @@ TURN_CAP = {t: cap for t, (_, cap, _) in TASK_TABLE.items()}
 MAX_ROSTER_CAP = max(TURN_CAP[t] for t in ROSTER)  # 188
 
 assert len(ROSTER) == 25, f"roster drifted: {len(ROSTER)}"
+
+# A14 horizon strata (straggler mitigation): each training step draws its whole batch
+# from ONE stratum, so the step's turn-round count is bounded by that stratum's max cap
+# instead of the global 188. The rotation sequence is proportional to stratum sizes
+# (10/10/5), which preserves the uniform-per-task marginal across training.
+STRATA = {
+    "short": [t for t in ROSTER if TURN_CAP[t] <= 32],   # 10 tasks, caps 14-32
+    "mid":   [t for t in ROSTER if 32 < TURN_CAP[t] <= 90],   # 10 tasks, caps 48-90
+    "long":  [t for t in ROSTER if TURN_CAP[t] > 90],    # 5 tasks, caps 128-188
+}
+STRATA_SEQUENCE = ["short", "short", "mid", "mid", "long"]
+assert [len(STRATA[s]) for s in ("short", "mid", "long")] == [10, 10, 5]

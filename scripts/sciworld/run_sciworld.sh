@@ -21,6 +21,10 @@ require_model_path
 MICRO_BSZ="${MICRO_BSZ_OVERRIDE:-$MICRO_BSZ}"
 LOGPROB_MICRO="${LOGPROB_MICRO_OVERRIDE:-${LOGPROB_MICRO:-2}}"
 VAL_BATCH="${VAL_BATCH_OVERRIDE:-$VAL_BATCH}"
+# protocol files export TOTAL_STEPS/VAL_FREQ after the caller's env (lesson #3, handoff
+# 2026-07-28) — the only way to override is after sourcing:
+TOTAL_STEPS="${TOTAL_STEPS_OVERRIDE:-$TOTAL_STEPS}"
+VAL_FREQ="${VAL_FREQ_OVERRIDE:-$VAL_FREQ}"
 
 # ---- Zero-shot gate mode (design doc §gate): temp-1 rollouts of the BASE model through
 # the exact production wrapper/prompt/truncation; dump every turn; die after 1 "step"
@@ -75,6 +79,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size="$PPO_MINI_BATCH" \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="$MICRO_BSZ" \
+    actor_rollout_ref.actor.use_dynamic_bsz=True \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=32768 \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \

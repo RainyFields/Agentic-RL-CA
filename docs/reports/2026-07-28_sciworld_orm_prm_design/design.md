@@ -207,3 +207,28 @@ an automatic change.
 2. ε_σ variance floor value and the alive-at-t normalization edge cases (single survivor at
    turn t) — implementation decisions, to be recorded in the estimator code + decision log.
 3. −ε failure contingency: value of ε if invoked (gate-time decision).
+
+## Gate outcome (2026-07-28) + amendment A14
+
+**GO.** 360 episodes / 72 groups, zero-shot Qwen3-4B-Instruct-2507 through the production
+wrapper: gradient-bearing group fraction **0.736** (threshold 0.25); mean P_T 0.411; success
+0.147; focus-death 0.256; cap-hit 0.597; valid-action 0.698; 256-clip 0.0005; no dead tasks;
+no train-fleet env crashes. Prompt frozen as of gate-pass (no revision was needed). −ε
+contingency not triggered. Full numbers: `gate/gate_report.json`; inspection trajectories on
+HDFS `logs/rung4_gate/` (uniform sampling left find-living-thing and identify-life-stages-1
+with 0 groups — accepted, siblings healthy).
+
+**A14 (user-approved 2026-07-28), from gate measurements:**
+1. `MAX_PROMPT_LENGTH` 16384 → **12288** (padding width only): measured real prompt tokens
+   p50 2251 / p99 5072 / max 5667 over 17,409 turns — the 3-tier rule keeps prompts far
+   below the ceiling; 16k padded rows overflowed the gate worker's 983G /tmp via Ray object
+   spill during the update phase. Manager budget follows as 12288−768; empirically never binds.
+2. **Horizon-stratified batches**: each step draws its whole batch from one stratum
+   (short ≤32 / mid ≤90 / long ≤188 caps; rotation short,short,mid,mid,long ∝ sizes 10/10/5,
+   per-task marginal stays uniform 1/25). Measured straggler cost motivated this: ~66 min
+   rollout/step with every step paying the 188-round tail; expected rounds now ≈86.
+3. `use_dynamic_bsz` + `ppo_max_token_len_per_gpu=32768` for update/logprob passes
+   (compute packs real tokens; MICRO_BSZ retained as fallback).
+4. JVM ops hardening (implementation, not protocol): `-XX:-UsePerfData` (hsperfdata race
+   broke py4j port parse under mass spawn), `-Xmx2g`, auto-reboot of dead JVMs with the
+   episode terminated as `env_crash` (return-equivalence preserved: ORM pays banked P_T).

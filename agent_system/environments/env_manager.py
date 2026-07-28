@@ -906,6 +906,7 @@ def make_envs(config):
         env_kwargs = {
             'reward_mode': config.env.sciworld.reward_mode,
             'env_step_limit': config.env.sciworld.env_step_limit,
+            'stratify_horizon': config.env.sciworld.get('stratify_horizon', True),
         }
         _envs = build_sciworld_envs(config.env.seed, config.data.train_batch_size, group_n,
                                     resources_per_worker, is_train=True, env_kwargs=env_kwargs)
