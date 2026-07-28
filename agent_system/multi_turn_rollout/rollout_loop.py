@@ -475,6 +475,7 @@ class TrajectoryCollector:
                     "sw_won": bool(infos[i].get("won", False)),
                     "sw_focus_death": bool(infos[i].get("focus_death", False)),
                     "sw_cap_hit": bool(infos[i].get("cap_hit", False)),
+                    "sw_env_crash": bool(infos[i].get("env_crash", False)),
                     # Agentic-RL-CA: RAW retrieved information for THIS turn's action (the
                     # anchor of next_obs, un-templated) — lets the credit-alignment
                     # diagnostic rebuild exact prefix states from dumps alone.

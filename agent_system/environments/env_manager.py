@@ -483,6 +483,7 @@ class SciWorldEnvironmentManager(EnvironmentManagerBase):
                     float(info.get('seq_done', 0)) / seq_total if seq_total else 0.0)
                 success['sw_focus_death'].append(float(info.get('focus_death', False)))
                 success['sw_cap_hit'].append(float(info.get('cap_hit', False)))
+                success['sw_env_crash'].append(float(info.get('env_crash', False)))
                 return
 
     def success_evaluator(self, *args, **kwargs):

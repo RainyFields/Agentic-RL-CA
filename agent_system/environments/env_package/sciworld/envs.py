@@ -34,43 +34,91 @@ class SciworldWorker:
         import os
         # Mass-spawn guard: concurrent JVMs race on /tmp/hsperfdata_<user> and print a
         # stdout warning line that py4j's launch_gateway parses as the port -> ValueError.
+        # -Xmx2g bounds per-JVM heap (default = 25% of a 1.6TB node, virtually unbounded).
         opts = os.environ.get("JAVA_TOOL_OPTIONS", "")
         if "UsePerfData" not in opts:
-            os.environ["JAVA_TOOL_OPTIONS"] = (opts + " -XX:-UsePerfData").strip()
-        from scienceworld import ScienceWorldEnv
-        self.env = ScienceWorldEnv("", envStepLimit=env_step_limit)
+            os.environ["JAVA_TOOL_OPTIONS"] = (opts + " -XX:-UsePerfData -Xmx2g").strip()
+        self.env_step_limit = env_step_limit
+        self.env = None
         self.task = None
         self.cap = None
         self.steps = 0
         self.P = 0.0
         self.done = False
+        self.crashes = 0
+        self._boot()
+
+    def _boot(self):
+        from scienceworld import ScienceWorldEnv
+        self.env = ScienceWorldEnv("", envStepLimit=self.env_step_limit)
+
+    def _reboot(self):
+        """A dead JVM must cost one episode, never the run (700+ JVMs x 150 steps)."""
+        self.crashes += 1
+        try:
+            if self.env is not None:
+                self.env.close()
+        except Exception:
+            pass
+        try:
+            self._boot()
+        except Exception as e:
+            print(f"[sciworld] JVM reboot FAILED (crash #{self.crashes}): {e}")
+            self.env = None
+
+    def _info(self, won=False, score_raw=0.0, seq=(0, 0), focus_death=False,
+              cap_hit=False, valid=True, crash=False, task_description=None):
+        info = {
+            "task": self.task, "variation": self.variation,
+            "family": FAMILY.get(self.task, ""),
+            "won": won, "score_raw": score_raw, "progress": self.P,
+            "seq_done": seq[0], "seq_total": seq[1],
+            "focus_death": focus_death, "cap_hit": cap_hit,
+            "env_action_valid": valid, "env_crash": crash,
+        }
+        if task_description is not None:
+            info["task_description"] = task_description
+            info["turn_cap"] = self.cap
+        return info
 
     def reset(self, task, variation):
-        self.env.load(task, variation, SIMPLIFICATION, generateGoldPath=False)
-        obs, info = self.env.reset()
         self.task, self.variation = task, variation
         self.cap = TURN_CAP[task]
         self.steps, self.P, self.done = 0, 0.0, False
-        task_desc = self.env.get_task_description()
-        return obs, {
-            "task": task, "variation": variation, "family": FAMILY[task],
-            "task_description": task_desc, "turn_cap": self.cap,
-            "won": False, "score_raw": 0.0, "progress": 0.0,
-            "seq_done": 0, "seq_total": 0,
-            "focus_death": False, "cap_hit": False, "env_action_valid": True,
-        }
+        for attempt in (1, 2):
+            try:
+                if self.env is None:
+                    self._boot()
+                self.env.load(task, variation, SIMPLIFICATION, generateGoldPath=False)
+                obs, _ = self.env.reset()
+                return obs, self._info(task_description=self.env.get_task_description())
+            except Exception as e:
+                print(f"[sciworld] reset crash (attempt {attempt}) task={task} var={variation}: {e}")
+                self._reboot()
+        # slot dead for this episode: trainer steps it, defensive branch answers
+        self.done = True
+        return "", self._info(valid=False, crash=True,
+                              task_description=f"Your task is to {task}. (env unavailable)")
 
     def step(self, action, reward_mode):
-        if self.done:  # defensive: trainer masks finished slots, but keep it safe
-            return "", 0.0, True, {
-                "task": self.task, "variation": self.variation, "family": FAMILY[self.task],
-                "won": self.P >= 1.0, "score_raw": self.P * 100, "progress": self.P,
-                "seq_done": 0, "seq_total": 0,
-                "focus_death": False, "cap_hit": False, "env_action_valid": False,
-            }
-        obs, _, env_done, info = self.env.step(action)
+        if self.done or self.env is None:  # finished (or dead) slot: inert terminal echo
+            return "", 0.0, True, self._info(won=self.P >= 1.0, score_raw=self.P * 100,
+                                             valid=False, crash=self.env is None)
+        try:
+            obs, _, env_done, info = self.env.step(action)
+            score = float(info.get("score", 0.0))
+            seq = _seq_progress(self.env.get_goal_progress())
+        except Exception as e:
+            print(f"[sciworld] step crash task={self.task} var={self.variation} "
+                  f"turn={self.steps}: {e}")
+            self._reboot()
+            self.done = True
+            # termination-by-crash pays like any termination: ORM pays banked P_T,
+            # PRM already paid its increments -> return equivalence intact
+            reward = self.P if reward_mode == "orm" else 0.0
+            return "", reward, True, self._info(won=self.P >= 1.0, score_raw=self.P * 100,
+                                                valid=False, crash=True)
         self.steps += 1
-        score = float(info.get("score", 0.0))
         focus_death = score < 0
         P_new = max(self.P, max(0.0, score) / 100.0)
         dP = P_new - self.P
@@ -86,19 +134,14 @@ class SciworldWorker:
             reward = self.P if done else 0.0
 
         won = self.P >= 1.0
-        seq_done, seq_total = _seq_progress(self.env.get_goal_progress())
-        if won and seq_total and seq_done != seq_total:
+        if won and seq[1] and seq[0] != seq[1]:
             # design-doc runtime assertion: score==100 must imply full sequential completion
             print(f"[sciworld] ASSERT-VIOLATION task={self.task} var={self.variation}: "
-                  f"P=1.0 but seq {seq_done}/{seq_total}")
+                  f"P=1.0 but seq {seq[0]}/{seq[1]}")
 
-        return obs, reward, done, {
-            "task": self.task, "variation": self.variation, "family": FAMILY[self.task],
-            "won": won, "score_raw": score, "progress": self.P,
-            "seq_done": seq_done, "seq_total": seq_total,
-            "focus_death": focus_death, "cap_hit": cap_hit,
-            "env_action_valid": _NO_MATCH not in obs,
-        }
+        return obs, reward, done, self._info(won=won, score_raw=score, seq=seq,
+                                             focus_death=focus_death, cap_hit=cap_hit,
+                                             valid=_NO_MATCH not in obs)
 
 
 def _variation_splits(tasks):
