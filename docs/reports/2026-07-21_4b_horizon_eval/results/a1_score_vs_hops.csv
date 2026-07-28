@@ -1,0 +1,46 @@
+panel,method,H_gold,EM,n
+Pooled (all 7 tasks),floor,1,0.40548132922233643,29190
+Pooled (all 7 tasks),floor,2,0.2742516257322513,18607
+Pooled (all 7 tasks),floor,3,0.042105263157894736,760
+Pooled (all 7 tasks),floor,4,0.4005069708491762,3156
+Pooled (all 7 tasks),token_ppo,1,0.5053100376841384,29190
+Pooled (all 7 tasks),token_ppo,2,0.35981082388348473,18607
+Pooled (all 7 tasks),token_ppo,3,0.06315789473684211,760
+Pooled (all 7 tasks),token_ppo,4,0.12357414448669202,3156
+Pooled (all 7 tasks),turn_ppo,1,0.5166152792052072,29190
+Pooled (all 7 tasks),turn_ppo,2,0.36212178212500673,18607
+Pooled (all 7 tasks),turn_ppo,3,0.06447368421052632,760
+Pooled (all 7 tasks),turn_ppo,4,0.19961977186311788,3156
+Pooled (all 7 tasks),token_grpo,1,0.5423090099349093,29190
+Pooled (all 7 tasks),token_grpo,2,0.42269038533885095,18607
+Pooled (all 7 tasks),token_grpo,3,0.11447368421052631,760
+Pooled (all 7 tasks),token_grpo,4,0.44645120405576677,3156
+Pooled (all 7 tasks),gigpo,1,0.5403220280918123,29190
+Pooled (all 7 tasks),gigpo,2,0.41436018702638794,18607
+Pooled (all 7 tasks),gigpo,3,0.11447368421052631,760
+Pooled (all 7 tasks),gigpo,4,0.32984790874524716,3156
+Within MuSiQue,floor,2,0.11022364217252396,1252
+Within MuSiQue,floor,3,0.042105263157894736,760
+Within MuSiQue,floor,4,0.024691358024691357,405
+Within MuSiQue,token_ppo,2,0.21725239616613418,1252
+Within MuSiQue,token_ppo,3,0.06315789473684211,760
+Within MuSiQue,token_ppo,4,0.024691358024691357,405
+Within MuSiQue,turn_ppo,2,0.19728434504792333,1252
+Within MuSiQue,turn_ppo,3,0.06447368421052632,760
+Within MuSiQue,turn_ppo,4,0.0345679012345679,405
+Within MuSiQue,token_grpo,2,0.26757188498402557,1252
+Within MuSiQue,token_grpo,3,0.11447368421052631,760
+Within MuSiQue,token_grpo,4,0.05432098765432099,405
+Within MuSiQue,gigpo,2,0.2763578274760383,1252
+Within MuSiQue,gigpo,3,0.11447368421052631,760
+Within MuSiQue,gigpo,4,0.04691358024691358,405
+Within 2Wiki,floor,2,0.2965903307888041,9825
+Within 2Wiki,floor,4,0.4558342420937841,2751
+Within 2Wiki,token_ppo,2,0.37435114503816797,9825
+Within 2Wiki,token_ppo,4,0.1381315885132679,2751
+Within 2Wiki,turn_ppo,2,0.3701781170483461,9825
+Within 2Wiki,turn_ppo,4,0.22391857506361323,2751
+Within 2Wiki,token_grpo,2,0.43297709923664124,9825
+Within 2Wiki,token_grpo,4,0.5041802980734278,2751
+Within 2Wiki,gigpo,2,0.40631043256997457,9825
+Within 2Wiki,gigpo,4,0.37150127226463103,2751

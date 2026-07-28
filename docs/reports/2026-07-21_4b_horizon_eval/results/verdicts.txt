@@ -1,0 +1,5 @@
+Phase 3.3 — per-method horizon verdicts (auto-generated from the analysis).
+
+[token-PPO] macro-EM 0.381 vs GRPO 0.441 (Δ -0.060). musique horizon-gain +0.007 [-0.018,+0.032] (n.s.). 2wiki horizon-gain -0.307 [-0.330,-0.285] (significant). pooled horizon-gain -0.233 [-0.250,-0.217] (significant). 
+[turn-PPO] macro-EM 0.389 vs GRPO 0.441 (Δ -0.052). musique horizon-gain +0.031 [+0.003,+0.057] (significant). 2wiki horizon-gain -0.217 [-0.238,-0.195] (significant). pooled horizon-gain -0.183 [-0.199,-0.167] (significant). 
+[GiGPO] macro-EM 0.446 vs GRPO 0.441 (Δ +0.004). musique horizon-gain -0.011 [-0.035,+0.013] (n.s.). 2wiki horizon-gain -0.106 [-0.130,-0.083] (significant). pooled horizon-gain -0.092 [-0.108,-0.076] (significant). 

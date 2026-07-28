@@ -830,6 +830,15 @@ class RayPPOTrainer:
         sample_outputs = []
         sample_scores = []
 
+        # Phase-3.3 horizon eval (§4 schema): extra per-row collectors, only populated when the
+        # full-set eval sets trainer.validation_data_dir. Training-time validation leaves _enrich
+        # False, so the collectors stay empty and compute_trajectory_val_metrics gets no extra args
+        # (byte-identical training metrics + records).
+        _enrich = self.config.trainer.get('validation_data_dir', None) is not None
+        resp_tok_list = []
+        index_list = []
+        parse_status_list = []
+
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
 
@@ -848,6 +857,11 @@ class RayPPOTrainer:
 
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids", "data_source"]
+            # Phase-3.3: carry the global dataset index through the rollout so the §4 per-episode
+            # dump has an exact join key. (env_kwargs — which holds 'question' — is consumed at
+            # envs.reset, so it does NOT survive; index is never consumed, like data_source.)
+            if _enrich and "index" in test_batch.non_tensor_batch:
+                non_tensor_batch_keys_to_pop.append("index")
             if "multi_modal_data" in test_batch.non_tensor_batch:
                 non_tensor_batch_keys_to_pop.append("multi_modal_data")
             if "raw_prompt" in test_batch.non_tensor_batch:
@@ -908,6 +922,19 @@ class RayPPOTrainer:
             turn_index_list.append(test_output_gen_batch.non_tensor_batch['turn_index'])
             env_reward_list.append(test_output_gen_batch.non_tensor_batch['env_reward'])
             env_done_list.append(test_output_gen_batch.non_tensor_batch['env_done'])
+            # Phase-3.3 horizon eval: per-row tokens / join-question / parse-status for the §4 dump
+            if _enrich:
+                _ntb = test_output_gen_batch.non_tensor_batch
+                _bs = len(_ntb['traj_uid'])
+                _resp = test_output_gen_batch.batch['responses']
+                _pad = self.tokenizer.pad_token_id
+                if _pad is None:
+                    resp_tok_list.append(np.full(_bs, _resp.shape[-1], dtype=np.int64))
+                else:
+                    resp_tok_list.append((_resp != _pad).sum(-1).detach().cpu().numpy())
+                index_list.append(np.asarray(_ntb.get('index', np.full(_bs, -1, dtype=np.int64))))
+                parse_status_list.append(np.asarray(
+                    _ntb.get('parse_status', np.array([None] * _bs, dtype=object)), dtype=object))
             # success rate
             for k in test_batch.non_tensor_batch.keys():
                 if 'success_rate' in k:
@@ -963,6 +990,19 @@ class RayPPOTrainer:
         # Stock test_score above averages over turn-ROWS (length-biased); the paper metric
         # is per-question EM. val-core/macro_em is the headline tracking metric.
         from credit_assignment.eval_metrics import compute_trajectory_val_metrics
+        _extra = {}
+        if _enrich:
+            try:
+                _cap = self.config.env.get('max_steps', None)
+            except Exception:
+                _cap = None
+            _extra = dict(
+                tool_callings=np.concatenate(tool_calling_list, axis=0),
+                resp_tok_counts=np.concatenate(resp_tok_list, axis=0),
+                item_indices=np.concatenate(index_list, axis=0),
+                parse_statuses=np.concatenate(parse_status_list, axis=0),
+                max_turns=_cap,
+            )
         traj_metrics, traj_records = compute_trajectory_val_metrics(
             traj_uids=np.concatenate(traj_uid_list, axis=0),
             data_sources=data_sources,
@@ -970,6 +1010,7 @@ class RayPPOTrainer:
             env_rewards=np.concatenate(env_reward_list, axis=0),
             env_dones=np.concatenate(env_done_list, axis=0),
             responses=sample_outputs if len(sample_outputs) == len(data_sources) else None,
+            **_extra,
         )
         metric_dict.update(traj_metrics)
 

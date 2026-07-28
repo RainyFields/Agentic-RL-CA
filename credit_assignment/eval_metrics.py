@@ -10,9 +10,13 @@ Emits: val/{ds}/em, val-core/macro_em (mean over datasets), val-core/micro_em (m
 trajectories), val/{ds}/avg_turns, plus per-trajectory records for the JSONL dump.
 CPU-testable (pure numpy).
 """
+import re
 from collections import defaultdict
 
 import numpy as np
+
+
+_ANSWER_RE = re.compile(r"<answer>.*?</answer>", re.DOTALL)
 
 
 def compute_trajectory_val_metrics(
@@ -22,9 +26,27 @@ def compute_trajectory_val_metrics(
     env_rewards,
     env_dones,
     responses=None,
+    tool_callings=None,
+    resp_tok_counts=None,
+    item_indices=None,
+    questions=None,
+    parse_statuses=None,
+    max_turns=None,
 ):
     """All inputs are 1-D per-ROW arrays (one row per active turn). Returns
-    (metric_dict, per_traj_records)."""
+    (metric_dict, per_traj_records).
+
+    The optional per-row arrays below enrich the per-trajectory JSONL for the Phase-3.3
+    horizon-stratified eval (§4 schema). They are only wired up when the caller sets
+    trainer.validation_data_dir (the full-set eval), so training-time validation — which
+    passes none of them — produces byte-identical metric_dict and the original record keys:
+      tool_callings   -> n_search_calls  (executed <search> queries; per-traj constant)
+      resp_tok_counts -> tokens_generated (summed over the trajectory's turns)
+      item_indices    -> index            (stable dataset join key -> hop/type annotations)
+      questions       -> question         (raw text; secondary join key)
+      parse_statuses  -> terminal parse status ('answer' == emitted a well-formed answer)
+      max_turns       -> turn cap, for the truncated_at_cap flag
+    """
     rows_of = defaultdict(list)
     n = len(traj_uids)
     for i in range(n):
@@ -38,16 +60,39 @@ def compute_trajectory_val_metrics(
         em = float(env_rewards[last]) if terminal_done else 0.0
         # guard: EM must be binary at the terminal turn (no shaping leakage)
         assert em in (0.0, 1.0), f"non-binary terminal reward {em} for traj {tuid}"
-        records.append(
-            {
-                "traj_uid": str(tuid),
-                "data_source": str(data_sources[last]),
-                "em": em,
-                "turns": len(idxs),
-                "terminated": terminal_done,
-                "response_last_turn": (responses[last] if responses is not None else None),
-            }
-        )
+        resp_last = responses[last] if responses is not None else None
+        turns = len(idxs)
+        # did the policy emit a well-formed <answer>…</answer> on the terminal turn?
+        if parse_statuses is not None:
+            answered = str(parse_statuses[last]) == "answer"
+        elif resp_last is not None:
+            answered = bool(_ANSWER_RE.search(resp_last))
+        else:
+            answered = terminal_done and em == 1.0
+        rec = {
+            "traj_uid": str(tuid),
+            "data_source": str(data_sources[last]),
+            "em": em,
+            "turns": turns,
+            "terminated": terminal_done,
+            "response_last_turn": resp_last,
+        }
+        if item_indices is not None:
+            _ix = item_indices[last]
+            rec["index"] = int(_ix) if _ix is not None else None
+        if questions is not None:
+            _q = questions[last]
+            rec["question"] = str(_q) if _q is not None else None
+        if tool_callings is not None:
+            rec["n_search_calls"] = int(tool_callings[last])
+        if resp_tok_counts is not None:
+            rec["tokens_generated"] = int(sum(int(resp_tok_counts[i]) for i in idxs))
+        if any(x is not None for x in (tool_callings, resp_tok_counts, parse_statuses, max_turns)):
+            rec["answered"] = bool(answered)
+            # truncated_at_cap: ran to the turn cap without ever emitting a valid answer
+            cap = int(max_turns) if max_turns is not None else None
+            rec["truncated_at_cap"] = bool((cap is None or turns >= cap) and not answered)
+        records.append(rec)
 
     by_ds = defaultdict(list)
     for r in records:

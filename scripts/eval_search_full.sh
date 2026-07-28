@@ -21,7 +21,7 @@ require_data
 require_retriever
 activate_env
 
-OUT_DIR="$REPO_DIR/outputs/eval_full/$LABEL"
+OUT_DIR="${OUT_DIR:-$REPO_DIR/outputs/eval_full/$LABEL}"   # env-overridable: eval worker routes to /tmp (300G) to keep 8GB HF-merges off the 26G-free shared volume
 mkdir -p "$OUT_DIR"
 
 # --- HF-merge route if given a verl checkpoint (contains actor/ with fsdp shards) ---
@@ -41,7 +41,7 @@ EVAL_VAL_BATCH="${EVAL_VAL_BATCH:-1024}"
 
 set -x
 python3 -m verl.trainer.main_ppo \
-    algorithm.adv_estimator="$ADV_ESTIMATOR" \
+    algorithm.adv_estimator="${EVAL_ADV_ESTIMATOR:-grpo}" \
     data.train_files="$DATA_DIR/train.parquet" \
     data.val_files="$VAL_FILES" \
     data.train_batch_size="$TRAIN_BATCH" \

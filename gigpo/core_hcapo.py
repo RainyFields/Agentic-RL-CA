@@ -6,6 +6,7 @@
 #           trajectory's FINAL state (hindsight) vs the on-policy prompt.
 # A = (R-muR)/sigmaR + omega * (Q^H-muH)/sigmaH , broadcast to response tokens. Optional temporal
 # smoothing of Q^H across adjacent turns. No critic.
+import os as _os
 import numpy as np
 import torch
 from verl.utils.model import compute_position_id_with_mask
@@ -111,11 +112,29 @@ def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask
             R_traj[j] = by_R[int(turn_index[j])]
             QH[j] = by_Q[int(turn_index[j])]
 
-    A = _group_norm(R_traj, uid, eps) + omega * _group_norm(QH, uid, eps)
+    # Wave-3: keep the two terms separate so the instrumentation below can report their relative
+    # magnitudes (macro == the GRPO term, micro == the hindsight term).
+    A_macro = _group_norm(R_traj, uid, eps)
+    A_micro = _group_norm(QH, uid, eps)
+    A = A_macro + omega * A_micro
     # SP6: bound the advantage — a group with near-equal outcomes (tiny std) yields an extreme
     # normalized advantage that detonates the PPO update (entropy explodes, grounding->0). Clip it.
     if adv_clip and adv_clip > 0:
         A = np.clip(A, -adv_clip, adv_clip)
+    # Wave-3 rho instrumentation (HCAPO_LOG_RHO=1 by default; additive, HCAPO code path only).
+    # Answers whether the hindsight signal does real work or is squeezed toward a constant by
+    # t_temp + the rho clip -- in which case Q^H degenerates to a positional discount
+    # gamma^(T-1-k)*R and HCAPO is ~GRPO plus a reweighting, regardless of EM.
+    if _os.environ.get("HCAPO_LOG_RHO", "1") == "1" and rho.size:
+        _n = float(rho.size)
+        print(
+            f"[hcapo-rho] mean={rho.mean():.4f} std={rho.std():.4f} min={rho.min():.4f} "
+            f"max={rho.max():.4f} frac_at_lo={(rho <= clip_lo + 1e-6).sum() / _n:.3f} "
+            f"frac_at_hi={(rho >= clip_hi - 1e-6).sum() / _n:.3f} "
+            f"abs_macro={np.abs(A_macro).mean():.4f} abs_micro={np.abs(A_micro).mean():.4f} "
+            f"omega={omega} frac_adv_clipped={(np.abs(A) >= adv_clip - 1e-6).sum() / _n:.3f}",
+            flush=True,
+        )
     A_t = torch.tensor(A, device=device, dtype=dtype).unsqueeze(-1)
     advantages = A_t * response_mask
     return advantages, advantages

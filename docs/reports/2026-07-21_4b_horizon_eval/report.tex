@@ -1,0 +1,344 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,graphicx,booktabs,amssymb,xcolor,hyperref,array}
+\usepackage[skip=4pt]{caption}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black}
+\newcommand{\fig}[1]{\includegraphics[width=\linewidth]{figs/#1}}
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\bad}[1]{\textcolor{red!70!black}{#1}}
+\sloppy
+\title{\textbf{When does per-turn credit assignment help?}\\[2pt]
+\large A cross-environment study of credit assignment for multi-turn agents\\(AlfWorld $\cdot$ SearchQA)}
+\author{Agentic-RL-CA project}
+\date{2026-07-26}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We compare four credit-assignment schemes for multi-turn RL agents --- outcome-only
+group-relative (\textbf{GRPO}), anchor-state group-relative (\textbf{GiGPO}), and two critic-based
+per-turn PPO variants (\textbf{turn-PPO}, \textbf{token-PPO}) --- across two environments with very
+different horizons: \textbf{AlfWorld} (embodied household tasks, 30--50 turns, Qwen3-1.7B) and
+\textbf{SearchQA} (agentic retrieval QA, a hard 4-turn cap, Qwen3-4B). The central finding is that
+\emph{the ranking of credit-assignment methods reverses with horizon length}. On long-horizon
+AlfWorld the per-turn methods win decisively (turn-PPO 0.963, GiGPO 0.955 vs GRPO 0.881); on
+short-horizon SearchQA the flat outcome-only methods win (GRPO 0.441 $\approx$ GiGPO 0.446 vs
+turn-PPO 0.389, token-PPO 0.381). A controlled contrast isolates the mechanism: turn-level and
+token-level PPO are the same algorithm differing \emph{only} in whether GAE runs over turns or
+tokens, and that single change is worth $+0.202$ on AlfWorld but only $+0.008$ on SearchQA --- a
+25$\times$ larger effect where the horizon is long. A horizon-stratified analysis explains why:
+per-turn credit's value scales with \emph{genuine sequential depth}. On AlfWorld it keeps trajectories short and
+on-track (GRPO wastes turns wandering); on SearchQA the 4-turn cap is the binding ceiling, and the
+only positive horizon signal is the \emph{critic} methods narrowing GRPO's gap on the deepest
+truly-sequential chains (MuSiQue, turn-PPO $+0.031$ [$+0.003,+0.057$]), a benefit swamped by
+over-search on shallow comparison questions. A thinking-mode ablation confirms the SearchQA
+ordering is not a truncation artifact: with \texttt{enable\_thinking=False} at the same budget both
+arms match or beat their thinking counterparts using 66--77\% fewer tokens, and GRPO still leads
+turn-PPO. We release all figures, the rerunnable analysis, and the recovered required-hops
+annotations.
+\end{abstract}
+
+\section{Setup}
+\textbf{Methods.} \emph{GRPO} --- token-level, outcome-only group-relative advantage ($\gamma{=}1$),
+no critic. \emph{GiGPO} --- group-relative with an additional anchor-state step advantage
+($\gamma{=}0.95$), no critic. \emph{turn-PPO} --- learned critic + cross-turn GAE
+(\texttt{gae\_turn}, $\gamma{=}\lambda{=}0.95$). \emph{token-PPO} --- learned critic + token-level
+GAE (\texttt{gae}); the granularity control for turn-PPO. \emph{floor} --- the pre-RL policy.
+
+\textbf{Environments \& scale (a caveat carried throughout).} AlfWorld uses Qwen3-\textbf{1.7B}
+(reward\_models campaign, single seed, RL from a replay-BC policy); SearchQA uses Qwen3-\textbf{4B}
+(this project, seed 0). The two are different environments and not scale-matched --- cross-environment
+claims are about the \emph{pattern of method rankings}, never absolute numbers. All four arms now run in both
+environments (the AlfWorld token-PPO leg was added 2026-07-24 to complete the granularity contrast).
+
+\textbf{Metric \& protocol.} AlfWorld: task success rate (seen 128-game greedy val for training
+curves; unseen 134-game greedy for eval). SearchQA: per-question exact match (EM) with alias
+normalisation over the full 7-task, 51{,}713-question test set (NQ, TriviaQA, PopQA, HotpotQA,
+2WikiMultihopQA, MuSiQue, Bamboogle), greedy, top-3 wiki-18 retrieval, 4-turn cap. Identical harness
+for every checkpoint.
+
+\textbf{Required hops ($H_{\text{gold}}$).} The SearchQA packing had stripped the datasets to
+question+answer; we re-attached the annotated reasoning-chain length by an exact positional join to
+the original FlashRAG splits (verified $51{,}713/51{,}713$ question match). $H_{\text{gold}}{=}1$ for
+NQ/TriviaQA/PopQA, $2$ for HotpotQA/Bamboogle, $\text{len(decomposition)}\in\{2,3,4\}$ for MuSiQue,
+and $2$ or $4$ for 2Wiki (bridge\_comparison). Strata sizes: $H1{=}29{,}190$, $H2{=}18{,}607$,
+$H3{=}760$, $H4{=}3{,}156$.
+
+\section{Headline: the method ranking reverses across environments}
+
+\begin{table}[h]\centering\footnotesize\setlength{\tabcolsep}{4.2pt}
+\caption{Evaluation accuracy. AlfWorld = unseen success rate; SearchQA = full-set macro-EM (7-task
+mean). Best per column \good{green}, worst trained arm \bad{red}. Two things to read: (i) the
+\emph{reversal} --- turn-PPO beats GRPO on AlfWorld (0.963 vs 0.881) while GRPO beats turn-PPO on
+SearchQA (0.441 vs 0.389); (ii) \emph{token}-PPO is worst in both environments, and catastrophically
+so on long-horizon AlfWorld (0.761), where it differs from turn-PPO \emph{only} in GAE granularity.
+SearchQA columns are the \textbf{full 51{,}713-question} test set (Fig 1 plots the 2{,}048-question
+training proxy). \textbf{GRPO and GiGPO are tied}: GiGPO leads by $0.005$ here and trails by $0.007$
+on the proxy --- both below the proxy's own $\sim$0.01 error, so no ordering between them is claimed.}
+\begin{tabular}{lcccccccc c}
+\toprule
+& \multicolumn{1}{c}{\textbf{AlfWorld}} & \multicolumn{8}{c}{\textbf{SearchQA (per-task EM \& macro)}}\\
+\cmidrule(lr){2-2}\cmidrule(lr){3-10}
+Method & unseen & NQ & TriviaQA & PopQA & HotpotQA & 2Wiki & MuSiQue & Bamb. & \textbf{macro}\\
+\midrule
+pre-RL floor & 0.440 & 0.292 & 0.517 & 0.346 & 0.271 & 0.331 & 0.074 & 0.360 & 0.313\\
+token-PPO    & \bad{0.761} & 0.454 & 0.595 & 0.447 & 0.365 & 0.323 & 0.137 & 0.344 & \bad{0.381}\\
+turn-PPO     & \good{0.963} & 0.457 & 0.620 & 0.450 & 0.380 & 0.338 & 0.128 & 0.352 & 0.389\\
+GRPO         & 0.881        & 0.483 & 0.643 & 0.478 & 0.435 & 0.449 & 0.184 & 0.416 & 0.441\\
+GiGPO        & 0.955 & 0.490 & 0.647 & 0.469 & 0.447 & 0.399 & 0.187 & 0.480 & \good{0.446}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]\centering\fig{fig1_training_curves.pdf}
+\caption{\textbf{Fig 1.} Training accuracy. \emph{Left, AlfWorld:} seen 128-game success --- the
+per-turn methods (GiGPO 0.992, turn-PPO 0.961) dominate flat GRPO (0.930). \emph{Right, SearchQA:}
+\textbf{val-2048 macro-EM} --- the training-time proxy on a 2{,}048-question subset, \emph{not} the
+full-set metric of Table 1. The order inverts relative to AlfWorld: group-relative (GRPO 0.443
+$\approx$ GiGPO 0.436) beats the critic-PPO arms (turn 0.389, token 0.364). \textbf{NB} GRPO and
+GiGPO swap places between this proxy ($-0.007$) and the full-set eval ($+0.005$); the proxy tracks
+GRPO to $0.002$ but under-reads GiGPO by $0.010$, so the two are best read as \emph{tied} (see
+Table 1 note). (AlfWorld PPO trained 150 steps vs 300 for GRPO/GiGPO.)}
+\end{figure}
+
+GRPO is the \emph{weakest} of the three long-horizon-viable arms on AlfWorld (0.881 vs 0.955/0.963)
+yet \emph{among the best} on SearchQA (0.441, statistically tied with GiGPO's 0.446); turn-PPO
+makes exactly the opposite trip (best on AlfWorld, 0.052 behind GRPO on SearchQA). Any single-environment conclusion about credit assignment would
+therefore be misleading. token-PPO, meanwhile, is worst in both --- but for a reason specific to
+granularity, which \S3 isolates. The rest of the report explains the reversal.
+
+\section{Turn behaviour: RL is largely learning \emph{how much to act}}
+
+\begin{figure}[h]\centering
+\begin{minipage}{0.46\linewidth}\fig{fig2_alfworld_turns.pdf}\end{minipage}\hfill
+\begin{minipage}{0.52\linewidth}\fig{fig3_searchqa_turns_box.pdf}\end{minipage}
+\caption{\textbf{Fig 2 (left):} AlfWorld trajectory length --- token-PPO uses \textbf{24.2} turns on
+average and GRPO 14.9, vs GiGPO 9.1 / turn-PPO 10.9. \textbf{Fig 3 (right):} SearchQA turns per dataset (cap 4);
+turn usage rises with task difficulty and the trained arms sit well above the under-searching floor.}
+\end{figure}
+
+\textbf{On SearchQA, RL mostly teaches the model to use its turn budget.} The pre-RL floor
+\emph{under-searches} --- median 2 turns / 1 search, macro-EM 0.313. RL roughly doubles search usage
+(GRPO/GiGPO: 3 turns / 2 searches) for a $+0.13$ macro lift. But more turns is not monotonically
+good: GiGPO \emph{over}-searches into the cap (cap-fail 0.29/0.50/0.88/0.66 across $H1$--$H4$ vs
+GRPO's 0.12/0.29/0.72/0.47), which is why it fails to beat flat GRPO despite identical macro-EM.
+Turn-calibration, not credit fidelity, is the lever on a 4-turn budget.
+
+\textbf{On AlfWorld, the whole ranking is ``how often does it wander?''} Every method solves
+\emph{exactly} 100\% of episodes that finish within $\le 20$ turns (Fig 5, left; all four arms, all
+four sub-20 bins). The accuracy differences are entirely about \emph{what fraction of episodes drag
+past 20 turns}:
+
+\begin{center}\small
+\begin{tabular}{lcccc}
+\toprule
+& GiGPO & turn-PPO & GRPO & token-PPO\\
+\midrule
+episodes $>$20 turns & 4.5\% & 11\% & 21\% & \bad{46\%}\\
+\quad of which succeed & 0.00\tiny(n=6) & 0.67 & 0.43 & 0.48\\
+mean turns & 9.1 & 10.9 & 14.9 & \bad{24.2}\\
+unseen success & 0.955 & \good{0.963} & 0.881 & \bad{0.761}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A concrete GRPO failure mode, \emph{``examine the book with the desklamp''} solved in 44 turns:
+\begin{quote}\ttfamily\small
+t0 go to shelf 1 $\;\to\;$ t1 go to shelf 2 $\;\to\;$ t3 go to bed 1 $\;\to\;$ t4 take book 1
+$\;\to\;$ t5 go to desk 1 $\;\to\;$ \bad{t6..t13 look / look / look / look / look / look / look / look}
+\end{quote}
+GRPO loops the no-op \texttt{look} eight times; GiGPO solves the same task type in \textbf{3} turns.
+Per-turn credit penalises the wasted steps directly; the outcome-only signal does not.
+
+\subsection*{The cleanest test: turn-level vs token-level GAE}
+turn-PPO and token-PPO are the \emph{same algorithm} --- same learned critic, same BC initialisation,
+same $\gamma{=}\lambda{=}0.95$, same 150-step budget, same eval checkpoint. They differ in exactly one
+thing: whether the GAE recursion runs over \textbf{turns} or over \textbf{tokens}. That single change
+is worth:
+\begin{center}\small
+\begin{tabular}{lccc}
+\toprule
+& turn-level & token-level & $\Delta$\\
+\midrule
+AlfWorld (long horizon, $\le$50 turns) & 0.963 & 0.761 & \good{$+0.202$}\\
+SearchQA (short horizon, 4-turn cap)   & 0.389 & 0.381 & $+0.008$\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent A \textbf{25$\times$ larger effect on the long-horizon environment}, from an identical
+algorithm differing only in credit granularity. The mechanism is visible in the discount: at
+$\gamma{=}0.95$ per \emph{token}, an AlfWorld transcript of $\sim$25k generated tokens discounts early
+credit by $0.95^{25000}\!\approx\!0$, so the value signal cannot reach the decisions that matter, and
+the policy wanders (46\% of episodes exceed 20 turns; \texttt{cool} collapses to 0.29 success at 43.6
+turns). Under a 4-turn SearchQA cap the same discount spans only a few hundred tokens, so
+granularity is nearly irrelevant --- and the two arms tie. This is the sharpest single piece of
+evidence for the paper's thesis, because it holds everything except granularity fixed.
+
+\subsection*{Robustness: does the SearchQA ranking survive without thinking mode?}
+The SearchQA results above use Qwen3's thinking mode with a 2048-token response budget, under which
+the critic arm clips 8.4\% of its turns --- a clipped turn emits no action and so wastes one of only
+four. That makes truncation a live confound for the report's central SearchQA claim (flat GRPO
+$>$ critic turn-PPO): the gap might be a truncation artifact rather than a credit-assignment one.
+We therefore re-ran both arms with \texttt{enable\_thinking=False} at the \emph{same} 2048 budget,
+500 steps, batch, seeds and $\gamma{=}\lambda{=}1$ --- so \emph{only} the thinking flag differs.
+
+\begin{table}[h]\centering\small
+\caption{Thinking-mode ablation, SearchQA 4B (val-2048 macro-EM at step 500; full-set evals in
+progress). Non-thinking matches or beats thinking at $\approx$4$\times$ fewer tokens per turn, and
+the GRPO-over-turn-PPO ordering \textbf{survives} --- the gap narrows from 0.054 to 0.030 but does
+not close.}
+\begin{tabular}{lccc c cc}
+\toprule
+& \multicolumn{3}{c}{\textbf{macro-EM}} && \multicolumn{2}{c}{\textbf{mean resp.\ tokens/turn}}\\
+\cmidrule(lr){2-4}\cmidrule(lr){6-7}
+& thinking & non-thinking & $\Delta$ && thinking & non-thinking\\
+\midrule
+GRPO      & 0.443 & \good{0.452} & $+0.009$ && 476 & \good{111}\\
+turn-PPO  & 0.389 & \good{0.422} & $+0.033$ && 610 & \good{207}\\
+\midrule
+GRPO $-$ turn-PPO & $0.054$ & $0.030$ & & & &\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three readings. (i) \textbf{The finding is robust}: GRPO still leads turn-PPO when the truncation
+channel is largely removed (turn-PPO's clip falls 0.084 $\to$ 0.057), so the ordering is not a
+clipping artifact --- though the narrowing from 0.054 to 0.030 says clipping was contributing
+\emph{part} of it. (ii) \textbf{Thinking is not paying for itself here}: both arms do at least as
+well without it while generating 66--77\% fewer tokens, i.e.\ the 4-turn budget rewards deciding
+\emph{what to search for} far more than deliberating about it. (iii) \textbf{The critic arm gains
+most} ($+0.033$ vs $+0.009$), consistent with it having been the arm penalised by truncation.
+\emph{Caveat:} single seed per cell, and GRPO's $+0.009$ sits inside that run's own step-to-step
+oscillation band ($0.429$--$0.457$ over steps 250--400); the defensible claim is that non-thinking
+is \emph{not worse and much cheaper}, not that it is better.
+
+\section{Horizon-stratified analysis}
+
+\begin{figure}[h]\centering\fig{fig5_acc_vs_turns.pdf}
+\caption{\textbf{Fig 5.} Accuracy vs turns \emph{used}. \emph{Left, AlfWorld:} all methods succeed
+until $>20$ turns, where the wandering tail (largest for GRPO) fails. \emph{Right, SearchQA:}
+accuracy falls with turns used --- long trajectories are the hard, cap-hitting ones --- and the
+critic-PPO arms sit below GRPO/GiGPO at every turn count.}
+\end{figure}
+
+\begin{figure}[h]\centering\fig{fig4_searchqa_turns_vs_gold.pdf}
+\caption{\textbf{Fig 4.} SearchQA turns used vs required hops, split accurate/failed/all (band
+$\pm1$SD; dotted $y{=}x$). All methods escalate turns with hops on MuSiQue and pin at the cap by
+$H{=}3$; failed trajectories sit at the cap (budget exhausted) while successes finish earlier.}
+\end{figure}
+
+\begin{minipage}{0.5\linewidth}
+\textbf{EM vs required hops (within task).} MuSiQue collapses monotonically for every method.
+On 2Wiki the floor and GRPO \emph{rise} at the 4-hop (bridge\_comparison) stratum --- the
+comparison/base-rate shortcut --- while the over-searching arms fall, and the critic arms end
+\emph{below the untrained floor} there (0.224/0.138 vs 0.456): learned search displaces the
+floor's successful parametric early answers. The MuSiQue--2Wiki gap is the crux of \S\ref{sec:why}.
+\end{minipage}\hfill
+\begin{minipage}{0.46\linewidth}\centering\footnotesize\setlength{\tabcolsep}{4pt}
+\captionof{table}{Within-task EM by $H_{\text{gold}}$.}
+\begin{tabular}{lccc c cc}
+\toprule
+& \multicolumn{3}{c}{MuSiQue} && \multicolumn{2}{c}{2Wiki}\\
+\cmidrule(lr){2-4}\cmidrule(lr){6-7}
+& H2 & H3 & H4 && H2 & H4\\
+\midrule
+floor    & .110 & .042 & .025 && .297 & .456\\
+GRPO     & .268 & .114 & .054 && .433 & .504\\
+GiGPO    & .276 & .114 & .047 && .406 & .372\\
+turn-PPO & .197 & .064 & .035 && .370 & .224\\
+token-PPO & .217 & .063 & .025 && .374 & .138\\
+\bottomrule
+\end{tabular}
+\end{minipage}
+
+\medskip
+\textbf{Horizon-gain vs GRPO (A2).} We measure, for each arm $m$, the top-minus-bottom contrast of
+$\Delta_m(h){=}\text{EM}_m(h){-}\text{EM}_{\text{GRPO}}(h)$ with a 1000-resample item bootstrap; a
+horizon effect is claimed only when the CI excludes 0.
+
+\begin{table}[h]\centering\small
+\caption{Horizon-gain contrasts vs GRPO ($\Delta(\text{high}){-}\Delta(\text{low})$, 95\% CI).
+$^\star$ = CI excludes 0. The \emph{only} positive signal is the critic methods on MuSiQue's deep
+chains; every arm loses on 2Wiki by over-searching shallow comparison questions.}
+\begin{tabular}{lccc}
+\toprule
+Method & within-MuSiQue & within-2Wiki & pooled\\
+\midrule
+turn-PPO & \good{$+0.031$ [$+0.003,+0.057$]$^\star$} & \bad{$-0.217^\star$} & $-0.183^\star$\\
+token-PPO & $+0.007$ [$-0.018,+0.032$] & \bad{$-0.307^\star$} & $-0.233^\star$\\
+GiGPO & $-0.011$ [$-0.035,+0.013$] & \bad{$-0.106^\star$} & $-0.092^\star$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reading: turn-PPO is worse than GRPO at \emph{every} MuSiQue hop, but its gap \emph{narrows} as hops
+deepen ($\Delta$: $-0.071\to-0.019$) --- a small, significant positive contrast. The critic's per-turn
+value estimates do buy something on genuinely-sequential chains; it is simply overwhelmed by
+over-search losses elsewhere and by lower overall performance. GiGPO's group-relative step advantage
+shows no such MuSiQue signal.
+
+\section{Why hop-depth crushes MuSiQue but not 2Wiki}\label{sec:why}
+MuSiQue's hop count is genuine \emph{sequential} depth; 2Wiki's ``4-hop'' (bridge\_comparison) is a
+\emph{shallow parallel comparison} the label over-counts. A MuSiQue 4-hop is a chain in which each
+hop's answer feeds the next (the annotation uses \texttt{\#1/\#2/\#3} placeholders):
+\begin{quote}\small
+\emph{``president of the newly-independent country that established the Timor-Leste Commission \dots
+with the country containing the airport that includes Lion Air?''}\\
+airport of Lion Air $\to$ \texttt{Juanda} $\to$ its country $\to$ \texttt{Indonesia} $\to$ +Timor-Leste
+Commission $\to$ \texttt{East Timor} $\to$ its president $\to$ \texttt{Francisco Guterres}.
+\end{quote}
+You cannot begin hop 4 until hops 1--3 resolve. With a 4-turn budget ($\approx$3 searches), the model
+runs out mid-chain --- here GRPO is still decomposing at the cap and scores 0:
+\begin{quote}\ttfamily\scriptsize
+turns=4, em=0: ``<think> \dots the length of the city where the Yongle Emperor greeted a person the
+Ming court thought were representatives sent by \dots Yaxing Coach's headquarters. First, I need to
+break do[wn]\dots'' \bad{[budget exhausted]}
+\end{quote}
+A 2Wiki bridge\_comparison, by contrast, is two \emph{independent} 2-hop facts joined by a comparison
+(\emph{``which film's director was born later, A or B?''}): the branches don't depend on each other
+(depth 2), the answer is one of two named entities ($\sim$50\% base rate), and parametric knowledge
+often supplies one side. Hence (i) MuSiQue is \emph{cap-limited} --- cap-fail 0.72 at $H3$, and no
+credit scheme overcomes ``4 turns can't do 4 hops''; (ii) 2Wiki-4hop is \emph{easier} than
+2Wiki-2hop for every method, floor included, so the difficulty structure is a property of the tasks,
+not of the credit signal. This is the composition confound that makes pooled cross-stratum curves
+misleading and the within-task curves the honest ones.
+
+\section{Per-method verdict}
+\begin{itemize}\itemsep2pt
+\item\textbf{GRPO} --- best flat baseline. Tied for best on SearchQA with GiGPO (cheap, no critic,
+well-calibrated turn use; 0.441 vs 0.446 full-set, ordering reverses on the proxy)
+but wastes the loose AlfWorld budget wandering (14.9 turns; \texttt{look}-loops), making it the
+\emph{worst} long-horizon arm.
+\item\textbf{GiGPO} --- best long-horizon efficiency (AlfWorld 0.955 at 9.1 turns). On SearchQA it
+\emph{ties} GRPO on EM but over-searches into the cap and gains nothing on the hop axis --- its edge
+is variance/stability, not credit fidelity.
+\item\textbf{turn-PPO} --- best on AlfWorld (0.963). On SearchQA it underperforms overall yet is the
+\emph{only} arm with a significant positive horizon-gain, specifically on MuSiQue's deep chains ---
+the clearest evidence that critic-based per-turn credit helps in proportion to sequential depth.
+\item\textbf{token-PPO} --- worst arm in \emph{both} environments, and the informative failure.
+On SearchQA (0.381) it merely trails, with the same MuSiQue-leaning / 2Wiki-losing shape as turn-PPO.
+On AlfWorld it collapses to 0.761 at 24.2 turns/episode --- 46\% of episodes exceed 20 turns --- because
+per-token discounting annihilates credit over a 25k-token transcript. Identical to turn-PPO in every
+respect but granularity, it is the control that turns the paper's thesis from correlation into a
+controlled contrast.
+\end{itemize}
+
+\section{Discussion \& limitations}
+\textbf{Thesis.} The value of fine-grained per-turn credit assignment scales with \emph{genuine
+sequential horizon}. Long, truly-sequential tasks (AlfWorld) reward it with efficient, on-track
+trajectories; short or shallow tasks (most of SearchQA, under a 4-turn cap) do not, and flat
+outcome-only GRPO is competitive and cheaper. Where SearchQA \emph{is} deep (MuSiQue 3--4 hop), the
+critic methods leave the faintest positive trace --- but the 4-turn cap, not the credit signal, is
+the binding constraint (the actionable fix there is more turns, not better credit).
+
+\textbf{Limitations.} (1) Mixed scale (AlfWorld 1.7B, SearchQA 4B) --- we compare \emph{patterns},
+not levels. (2) AlfWorld is single-seed, with unequal training budgets (both PPO arms 150 steps vs 300 for
+GRPO/GiGPO); the turn-vs-token contrast is budget-matched at 150, but the PPO-vs-GRPO/GiGPO
+comparisons are not. (3) $H_{\text{gold}}$ is annotated chain length, ordinal, not ``expected
+searches''; the 3-hop stratum is MuSiQue-only. (4) SearchQA metric is greedy val-protocol EM on the
+full test set. (5) Fig 5's accuracy-vs-turns axis is partly mechanical (hard items take more turns).
+
+\vspace{4pt}\noindent\footnotesize Assets, rerunnable analysis, and $H_{\text{gold}}$ table:
+\texttt{docs/reports/2026-07-21\_4b\_horizon\_eval/} (see \texttt{README.md}).
+\end{document}
