@@ -973,6 +973,7 @@ class RayPPOTrainer:
             env_rewards=np.concatenate(env_reward_list, axis=0),
             env_dones=np.concatenate(env_done_list, axis=0),
             responses=sample_outputs if len(sample_outputs) == len(data_sources) else None,
+            graded_return=("sciworld" in self.config.env.env_name.lower()),
         )
         metric_dict.update(traj_metrics)
 

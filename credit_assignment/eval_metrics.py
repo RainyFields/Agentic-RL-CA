@@ -22,9 +22,16 @@ def compute_trajectory_val_metrics(
     env_rewards,
     env_dones,
     responses=None,
+    graded_return=False,
 ):
     """All inputs are 1-D per-ROW arrays (one row per active turn). Returns
-    (metric_dict, per_traj_records)."""
+    (metric_dict, per_traj_records).
+
+    graded_return=False (search rungs): em = terminal-turn reward, asserted binary
+    (guards against shaping leakage onto the terminal turn).
+    graded_return=True (rung-4 sciworld): em = trajectory return = sum of per-row
+    rewards. By the ORM/PRM return-equivalence this equals P_T in [0,1] for BOTH
+    reward modes (ORM terminal P_T; PRM telescoping sum of dP_t)."""
     rows_of = defaultdict(list)
     n = len(traj_uids)
     for i in range(n):
@@ -35,9 +42,14 @@ def compute_trajectory_val_metrics(
         idxs = sorted(idxs, key=lambda i: int(turn_indices[i]))
         last = idxs[-1]
         terminal_done = bool(env_dones[last])
-        em = float(env_rewards[last]) if terminal_done else 0.0
-        # guard: EM must be binary at the terminal turn (no shaping leakage)
-        assert em in (0.0, 1.0), f"non-binary terminal reward {em} for traj {tuid}"
+        if graded_return:
+            em = float(np.sum([float(env_rewards[i]) for i in idxs]))
+            assert -1e-6 <= em <= 1.0 + 1e-6, f"return {em} outside [0,1] for traj {tuid}"
+            em = min(max(em, 0.0), 1.0)
+        else:
+            em = float(env_rewards[last]) if terminal_done else 0.0
+            # guard: EM must be binary at the terminal turn (no shaping leakage)
+            assert em in (0.0, 1.0), f"non-binary terminal reward {em} for traj {tuid}"
         records.append(
             {
                 "traj_uid": str(tuid),
