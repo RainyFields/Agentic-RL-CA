@@ -17,6 +17,10 @@ PROTOCOL="${3:-4turn}"
 source "$REPO_DIR/configs/protocol_${PROTOCOL}.sh"
 source "$REPO_DIR/configs/cond_${COND_NAME}.sh"
 
+# Protocol-level hydra overrides (cond files own EXTRA_OVERRIDES and would clobber it;
+# 8B ASearcher protocol uses this for its env flags). Default empty under set -u.
+if [[ -z "${PROTOCOL_OVERRIDES+x}" ]]; then PROTOCOL_OVERRIDES=(); fi
+
 require_model_path
 require_data
 require_retriever
@@ -77,7 +81,7 @@ python3 -m verl.trainer.main_ppo \
     algorithm.lam="$LAM" \
     algorithm.use_kl_in_reward=False \
     data.train_files="$DATA_DIR/train.parquet" \
-    data.val_files="$DATA_DIR/val_2048.parquet" \
+    data.val_files="${VAL_FILE:-$DATA_DIR/val_2048.parquet}" \
     data.train_batch_size="$TRAIN_BATCH" \
     data.val_batch_size="$VAL_BATCH" \
     data.max_prompt_length="$MAX_PROMPT_LENGTH" \
@@ -125,9 +129,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.max_actor_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.max_critic_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.test_freq="$VAL_FREQ" \
-    trainer.total_epochs=1 \
+    trainer.total_epochs="${TOTAL_EPOCHS:-1}" \
     trainer.total_training_steps="$TOTAL_STEPS" \
     trainer.default_local_dir="$CKPT_DIR" \
     trainer.val_before_train="$VAL_BEFORE_TRAIN" \
+    "${PROTOCOL_OVERRIDES[@]}" \
     "${EXTRA_OVERRIDES[@]}" \
     "${@:4}"

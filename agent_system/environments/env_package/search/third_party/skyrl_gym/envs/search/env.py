@@ -31,6 +31,11 @@ class SearchEnv(BaseTextEnv):
         self.step_reward_mode = str(env_config.get("step_reward_mode", "none"))
         self.step_reward_w = float(env_config.get("step_reward_w", 0.0))
 
+        # ASearcher-consistent observation cap (8B protocol): the whole search result set
+        # (the content of one <information> block) is truncated to this many characters,
+        # mirroring ASearcher's 5k-char cap on <search> observations. 0 = off (stock).
+        self.info_char_cap = int(env_config.get("info_char_cap", 0))
+
     def reset(self, extras: Dict[str, Any] = {}) -> None:
         assert "ground_truth" in extras, "ground_truth is required in extras field"
         self.ground_truth = extras["ground_truth"]
@@ -77,6 +82,8 @@ class SearchEnv(BaseTextEnv):
     def _execute_tool(self, tool_group_name: str, tool_name: str, tool_input: Any) -> str:
         tool_output = super()._execute_tool(tool_group_name, tool_name, tool_input)
         if len(tool_output) > 0:
+            if self.info_char_cap > 0 and len(tool_output) > self.info_char_cap:
+                tool_output = tool_output[: self.info_char_cap]
             return "\n<information>" + tool_output + "</information>\n"
         else:
             return None

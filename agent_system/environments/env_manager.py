@@ -50,6 +50,25 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
     def __init__(self, envs, projection_f, config):
         self.memory = SearchMemory()
         super().__init__(envs, projection_f, config)
+        # ASearcher-consistent trajectory format (8B protocol; both OFF by default so
+        # every existing arm is byte-identical):
+        #   asearcher_history — history keeps the model's FULL response (<think> + action,
+        #     trimmed at the first closing tag) instead of the extracted query only.
+        #   ctx_terminate — end the episode CLEANLY when the next rebuilt prompt would
+        #     exceed data.max_prompt_length (minus a margin), instead of relying on the
+        #     silent left-truncation safety valve. Part of the MDP: identical across arms.
+        self._asearcher_history = bool(self.config.env.get('asearcher_history', False))
+        self._ctx_terminate = bool(self.config.env.get('ctx_terminate', False))
+        self._ctx_margin = int(self.config.env.get('ctx_terminate_margin', 256))
+        self._ctx_tokenizer = None
+
+    def _ctx_ntok(self, s: str) -> int:
+        if self._ctx_tokenizer is None:
+            from transformers import AutoTokenizer
+            path = self.config.env.get("tokenizer_path", None) or \
+                self.config.actor_rollout_ref.model.path
+            self._ctx_tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+        return len(self._ctx_tokenizer.encode(s, add_special_tokens=False))
 
     def reset(self, kwargs) -> Tuple[Dict[str, Any], List[Dict]]:
         obs, infos = self.envs.reset(kwargs=kwargs)
@@ -68,8 +87,15 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
     def step(self, text_actions: List[str]):
         actions, valids = self.projection_f(text_actions)
         next_obs, rewards, dones, infos = self.envs.step(actions)
+        if self._asearcher_history:
+            # Keep the model's full response (think digest + action) in history, trimmed
+            # at the first closing tag to drop trailing hallucinated continuations.
+            from agent_system.environments.env_package.search.projection import _postprocess_action
+            stored_actions = [_postprocess_action(a) for a in text_actions]
+        else:
+            stored_actions = actions
         self.memory.store({
-            "search": actions,
+            "search": stored_actions,
             "information": next_obs,
         })
 
@@ -78,9 +104,21 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
             "image": None,
             "anchor": next_obs.copy()
         }
-        
+
         for i, info in enumerate(infos):
             info["is_action_valid"] = to_numpy(valids[i])
+
+        # Clean context-overflow termination: if the NEXT prompt would exceed the prompt
+        # budget, end the episode now (the model never sees a truncated prompt). Cheap
+        # char-length prefilter first — only tokenize candidates that could plausibly
+        # exceed (< 2.5 chars/token never happens on wiki-18 English text; any miss is
+        # still caught by the prompt_pretrunc_len alarm downstream).
+        if self._ctx_terminate:
+            budget = int(self.config.data.max_prompt_length) - self._ctx_margin
+            for i, txt in enumerate(next_observations["text"]):
+                if not dones[i] and len(txt) >= 2.5 * budget and self._ctx_ntok(txt) > budget:
+                    dones[i] = True
+                    infos[i]["ctx_overflow"] = True
 
         rewards = to_numpy(rewards)
         dones = to_numpy(dones)
@@ -101,13 +139,14 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
                 action_key="search"
             )
 
+        his_template = SEARCH_TEMPLATE_ASEARCHER if self._asearcher_history else SEARCH_TEMPLATE
         for i in range(len(text_obs)):
             if init or self.config.env.history_length <= 0:
                 obs_i = SEARCH_TEMPLATE_NO_HIS.format(
                     task_description=self.tasks[i]
                 )
             else:
-                obs_i = SEARCH_TEMPLATE.format(
+                obs_i = his_template.format(
                     task_description=self.tasks[i],
                     memory_context=memory_ctx[i],
                     step_count=len(self.memory[i]),
@@ -201,6 +240,7 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
         (possibly just-restored) memory + task state. Mirrors build_text_obs() exactly
         (all limits read from config — no literal turn counts)."""
         history_length = self.config.env.history_length
+        his_template = SEARCH_TEMPLATE_ASEARCHER if self._asearcher_history else SEARCH_TEMPLATE
         out = []
         for i in indices:
             n_steps = len(self.memory._data[i])
@@ -214,7 +254,7 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
                     for j, rec in enumerate(recent)
                 ]
                 out.append(
-                    SEARCH_TEMPLATE.format(
+                    his_template.format(
                         task_description=self.tasks[i],
                         memory_context="\n".join(lines),
                         step_count=n_steps,
