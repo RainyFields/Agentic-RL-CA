@@ -50,10 +50,14 @@ echo "==== P8B-PROFILE start $(date -u) on $(hostname) ===="; nvidia-smi -L | he
 uv venv -p 3.11 "$VENV" 2>/dev/null; source "$VENV/bin/activate"; export VIRTUAL_ENV="$VENV"
 python -c 'import vllm, flash_attn, verl' 2>/dev/null || { echo "venv incomplete"; exit 1; }
 
-# ---- 1b. pod preflight, part 2: NVML via the VENV python (system python3 lacks pynvml;
-# pynvml is how Ray counts GPUs — a pod can pass nvidia-smi yet miss libnvidia-ml) ----
+# ---- 1b. pod preflight, part 2: NVML via ctypes (no python package needed; tests the
+# exact broken-pod mode — CUDA fine but libnvidia-ml.so missing, so Ray sees 0 GPUs) ----
 python - <<'EOF' || { echo "PREFLIGHT FAIL: NVML"; exit 1; }
-import pynvml; pynvml.nvmlInit(); assert pynvml.nvmlDeviceGetCount() >= 8
+import ctypes
+lib = ctypes.CDLL("libnvidia-ml.so.1")
+assert lib.nvmlInit_v2() == 0, "nvmlInit failed"
+n = ctypes.c_uint()
+assert lib.nvmlDeviceGetCount_v2(ctypes.byref(n)) == 0 and n.value >= 8, f"NVML sees {n.value} GPUs"
 EOF
 
 # ---- 2. GPU-faiss conda env (idempotent) ----
