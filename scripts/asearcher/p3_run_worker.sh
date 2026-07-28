@@ -9,7 +9,7 @@ export PYTHONUNBUFFERED=1
 REPO=/home/tiger/xiaoxuan/Agentic-RL-CA
 export VENV=/home/tiger/xiaoxuan/envs/agentic-rl-ca
 export MODEL_PATH=/mnt/hdfs/mlsys/models/Qwen3-4B-Instruct-2507
-export DATA_DIR=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/data_asearcher_base_filtered
+export DATA_DIR=/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/data_asearcher_base_filtered_x6
 export SEARCHR1_DATA=/mnt/hdfs/mlsys/users/xiaoxuan/searchr1/searchr1_data
 export HF_DATASETS_CACHE=/tmp/hf_datasets_cache
 PROTOCOL=asearcher_8turn_4b
@@ -95,7 +95,7 @@ done
 WATCHDOG_PID=$!
 
 # ---- 4. full RL run: identical protocol to P2, filtered data, new run names ----
-export EXP_NAME="${COND}_qwen3-4b-2507_${PROTOCOL}_basefiltered_s0"
+export EXP_NAME="${COND}_qwen3-4b-2507_${PROTOCOL}_basefiltered150_s0"
 export MICRO_BSZ_OVERRIDE=1
 echo "==== P3 train: $COND 150 steps, filtered base (7438q band 0<p<8) ===="
 RESUME=disable bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL"
