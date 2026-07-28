@@ -41,10 +41,7 @@ eval "$(grep -E '^export (HF_TOKEN|WANDB_API_KEY)=' /home/tiger/.bashrc)" || tru
 [ -z "${WANDB_API_KEY:-}" ] && export WANDB_MODE=offline
 echo "==== P8B-PROFILE start $(date -u) on $(hostname) ===="; nvidia-smi -L | head -2 || true
 
-# ---- 0. pod preflight (NVML + HDFS FUSE; fail fast -> relaunch draws a fresh pod) ----
-python3 - <<'EOF' || { echo "PREFLIGHT FAIL: NVML"; exit 1; }
-import pynvml; pynvml.nvmlInit(); assert pynvml.nvmlDeviceGetCount() >= 8
-EOF
+# ---- 0. pod preflight, part 1: filesystem (fail fast -> relaunch draws a fresh pod) ----
 [ -f "$DATA_DIR/train.parquet" ] || { echo "PREFLIGHT FAIL: HDFS FUSE"; exit 1; }
 [ -d "$MODEL_PATH" ] || { echo "PREFLIGHT FAIL: model path"; exit 1; }
 [ -d "$REPO/.git" ] || [ -f "$REPO/.git" ] || { echo "PREFLIGHT FAIL: repo worktree missing"; exit 1; }
@@ -52,6 +49,12 @@ EOF
 # ---- 1. training venv (cached) ----
 uv venv -p 3.11 "$VENV" 2>/dev/null; source "$VENV/bin/activate"; export VIRTUAL_ENV="$VENV"
 python -c 'import vllm, flash_attn, verl' 2>/dev/null || { echo "venv incomplete"; exit 1; }
+
+# ---- 1b. pod preflight, part 2: NVML via the VENV python (system python3 lacks pynvml;
+# pynvml is how Ray counts GPUs — a pod can pass nvidia-smi yet miss libnvidia-ml) ----
+python - <<'EOF' || { echo "PREFLIGHT FAIL: NVML"; exit 1; }
+import pynvml; pynvml.nvmlInit(); assert pynvml.nvmlDeviceGetCount() >= 8
+EOF
 
 # ---- 2. GPU-faiss conda env (idempotent) ----
 CLEAN=(env -u VIRTUAL_ENV -u PYTHONPATH -u PYTHONHOME)
