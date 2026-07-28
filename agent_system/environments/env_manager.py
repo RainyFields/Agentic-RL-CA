@@ -168,6 +168,34 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
             "anchor": anchors,
         }
 
+    # ---- Sync partial rollout (PoC): combined fresh-reset + snapshot-restore. Fresh
+    # prompts occupy slots [0..F) (SearchMultiProcessEnv.reset maps kwargs to envs in
+    # order and dummy-resets the rest), resumed trajectories are restored into the tail
+    # slots [F..F+R) AFTER the reset so the dummy state is overwritten. ----
+    def reset_partial(self, kwargs, snapshots: List[Dict]):
+        """Reset fresh episodes from `kwargs` and restore `snapshots` behind them.
+        Returns (observations, infos) shaped like reset(), covering F+R slots."""
+        kwargs = list(kwargs) if kwargs is not None else []
+        F, R = len(kwargs), len(snapshots)
+        assert F + R <= self.envs.batch_size, \
+            f"partial rollout: {F} fresh + {R} resumed exceeds env pool {self.envs.batch_size}"
+        obs, infos = self.envs.reset(kwargs=kwargs) if F > 0 else ([], [])
+        self.tasks = list(obs) + [s["task"] for s in snapshots]
+        self.memory.reset(batch_size=F + R)
+        fresh_text = self.build_text_obs(list(obs), init=True) if F > 0 else []
+        if R > 0:
+            restored = self.restore_batch(snapshots, indices=list(range(F, F + R)))
+            restored_text, restored_anchor = restored["text"], list(restored["anchor"])
+        else:
+            restored_text, restored_anchor = [], []
+        observations = {
+            "text": fresh_text + restored_text,
+            "image": None,
+            "anchor": list(obs) + restored_anchor,
+        }
+        infos = list(infos) + [{} for _ in range(R)]
+        return observations, infos
+
     def rebuild_text_obs(self, indices: List[int]) -> List[str]:
         """Rebuild the templated per-turn prompt for the given env slots from the current
         (possibly just-restored) memory + task state. Mirrors build_text_obs() exactly

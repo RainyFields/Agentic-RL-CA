@@ -297,6 +297,7 @@ class TrajectoryCollector:
             turn_offsets: np.ndarray = None,
             pre_gen_hook=None,
             post_step_hook=None,
+            max_steps_override: int = None,
             ):
         """Shared agent-environment turn loop (Agentic-RL-CA Phase 2b.2 refactor).
 
@@ -343,8 +344,11 @@ class TrajectoryCollector:
         prev_action = [None] * batch_size
         prev_obs_text = [None] * batch_size
         rollout_records = []   # SP3.1: reliable per-turn debug log (written to JSONL at loop end)
+        # Sync partial rollout: per-cycle turn budget (global horizon is still enforced by
+        # the env's own max_turns, which persists across snapshot/restore).
+        n_loop_steps = max_steps_override if max_steps_override is not None else self.config.env.max_steps
         # Trajectory collection loop
-        for _step in range(self.config.env.max_steps):
+        for _step in range(n_loop_steps):
             active_masks = np.logical_not(is_done)
 
             batch = self.preprocess_batch(gen_batch=gen_batch, obs=obs)
@@ -377,6 +381,13 @@ class TrajectoryCollector:
             batch.non_tensor_batch['traj_uid'] = traj_uid
 
             batch = batch.union(batch_output)
+
+            # Sync partial rollout: per-SEGMENT behavior-policy provenance. Every row is
+            # stamped with the global_step of the policy that generated it (set by the
+            # trainer via gen_batch.meta_info['policy_version']; -1 when absent, e.g. val).
+            # A trajectory resumed across cycles carries rows with different versions.
+            batch.non_tensor_batch['policy_version'] = np.full(
+                batch_size, int(gen_batch.meta_info.get('policy_version', -1)), dtype=object)
             
             text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
             
@@ -850,10 +861,178 @@ class TrajectoryCollector:
 
         return total_batch_list, total_episode_rewards, total_episode_lengths, total_success, total_traj_uid, total_tool_callings
 
+    def partial_multi_turn_loop(
+            self,
+            gen_batch: DataProto,
+            actor_rollout_wg,
+            envs: EnvironmentManagerBase,
+            ):
+        """Synchronous partial rollout (PoC — Agentic-RL-CA, 2026-07-29 design doc).
+
+        Semantics (simplest-safe):
+          - Each trainer cycle runs at most `env.partial_rollout_cycle_turns` turns.
+          - Trajectories not terminated at cycle end are snapshotted (env state via
+            SearchEnvironmentManager.snapshot + accumulated rows) and RESUMED next cycle
+            under the then-current policy (cross-update resume). Nothing is restarted.
+          - A trajectory enters training only once terminated, and a uid GROUP is
+            released ATOMICALLY (all `env.rollout.n` members terminated) so the GRPO
+            group baseline is never computed over a split group.
+          - Every row records `policy_version` (trainer global_step at generation).
+            NO off-policy correction is applied: old_log_probs are still recomputed at
+            train time under the current policy (see design doc, risk R2).
+          - Groups whose pending members exceed `env.partial_rollout_max_age` cycles are
+            dropped entirely (staleness bound; logged as partial/dropped_stale_groups).
+
+        Returns a finalized DataProto of released trajectories, or None if no group
+        completed this cycle (trainer skips the update).
+        """
+        cfg_env = self.config.env
+        n = cfg_env.rollout.n if cfg_env.rollout.n > 0 else 1
+        pool = self.config.data.train_batch_size * n
+        cycle_turns = int(cfg_env.get('partial_rollout_cycle_turns', cfg_env.max_steps))
+        max_age = int(cfg_env.get('partial_rollout_max_age', 4))
+
+        if not hasattr(self, '_pr_groups'):
+            self._pr_groups: Dict[str, Dict] = {}   # uid -> group record
+            self._pr_cycle = 0
+        self._pr_cycle += 1
+
+        # ---- 1. staleness bound: drop whole groups with over-age pending members ----
+        dropped_groups = [u for u, g in self._pr_groups.items()
+                          if g['pending'] and (self._pr_cycle - g['born']) > max_age]
+        for u in dropped_groups:
+            del self._pr_groups[u]
+
+        # ---- 2. pack env slots: fresh prompt groups in [0..F), resumed pending in [F..F+R) ----
+        pending = [(u, t) for u, g in self._pr_groups.items() for t in list(g['pending'])]
+        n_resume = len(pending)
+        n_fresh_groups = min(max(0, (pool - n_resume) // n), len(gen_batch))
+
+        parts = []
+        env_kwargs = []
+        if n_fresh_groups > 0:
+            gb_fresh = gen_batch.select_idxs(list(range(n_fresh_groups)))
+            gb_fresh = gb_fresh.repeat(repeat_times=n, interleave=True)
+            ek = gb_fresh.non_tensor_batch.pop('env_kwargs', None)
+            assert ek is not None, "partial rollout: search env requires env_kwargs per prompt"
+            env_kwargs = list(ek)
+            parts.append(gb_fresh)
+        for u, t in pending:
+            parts.append(self._pr_groups[u]['pending'][t]['gen_row'])
+        if not parts:
+            self._partial_metrics = {'partial/released_traj': 0, 'partial/pending_traj': 0}
+            return None
+        gen_all = DataProto.concat(parts) if len(parts) > 1 else parts[0]
+        gen_all.meta_info = dict(gen_batch.meta_info)
+
+        obs, _ = envs.reset_partial(
+            kwargs=env_kwargs,
+            snapshots=[self._pr_groups[u]['pending'][t]['snap'] for u, t in pending],
+        )
+
+        uid_list, traj_list, off_list = [], [], []
+        for gi in range(n_fresh_groups):
+            u = str(uuid.uuid4())
+            members = [str(uuid.uuid4()) for _ in range(n)]
+            uid_list += [u] * n
+            traj_list += members
+            off_list += [0] * n
+            self._pr_groups[u] = {'born': self._pr_cycle, 'members': set(members),
+                                  'done': {}, 'pending': {}}
+        for u, t in pending:
+            uid_list.append(u)
+            traj_list.append(t)
+            off_list.append(int(self._pr_groups[u]['pending'][t]['turn_off']))
+
+        # ---- 3. run the shared turn loop for at most cycle_turns turns ----
+        (tbl, ep_rew, ep_len, tool_c, tinfos, rrec) = self._turn_loop(
+            gen_batch=gen_all,
+            actor_rollout_wg=actor_rollout_wg,
+            envs=envs,
+            obs=obs,
+            uid_batch=np.array(uid_list, dtype=object),
+            traj_uid=np.array(traj_list, dtype=object),
+            turn_offsets=np.array(off_list, dtype=np.int64),
+            max_steps_override=cycle_turns,
+        )
+        self._dump_rollout_records(rrec)
+
+        # ---- 4. split finished vs unfinished; snapshot the unfinished tail state ----
+        B = len(tbl)
+        finished = np.zeros(B, dtype=bool)
+        for i in range(B):
+            last = tbl[i][-1]
+            finished[i] = bool(last['env_done']) or bool(last['early_stopped'])
+        unfinished_idx = [i for i in range(B) if not finished[i]]
+        snaps = envs.snapshot(unfinished_idx) if unfinished_idx else []
+
+        snap_it = iter(snaps)
+        for i in range(B):
+            u, t = uid_list[i], traj_list[i]
+            g = self._pr_groups[u]
+            prev = g['pending'].pop(t, None)
+            rows = (prev['rows'] + tbl[i]) if prev else tbl[i]
+            infos = (prev['infos'] + tinfos[i]) if prev else tinfos[i]
+            rew = (prev['ep_rew'] if prev else 0.0) + float(ep_rew[i])
+            tools = (prev['tool'] if prev else 0.0) + float(tool_c[i])
+            if finished[i]:
+                g['done'][t] = {'rows': rows, 'infos': infos, 'ep_rew': rew,
+                                'ep_len': float(ep_len[i]), 'tool': tools}
+            else:
+                g['pending'][t] = {
+                    'rows': rows, 'infos': infos, 'snap': next(snap_it),
+                    'gen_row': (prev['gen_row'] if prev else gen_all.select_idxs([i])),
+                    'turn_off': int(off_list[i]) + len(tbl[i]),
+                    'ep_rew': rew, 'ep_len': float(ep_len[i]), 'tool': tools,
+                }
+
+        # ---- 5. release complete groups atomically ----
+        released = []
+        for u in list(self._pr_groups):
+            g = self._pr_groups[u]
+            if not g['pending'] and len(g['done']) == len(g['members']):
+                for t, rec in g['done'].items():
+                    released.append((u, t, rec))
+                del self._pr_groups[u]
+
+        pend_traj = sum(len(g['pending']) for g in self._pr_groups.values())
+        held_done = sum(len(g['done']) for g in self._pr_groups.values())
+        ages = [self._pr_cycle - g['born'] for g in self._pr_groups.values() if g['pending']]
+        self._partial_metrics = {
+            'partial/released_traj': len(released),
+            'partial/pending_traj': pend_traj,
+            'partial/held_complete_traj': held_done,
+            'partial/open_groups': len(self._pr_groups),
+            'partial/dropped_stale_groups': len(dropped_groups),
+            'partial/fresh_groups': n_fresh_groups,
+            'partial/resumed_traj': n_resume,
+            'partial/mean_open_group_age': float(np.mean(ages)) if ages else 0.0,
+        }
+        if not released:
+            return None
+
+        total_batch_list = [rec['rows'] for _, _, rec in released]
+        total_infos = [rec['infos'] for _, _, rec in released]
+        episode_rewards = np.array([rec['ep_rew'] for _, _, rec in released], dtype=np.float32)
+        episode_lengths = np.array([rec['ep_len'] for _, _, rec in released], dtype=np.float32)
+        tool_callings = np.array([rec['tool'] for _, _, rec in released], dtype=np.float32)
+        traj_uid_arr = np.array([t for _, t, _ in released], dtype=object)
+
+        success = envs.success_evaluator(
+            total_infos=total_infos,
+            total_batch_list=total_batch_list,
+            episode_rewards=episode_rewards,
+            episode_lengths=episode_lengths,
+        )
+        out = self._finalize_rollout(total_batch_list, episode_rewards, episode_lengths,
+                                     success, traj_uid_arr, tool_callings)
+        out.meta_info['partial_metrics'] = self._partial_metrics
+        return out
+
     def multi_turn_loop(
             self,
-            gen_batch: DataProto, 
-            actor_rollout_wg, 
+            gen_batch: DataProto,
+            actor_rollout_wg,
             envs: EnvironmentManagerBase,
             is_train: bool = True,
             ) -> DataProto:
@@ -884,6 +1063,16 @@ class TrajectoryCollector:
             return self._finalize_rollout(total_batch_list, total_episode_rewards,
                                           total_episode_lengths, total_success,
                                           total_traj_uid, totoal_tool_callings)
+
+        # Sync partial rollout (PoC): handles its own repeat/packing; incompatible with
+        # estimators that group by anchor state across a same-cycle batch (GiGPO) or with
+        # dynamic sampling (filter_groups) — both assume all group members share a cycle.
+        if is_train and bool(self.config.env.get('partial_rollout_enable', False)):
+            assert str(self.config.algorithm.adv_estimator) not in ('carl', 'gigpo'), \
+                "partial rollout PoC does not support CARL/GiGPO"
+            assert not self.config.algorithm.filter_groups.enable, \
+                "partial rollout PoC is incompatible with filter_groups (dynamic sampling)"
+            return self.partial_multi_turn_loop(gen_batch, actor_rollout_wg, envs)
 
         if is_train:
             gen_batch = gen_batch.repeat(repeat_times=self.config.env.rollout.n, interleave=True)

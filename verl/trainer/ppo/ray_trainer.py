@@ -1245,12 +1245,21 @@ class RayPPOTrainer:
                         #     self.async_rollout_manager.sleep()
 
                         ################ agent-environment loop ###############
+                        # Sync partial rollout: stamp the behavior-policy version so every
+                        # generated row records which global_step's weights produced it.
+                        gen_batch.meta_info['policy_version'] = int(self.global_steps)
                         gen_batch_output = self.traj_collector.multi_turn_loop(
                                                                 gen_batch=gen_batch,
                                                                 actor_rollout_wg=self.actor_rollout_wg,
                                                                 envs=self.envs,
                                                                 is_train=True,
                                                                 )
+                    # Sync partial rollout: a cycle can end with zero fully-terminated
+                    # uid groups — nothing to train on. Consume the next dataloader batch
+                    # without an update (global_steps unchanged).
+                    if gen_batch_output is None:
+                        print("[partial_rollout] no trajectory group completed this cycle - skipping update")
+                        continue
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                         with _timer("gen_max", timing_raw):
                             gen_baseline_batch = deepcopy(gen_batch)
@@ -1273,6 +1282,9 @@ class RayPPOTrainer:
                     # batch = batch.union(gen_batch_output)
                     del batch
                     batch = gen_batch_output
+                    # Sync partial rollout: surface carry-buffer bookkeeping in wandb.
+                    if 'partial_metrics' in batch.meta_info:
+                        metrics.update(batch.meta_info.pop('partial_metrics'))
 
                     # Agentic-RL-CA (RQ3): B1-shuffle control + raw step-reward/retrieval-hit
                     # stats. Must run BEFORE GiGPO step returns / adjust_batch /
