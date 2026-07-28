@@ -368,10 +368,37 @@ class SciWorldEnvironmentManager(EnvironmentManagerBase):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
+            import glob
+            import shutil
+            import time as _time
             from transformers import AutoTokenizer
             path = self.config.env.sciworld.get("tokenizer_path", None) or \
                 self.config.actor_rollout_ref.model.path
-            self._tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+            staged = "/tmp/sciworld_tokenizer"
+            last_err = None
+            for attempt in range(5):
+                try:
+                    self._tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+                    break
+                except Exception as e:  # HDFS-FUSE flake: transformers falls through to
+                    last_err = e        # hub-repo-id validation when isdir() blips false
+                    print(f"[sciworld] tokenizer load failed (attempt {attempt + 1}) "
+                          f"from {path}: {e}")
+                    try:  # stage the small tokenizer files to worker-local disk and retry
+                        src = self.config.env.sciworld.get("tokenizer_path", None) or \
+                            self.config.actor_rollout_ref.model.path
+                        os.makedirs(staged, exist_ok=True)
+                        for f in glob.glob(os.path.join(src, "*.json")) + \
+                                glob.glob(os.path.join(src, "merges.txt")):
+                            if "safetensors" not in os.path.basename(f):
+                                shutil.copy(f, staged)
+                        if os.path.exists(os.path.join(staged, "tokenizer_config.json")):
+                            path = staged
+                    except Exception as ce:
+                        print(f"[sciworld] tokenizer staging failed: {ce}")
+                    _time.sleep(10 * (attempt + 1))
+            if self._tokenizer is None:
+                raise last_err
         return self._tokenizer
 
     def _ntok(self, s: str) -> int:
