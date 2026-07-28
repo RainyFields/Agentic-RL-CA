@@ -1,0 +1,207 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\titlespacing*{\section}{0pt}{1.2ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{0.9ex}{0.4ex}
+\setlist{nosep,leftmargin=1.4em}
+\definecolor{hdr}{RGB}{235,235,240}
+\definecolor{warn}{RGB}{255,244,222}
+\newcommand{\cmd}[1]{\texttt{\small #1}}
+
+\title{\vspace{-1.5cm}\textbf{ASearcher (rung 3): data preparation, context-length setup,\\ and training infrastructure}\\[2pt]
+\large CA-Benchmark project --- 4B feasibility campaign (P1/P2 + two-stage data filter)}
+\author{}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+\vspace{-0.6cm}
+
+\noindent\small\textit{Scope.} What was done to turn the raw ASearcher QA data into RL-ready training
+data for Qwen3-4B-Instruct-2507 with a single \cmd{<search>} tool over local wiki-18 RAG, how the
+16k/8-turn context budget was chosen and verified, and the worker/retriever infrastructure that runs it
+(including the reliability fixes hard-won during the pass-rate diagnostic). All scripts live under
+\cmd{scripts/asearcher/} on branch \cmd{agentic-rl-ca}; commits are referenced inline. Companion
+reports: dataset inspection (\cmd{docs/reports/2026-07-25\_asearcher\_audit}), ScienceWorld audit
+(\cmd{2026-07-23}).\normalsize
+
+\section{Raw data and base conversion}
+\textbf{Sources.} inclusionAI/ASearcher-train-data provides QA pairs only (no trajectories):
+\emph{Base-35k} (35{,}583 rows: \cmd{question, answer, aug\_answer, qid, source}) and \emph{LRM-35k}
+(35{,}054 rows: \cmd{question, answer, id, idx}, \cmd{source} present on only 11{,}028 rows; no
+\cmd{aug\_answer}). Raw JSONL is staged at
+\cmd{hdfs:.../agentic\_rl\_ca/data\_asearcher\_raw/\{base,lrm\}.jsonl}.
+
+\begin{center}\small
+\begin{tabular}{@{}llrl@{}}
+\toprule
+split & source slice & rows & note \\
+\midrule
+base & compose\_chain\_qa & 8{,}537 & \\
+base & opensource-fm8k / opensource & 7{,}991 / 7{,}927 & \\
+base & compose\_group\_qa & 6{,}375 & \\
+base & \textbf{compose\_chain\_qa\_invalid} & \textbf{4{,}753} & dropped (13.4\%, user decision 2026-07-27) \\
+lrm & (no source key) & 24{,}026 & chain-QA style \\
+lrm & chain\_qa\_fuzzy / math / webwalker\_hard & 3{,}527 / 2{,}930 / 2{,}572 & webwalker = eval-leakage risk \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Conversion} (\cmd{convert\_base\_to\_parquet.py}, commit \cmd{6d6aff8}): emits the verl/Search-R1
+parquet schema (system + user \cmd{prompt}; \cmd{reward\_model.ground\_truth.target};
+\cmd{tools\_kwargs}/\cmd{env\_kwargs} carrying question + ground truth). The EM/sub-EM target is the
+\emph{deduped union of} \cmd{answer} + \cmd{aug\_answer} aliases, so any alias counts as correct
+(LRM has no aliases; the single answer string is used). Empty-target rows are dropped (zero-gradient
+otherwise). A 512-row validation split is carved (seed 0). First-pass output (pre-filter):
+\cmd{data\_asearcher\_base/} = 30{,}318 train + 512 val --- this is what P1/P2 trained on.
+
+\section{Contamination finding and the two-stage filter}
+\textbf{Why P2 was killed.} A P1 trajectory dump (384 trajs) showed \textbf{305/384 rollouts issued zero
+searches} and \textbf{87/114 correct answers came from parametric memory}. The stage-1 (closed-book)
+filter that ASearcher's recipe presumes had been skipped; P2's rising val EM was measuring recall, not
+search. Both P2 arms were killed at $\sim$step 60/30 and the data pipeline rebuilt.
+
+\textbf{Stage 1 --- closed-book filter} (\cmd{closed\_book\_filter.py} + \cmd{closed\_book\_worker.sh},
+commit \cmd{cbe4ed0}). Offline vLLM (TP=8) samples $n{=}4$ tool-free answers per question
+(temp 1.0, top-p 0.95, 160 max tokens, short-answer system prompt) and scores sub-EM against the alias
+set; a question answerable from memory is dropped. Throughput $\approx$14.6k tok/s ($\sim$7 min per
+split on one 8$\times$H100 worker).
+
+\begin{center}\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+split & total & parametric $\geq$1/4 & parametric $\geq$2/4 & keep($<$2/4) & pass-hist $0\,/\,1\,/\,2\,/\,3\,/\,4$ \\
+\midrule
+base & 35{,}583 & 28.8\% & 24.0\% & \textbf{27{,}059} & 25324\,/\,1735\,/\,1095\,/\,1077\,/\,6352 \\
+lrm  & 35{,}054 & 10.4\% & \phantom{0}7.9\% & \textbf{32{,}275} & (LRM is far less parametric) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The base histogram is strongly bimodal (the model either knows a fact 4/4 or not at all), so the
+$\geq$2/4 threshold separates cleanly. \cmd{keep\_ge2.jsonl} (primary) and strict \cmd{keep\_ge1.jsonl}
+are written per split; after also dropping the invalid slice the base diag set is 22{,}418 questions.
+
+\textbf{Stage 2 --- in-setup pass-rate filter} (commit \cmd{bca746b}; running at time of writing).
+Each kept question gets \textbf{8 independent in-setup rollouts} (search tool, wiki-18, 8 turns,
+temp 1.0) under the base policy, via the trainer's \cmd{val\_only} mode. Two implementation details
+matter:
+\begin{itemize}
+\item \emph{Replication in data, not sampling}: the val env pool is sized \cmd{env\_num =
+data.val\_batch\_size} (group\_n = 1), and \cmd{SearchMultiProcessEnv.reset} rejects batches larger than
+the pool, so \cmd{val\_kwargs.n{=}8} would crash. Instead \cmd{make\_diag\_parquet.py} writes each
+question 8$\times$ adjacent into the val parquet and keeps \cmd{val\_kwargs.n{=}1, do\_sample, T{=}1.0}.
+\item \emph{Scoring} (\cmd{passrate\_from\_dump.py}): per-turn rollout dumps
+(\cmd{DUMP\_TRAIN\_SAMPLE=1}) are grouped by \cmd{traj\_uid}; the question is parsed from the turn-0
+observation; a trajectory passes if \cmd{env\_won} at the terminal turn. Trajectories whose observations
+contain retriever-outage markers (\cmd{"Search error:"} / timeout text) are excluded; a question is
+scored only with $\geq$4 clean rollouts. The final keep-set is the \textbf{informative-gradient band}
+$0 < \mathrm{pass} < n$ (drops all-fail and all-pass questions, which give zero GRPO gradient).
+\end{itemize}
+After stage 2, \cmd{band\_keep.jsonl} feeds back through the converter to produce the filtered
+train/val parquets for the P2 relaunch (token-GRPO vs.\ turn-PPO, then GiGPO/HCAPO).
+
+\section{Context-length and episode configuration}
+Protocol \cmd{configs/protocol\_asearcher\_8turn\_4b.sh} (commit \cmd{6d6aff8}):
+
+\begin{center}\small
+\begin{tabular}{@{}llp{8.2cm}@{}}
+\toprule
+knob & value & rationale / evidence \\
+\midrule
+\cmd{MAX\_PROMPT\_LENGTH} & 16{,}384 & fits 8 turns of history; P1 measured max seqlen
+\textbf{14{,}263} $<$ 16{,}384 with \textbf{0\% prompt clipping} \\
+\cmd{data.truncation} & left & oldest history dropped first if the cap is ever hit \\
+\cmd{MAX\_RESPONSE\_LENGTH} & 512/turn & base model clips $\sim$15\% at 512 (long think blocks);
+trained policy drops to 0.7--3\% (P2 logs, resp-len p50 131--180 tok) \\
+\cmd{MAX\_STEPS} (turn budget) & 8 & rung-3 feasibility budget (paper uses 32--128 with a larger
+model + live web; our local-RAG/4B setting is deliberately smaller) \\
+\cmd{HISTORY\_LENGTH} & 8 & full-episode history in the prompt template \\
+\cmd{TOPK} & 3 & docs returned per search \\
+\cmd{SEARCH\_DOC\_MAX\_WORDS} & 180 & per-doc guard in \cmd{\_passages2string}; never fires on
+wiki-18 ($\sim$103-word chunks), protects against long-doc corpora \\
+\cmd{enable\_thinking} & False & Qwen3-4B-Instruct-2507 is non-thinking by construction \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Memory headroom at these lengths (8$\times$H100-80GB, FSDP + co-located vLLM at
+\cmd{gpu\_memory\_utilization=0.6}, gradient checkpointing, \cmd{MICRO\_BSZ=1}): P1/P2 peak
+\textbf{53--70 GB/GPU} with no OOM at the full 1{,}280-trajectory batch; GPU-faiss adds
+$\sim$7.6 GB/GPU (61 GB flat index sharded across 8 GPUs).
+
+\section{Training infrastructure}
+\textbf{Hardware and launch.} One attached Merlin/Arnold worker (8$\times$H100-SXM-80GB,
+\cmd{mlsys\_inference} queue) per condition, launched with \cmd{setsid mlx worker launch \dots}
+(client lifetime = script lifetime; workers do not self-terminate --- kill via \cmd{mlx worker kill}).
+Each fresh pod re-stages the 61 GB e5 index + 14 GB wiki-18 corpus HDFS$\to$\cmd{/tmp}
+($\sim$15--30 min); the training venv and conda retriever env persist on shared \cmd{/home}.
+
+\textbf{Environments.} Training venv \cmd{envs/agentic-rl-ca}: Python 3.11, vLLM 0.11.0,
+torch 2.8.0+cu128, flash-attn 2.8.3.post1, verl vendored in-repo. Retriever conda env
+\cmd{envs/searchr1-retr-conda} (micromamba, conda-forge): \cmd{python=3.11, mkl=2024.*,
+faiss-gpu=1.10.0, pytorch=*=cpu*, transformers, fastapi, uvicorn}. The \textbf{\cmd{mkl=2024.*} pin is
+load-bearing}: faiss 1.10 cuda129\_mkl links \cmd{libmkl\_intel\_lp64.so.2}; mkl 2026 ships \cmd{.so.3}
+(ImportError). e5 query encoding runs on CPU torch so faiss-gpu owns the CUDA context (commit
+\cmd{feb047c}).
+
+\textbf{Retriever serving.} In-repo \cmd{examples/search/retriever/retrieval\_server.py} with
+\cmd{--faiss\_gpu}, co-located on the training worker; batch HTTP contract
+\cmd{\{"queries": [...]\}} $\to$ \cmd{\{"result": [[\{document, score\}]]\}} (Search-R1 lineage;
+schema fix \cmd{d03e302}).
+
+\textbf{Trainer configuration} (\cmd{run\_condition.sh} + protocol): train batch 256 $\times$
+group 5 = 1{,}280 trajs/step; \cmd{PPO\_MINI\_BATCH} 512 (locked; \cmd{MICRO\_BSZ} override only
+changes gradient-accumulation chunking); LR 1e-6; KL coef 0.001 (low-var-KL in loss for GRPO);
+$\gamma{=}1$; 150 steps; val 256 every 25 steps; wandb project
+\cmd{ca-rung3-4b-feasibility}. Observed $\sim$442 s/step (generation-dominated at 16k).
+\cmd{HF\_DATASETS\_CACHE=/tmp} on every worker (the corpus Arrow cache once filled the shared 125 GB
+\cmd{/home}; commit \cmd{89415c8}).
+
+\subsection{Reliability fixes from the stage-2 campaign (2026-07-28)}
+Six worker attempts exposed four distinct infra failure modes; all fixes are in
+\cmd{diag\_worker4.sh} + wrappers and apply to future long rollout jobs:
+\begin{enumerate}
+\item \textbf{Pod preflight} (wrappers): some pods arrive without \cmd{libnvidia-ml.so} (CUDA works,
+but Ray's pynvml autodetect sees 0 GPUs and dies 10 min in) or with a dead HDFS FUSE mount. Both are
+probed with a 3-min retry, then fail-fast so a relaunch draws a fresh pod.
+\item \textbf{Retriever watchdog}: health-probe every 2 min; on 3 consecutive failures the server is
+restarted. Restart must use \textbf{SIGKILL + wait-for-dead}: SIGTERM leaves uvicorn ``waiting for
+connections to close'' forever on hung requests --- the stuck instance holds its GPU shards, the port,
+and its micromamba parent.
+\item \textbf{No micromamba in the restart path}: micromamba's lock dir lives on shared \cmd{/home}
+(\cmd{\textasciitilde/.cache/mamba/proc}) and deadlocks across pods/stuck processes; the watchdog
+launches \cmd{\$RETR\_ENV/bin/python} directly.
+\item \textbf{BLAS/OMP thread caps} (\cmd{OMP/OPENBLAS/MKL\_NUM\_THREADS=8}): the root cause of the
+recurring silent hangs --- e5 CPU encoding at default OMP (=188 cores) under uvicorn's 40-thread pool
+livelocks the server. With the caps, the retriever ran hang-free at 1{,}280-trajectory concurrency
+(vs.\ restarts every 10--60 min without).
+\end{enumerate}
+Rollout concurrency for the diagnostic is \cmd{VAL\_BATCH\_OVERRIDE=1280} (P2-proven; 2{,}048
+aggravated retriever load). Dumps are written to worker-local \cmd{/tmp} (tens of GB), never shared
+\cmd{/home}; only pass-rate summaries + zstd-compressed dumps go to HDFS.
+
+\section{Reproduce / artifacts}
+\begin{itemize}
+\item Scripts: \cmd{scripts/asearcher/\{convert\_base\_to\_parquet, closed\_book\_filter,
+make\_diag\_parquet, passrate\_from\_dump\}.py}, workers \cmd{closed\_book\_worker.sh},
+\cmd{diag\_worker4.sh}, wrappers \cmd{diag\_wrap\_\{base,lrm\}.sh}, launcher
+\cmd{scripts/run\_condition.sh}, protocol \cmd{configs/protocol\_asearcher\_8turn\_4b.sh}.
+\item Data (HDFS \cmd{.../users/xiaoxuan/agentic\_rl\_ca/}): \cmd{data\_asearcher\_raw/},
+\cmd{data\_asearcher\_base/} (unfiltered v1), \cmd{logs/closed\_book\_filter/\{base,lrm\}/}
+(stats + keep-sets), \cmd{logs/passrate\_diag\_\{base,lrm\}/} (band keep-sets, in flight).
+\item Key commits: \cmd{6d6aff8} (data + cap + protocol), \cmd{cbe4ed0} (closed-book),
+\cmd{bca746b} (stage-2 diag), \cmd{feb047c}/\cmd{8ae3f16} (conda retriever), \cmd{d03e302} (schema),
+\cmd{89415c8} (HF cache), plus the 2026-07-28 hardening series through \cmd{diag\_worker4}.
+\end{itemize}
+
+\end{document}
