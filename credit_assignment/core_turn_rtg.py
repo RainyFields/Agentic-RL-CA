@@ -53,7 +53,10 @@ def compute_turn_rtg_group_advantage(
     (B, T_resp): per-row scalars broadcast over the row's response tokens. `returns` is the
     un-normalized G_{i,t} (empirical reward-to-go), analogous to gae_turn's unwhitened
     returns; there is no critic to consume it, but downstream metrics read it."""
-    device, dtype = response_mask.device, response_mask.dtype
+    # advantages/returns MUST be float regardless of mask dtype (attention-mask slices are
+    # int64; inheriting that dtype integer-truncates z-scored advantages — mini-smoke bug
+    # 2026-07-28)
+    device, dtype = response_mask.device, torch.float32
     B = response_mask.shape[0]
     r = np.asarray(rewards, dtype=np.float64)
     uid = np.asarray(uid)
@@ -111,6 +114,7 @@ def compute_turn_rtg_group_advantage(
 
     A = torch.tensor(A_scalar, device=device, dtype=dtype).unsqueeze(-1)
     G = torch.tensor(G_scalar, device=device, dtype=dtype).unsqueeze(-1)
-    advantages = A * response_mask
-    returns = G * response_mask
+    mask_f = response_mask.to(torch.float32)
+    advantages = A * mask_f
+    returns = G * mask_f
     return advantages, returns
