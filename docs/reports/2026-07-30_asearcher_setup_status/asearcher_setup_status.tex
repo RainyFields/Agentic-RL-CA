@@ -58,7 +58,16 @@ Quota 6/6: p3v2-turn-ppo, rung-4$\times$2 (parallel session), ppo-retry2, grpo-f
 \toprule
 \textbf{config} & \textbf{st} & \textbf{gen(s)} & \textbf{olp(s)} & \textbf{ref(s)} & \textbf{upd(s)} & \textbf{total(s)} & \textbf{rel.traj} & \textbf{mem GB} & \textbf{succ} & \textbf{ent}\\
 \midrule
-\input{assets_percycle}
+grpo-vanilla & 1 & 4,722 & 510 & 504 & 2,488 & 8,247 & 1,280 & 85 & 0.159 & 2.57 \\
+grpo-vanilla & 2 & 3,200 & 340 & 340 & 1,684 & 7,058 & 1,280 & 85 & 0.229 & 1.97 \\
+grpo-partial & 1 & 553 & 23 & 28 & 125 & 730 & 325 & 70 & 0.237 & 2.07 \\
+grpo-partial & 2 & 1,753 & 195 & 195 & 967 & 3,118 & 700 & 85 & 0.184 & 2.38 \\
+grpo-partial & 3 & 2,345 & 455 & 452 & 2,274 & 5,547 & 1,255 & 85 & 0.170 & 2.64 \\
+grpo-partial & 4 & 1,715 & 337 & 339 & 1,684 & 5,519 & 1,445 & 85 & 0.197 & 2.14 \\
+ppo-vanilla & 1 & 5,740 & 503 & -- & 4,850 & 11,681 & 1,280 & 96 & 0.169 & 2.57 \\
+ppo-partial & 1 & 586 & 21 & -- & 228 & 863 & 290 & 62 & 0.217 & 1.89 \\
+ppo-partial & 2 & 1,914 & 161 & -- & 1,615 & 3,885 & 705 & 77 & 0.196 & 2.24 \\
+ppo-partial & 3 & 2,254 & 427 & -- & 4,184 & 7,373 & 1,110 & 77 & 0.153 & 2.74 \\
 \bottomrule
 \end{tabular}
 
@@ -78,7 +87,10 @@ no sign that partial rollout moves training metrics at this horizon.
 \toprule
 \textbf{config} & \textbf{trajs} & \textbf{turn-rows} & \textbf{mean turns} & \textbf{succ} & \textbf{5k-cap} & \textbf{1024-cap} & \textbf{cut-pend.}\\
 \midrule
-\input{assets_trajstats}
+grpo-vanilla & 3,584 & 22,017 & 6.14 & 0.195 & 3.1\% & 24.3\% & 0 \\
+ppo-vanilla & 1,280 & 7,652 & 5.98 & 0.169 & 7.7\% & 37.1\% & 0 \\
+grpo-partial & 4,712 & 25,189 & 5.35 & 0.187 & 4.4\% & 27.0\% & 107 \\
+ppo-partial & 4,627 & 27,494 & 5.94 & 0.158 & 5.1\% & 27.8\% & 248 \\
 \bottomrule
 \end{tabular}
 
