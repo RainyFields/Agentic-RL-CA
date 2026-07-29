@@ -52,12 +52,68 @@ turn-PPO \run{} step 73/150 (0.447@50; val@75 next; ETA finish mid-day Jul 30).
 8B arm launch: \textbf{held} pending \code{grpo\_fast} numbers + your choice (partial/steps/vanilla).
 Quota 6/6: p3v2-turn-ppo, rung-4$\times$2 (parallel session), ppo-retry2, grpo-fast3.
 
-\section*{3. Cost history of the fast-config attempts (transparency)}
+\section*{3. Detailed profiling results (per cycle/step)}
+\small
+\begin{tabular}{llrrrrrrrrr}
+\toprule
+\textbf{config} & \textbf{st} & \textbf{gen(s)} & \textbf{olp(s)} & \textbf{ref(s)} & \textbf{upd(s)} & \textbf{total(s)} & \textbf{rel.traj} & \textbf{mem GB} & \textbf{succ} & \textbf{ent}\\
+\midrule
+\input{assets_percycle}
+\bottomrule
+\end{tabular}
+
+\vspace{0.35em}\noindent
+\emph{Reading guide:} \code{olp}=old\_log\_prob recompute, \code{upd}=actor(+critic) update,
+\code{rel.traj}=trajectories trained that step (vanilla always 1280; partial = groups fully
+terminated). Vanilla step 2 is faster than step 1 because the first update already shortens
+trajectories (max turns 26$\to$$\sim$19). Partial cycles ramp: cycle 1 is fresh-only/cheap,
+cycles 3--4 are steady state. \code{ppo-vanilla} has one step (OOM at cycle 2's KV re-map,
+pre-fix); \code{ppo-partial} cycle 4 was cut by the 6\,h config timeout. turnPPO \code{upd}
+includes the critic; its \code{ref} column is empty (no KL for that arm --- config audit \S4).
+Success/entropy across configs sit in the same band (temp-1.0 sampling noise $\pm$0.04) ---
+no sign that partial rollout moves training metrics at this horizon.
+
+\vspace{0.5em}
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{config} & \textbf{trajs} & \textbf{turn-rows} & \textbf{mean turns} & \textbf{succ} & \textbf{5k-cap} & \textbf{1024-cap} & \textbf{cut-pend.}\\
+\midrule
+\input{assets_trajstats}
+\bottomrule
+\end{tabular}
+
+\vspace{0.35em}\noindent
+\emph{From the per-turn dumps:} mean turns 5.3--6.1 everywhere; \code{5k-cap}= share of
+retrievals hitting the information-block cap; \code{1024-cap}= share of turns hitting the
+response cap; \code{cut-pend.}= trajectories still pending when the config ended (partial
+only --- excluded from training, never trained truncated).
+
+\section*{4. What \code{grpo\_fast} changes (and what it must not change)}
+Baseline = \code{p8bprof\_grpo\_partial} (same data, seed 0, 256$\times$5, 4 cycles, partial
+args \code{cycle\_turns=8}/\code{max\_age=4}). Deltas --- all \textbf{throughput-only}, gradient
+math untouched:
+\begin{enumerate}
+\item \textbf{Dynamic token-budget micro-batching} (\code{DYNBSZ=1}): \code{use\_dynamic\_bsz=True}
+at 24{,}576 tok/GPU for actor update, old\_log\_prob and ref forwards (critic keys wired for
+gae arms). Replaces fixed \code{MICRO\_BSZ=1} ($\sim$5.2k real tokens/forward). Same minibatch
+partition (\code{ppo\_mini\_batch\_size=512}); packing only regroups forwards.
+\item \textbf{Chunked prefill} + \code{max\_num\_batched\_tokens=17408} (fork requires
+$\ge$\code{max\_model\_len}; user-requested 16384 rejected by validation).
+\item Nothing else: template, KV 0.5, remove-padding, balance-batch, grad-ckpt, sampling,
+all algorithm settings identical. OOM ladder: 24576 $\to$ 16384 $\to$ revert (separately named).
+\end{enumerate}
+\textbf{Early step-1 evidence} (04:59 CST): update 124.5\,s$\to$\textbf{51.4}\,s,
+old\_log\_prob $\sim$500\,s-class$\to$\textbf{14.6}\,s, ref$\to$\textbf{17.1}\,s at matched
+released count (325); gen flat (587 vs 553\,s --- fresh short prompts; the chunked-prefill
+test is cycle 2's deep resumed prompts); peak 77.9\,GB, no OOM. Known confound vs baseline:
+baseline ran at KV 0.6, fast at 0.5.
+
+\section*{5. Cost history of the fast-config attempts (transparency)}
 Attempt 1: \code{set -u} unbound \code{ADV\_ESTIMATOR} in protocol DYNBSZ block (fixed; critic keys moved to \code{run\_condition}).
 Attempt 2: fork validation \code{max\_num\_batched\_tokens $\ge$ max\_model\_len} (fixed: 17408 derived).
 Attempt 3: \run{} clean past both failure points. Total overhead $\sim$50 min.
 
-\section*{4. Pointers}
+\section*{6. Pointers}
 Config audit: \code{docs/design/2026-07-30\_long\_horizon\_config\_audit.md}. Partial-rollout design:
 \code{docs/design/2026-07-29\_sync\_partial\_rollout.md}. Full profiling report:
 \code{docs/reports/2026-07-29\_p8b\_profiling/p8b\_profiling\_report.pdf}. All docs also at
