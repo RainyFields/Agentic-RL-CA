@@ -68,11 +68,6 @@ if [[ "${DYNBSZ:-0}" == "1" ]]; then
     actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu="$DYNBSZ_TOK"
   )
-  if [[ "$ADV_ESTIMATOR" == "gae" || "$ADV_ESTIMATOR" == "gae_turn" ]]; then
-    PROTOCOL_OVERRIDES+=(
-      critic.use_dynamic_bsz=True
-      critic.ppo_max_token_len_per_gpu="$DYNBSZ_TOK"
-      critic.forward_max_token_len_per_gpu="$DYNBSZ_TOK"
-    )
-  fi
 fi
+# (critic dynamic-bsz keys live in run_condition.sh — the protocol is sourced before the
+# cond file, so ADV_ESTIMATOR is not known here.)

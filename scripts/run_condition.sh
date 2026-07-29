@@ -70,6 +70,16 @@ if [[ "$ADV_ESTIMATOR" == "gae" || "$ADV_ESTIMATOR" == "gae_turn" ]]; then
     critic.model.fsdp_config.param_offload="${CRITIC_PARAM_OFFLOAD:-False}"
     critic.model.fsdp_config.optimizer_offload="${CRITIC_OPTIM_OFFLOAD:-False}"
   )
+  # Dynamic token-budget micro-batching for the critic (DYNBSZ knob; actor/logprob/ref
+  # keys come from the protocol's PROTOCOL_OVERRIDES — critic keys must be added here
+  # because the protocol is sourced before the cond file sets ADV_ESTIMATOR).
+  if [[ "${DYNBSZ:-0}" == "1" ]]; then
+    CRITIC_OVERRIDES+=(
+      critic.use_dynamic_bsz=True
+      critic.ppo_max_token_len_per_gpu="${DYNBSZ_TOK:-24576}"
+      critic.forward_max_token_len_per_gpu="${DYNBSZ_TOK:-24576}"
+    )
+  fi
 fi
 
 activate_env
