@@ -54,3 +54,25 @@ export PROTOCOL_OVERRIDES=(
   +env.ctx_terminate=true
   +env.ctx_terminate_margin=256
 )
+
+# Optional dynamic token-budget micro-batching (rung-4 A14 lesson): fixed micro=1 feeds
+# ~5.2k real tokens per 8B forward; packing to a token budget should cut update/logprob
+# time 2-4x. OFF unless DYNBSZ=1 (profiling increment before adopting for arms).
+if [[ "${DYNBSZ:-0}" == "1" ]]; then
+  DYNBSZ_TOK="${DYNBSZ_TOK:-24576}"
+  PROTOCOL_OVERRIDES+=(
+    actor_rollout_ref.actor.use_dynamic_bsz=True
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu="$DYNBSZ_TOK"
+    actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True
+    actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu="$DYNBSZ_TOK"
+    actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True
+    actor_rollout_ref.ref.log_prob_max_token_len_per_gpu="$DYNBSZ_TOK"
+  )
+  if [[ "$ADV_ESTIMATOR" == "gae" || "$ADV_ESTIMATOR" == "gae_turn" ]]; then
+    PROTOCOL_OVERRIDES+=(
+      critic.use_dynamic_bsz=True
+      critic.ppo_max_token_len_per_gpu="$DYNBSZ_TOK"
+      critic.forward_max_token_len_per_gpu="$DYNBSZ_TOK"
+    )
+  fi
+fi
