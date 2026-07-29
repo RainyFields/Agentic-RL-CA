@@ -1,0 +1,66 @@
+\documentclass[10pt]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{booktabs,xcolor,hyperref,enumitem,array}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\setlist{nosep,leftmargin=1.4em}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\ok}{\textcolor{green!55!black}{\textbf{done}}}
+\newcommand{\run}{\textcolor{orange!85!black}{\textbf{running}}}
+\title{\vspace{-1.4em}ASearcher-8B: key training setups \& profiling status\vspace{-0.5em}}
+\author{Agentic-RL-CA rung-3 --- branch \code{sync-partial-rollout-poc}}
+\date{2026-07-30 04:53 CST (snapshot)}
+\begin{document}\maketitle\vspace{-1.8em}
+
+\section*{1. Key setups (current values; where set)}
+\small
+\begin{tabular}{p{3.4cm}p{4.3cm}p{8.2cm}}
+\toprule
+\textbf{Setting} & \textbf{Value} & \textbf{Notes / rationale}\\
+\midrule
+Model / data & Qwen3-8B-Base; Base-35k unfiltered; wiki-18/e5 top-5 & RL-from-base, no cold start (ASearcher recipe); seed 0\\
+Horizon / context & 32 turns nominal; \code{MAX\_PROMPT=16384}; \code{MAX\_RESPONSE=1024}/turn & 16k binds first: measured mean $\sim$6 turns, max 26; 24--37\% of turns hit the 1024 cap\\
+History & full: past \code{<think>}+\code{<search>} + 5k-char \code{<information>} blocks, never dropped & \code{env.asearcher\_history}; 5k cap hits 3--8\% of retrievals (\code{info\_char\_cap=5000})\\
+Truncation & \textbf{clean ctx-terminate} (\code{env.ctx\_terminate}, margin 256); \code{TRUNCATION=left} as never-fire valve & episode ends before the model sees a truncated prompt; residual clip 0.5\% (prefilter tail --- tighten before arms)\\
+Partial rollout & PoC, per-run flag; \code{cycle\_turns=8}, \code{max\_age=4}, group-atomic release, per-row \code{policy\_version}; no off-policy correction & T1 resume identity byte-exact; invariants exact; 0 stale drops; 1.5--1.6$\times$ measured (2.2--2.5$\times$ gen)\\
+Prefix caching (vLLM) & ON but \textbf{defeated by template} (step-count precedes history) & only $\sim$200 of $\sim$4.6k mean prompt tokens reusable; template fix = new MDP, deferred to a protocol boundary\\
+Chunked prefill & \textbf{ON as of \code{grpo\_fast}} + \code{max\_num\_batched\_tokens=17408} & fork requires $\ge$ \code{max\_model\_len} (user-requested 16384 rejected by validation --- deviation)\\
+Dynamic batching & \code{DYNBSZ=1}: \code{use\_dynamic\_bsz} @ 24{,}576 tok/GPU (actor/logprob/ref; critic keys via cond) --- \textbf{under test now} & replaces fixed \code{MICRO\_BSZ=1} ($\sim$5.2k real tok/forward); gradient-identical; OOM ladder 24576$\to$16384$\to$revert\\
+Batching (fixed) & 256$\times$5=1280 traj/step; mini 512 rows; \code{remove\_padding}, \code{balance\_batch}, grad-ckpt all ON & matched to 4B arms (budget comparability)\\
+Memory posture & KV frac 0.5; critic param+optim offload (gae arms) & actor-only peaked 85\,GB at KV 0.6; critic OOM'd at \code{wake\_up(kv\_cache)} without offload\\
+Algorithm (fixed) & GRPO vs turnPPO; $\gamma{=}\lambda{=}1$; token-mean loss; clip 0.2 (dual 3.0); GRPO KL 1e-3 / turnPPO no KL; entropy 0 & \S4 of the config audit; unchanged by any speed work\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\section*{2. Profiling matrix status (04:53 CST)}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Run} & \textbf{Status} & \textbf{Key result / ETA} & \textbf{wandb}\\
+\midrule
+\code{p8bprof\_grpo\_vanilla} & \ok & 7,652 s/step; 5.98 s/traj; 13.3 d/arm & \code{kk19u9wv}\\
+\code{p8bprof\_grpo\_partial} & \ok & 4 cycles; 4.00 s/traj; 8.9 d/arm & \code{7z1mfodi}\\
+\code{p8bprof\_ppo\_partial} & \ok & 3 cycles; 5.76 s/traj; 12.8 d/arm & \code{i96l0680}\\
+\code{p8bprof\_ppo\_vanilla} (retry) & \run & step 1 in progress under KV 0.5+offload; ETA cfg done $\sim$09--11 CST & tbd\\
+\code{p8bprof\_grpo\_fast} & \run & DYNBSZ 24576 + chunked prefill + partial; attempt live since 04:27, step 1 $\sim$05:10, \textbf{preliminary PDF after step 2 ($\sim$06:00--06:30)} & tbd\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\vspace{0.5em}\noindent\textbf{Also in flight:} 4B p3v2 --- token-GRPO \ok{} (final val@150 \textbf{em 0.773}, 3.4 turns);
+turn-PPO \run{} step 73/150 (0.447@50; val@75 next; ETA finish mid-day Jul 30).
+8B arm launch: \textbf{held} pending \code{grpo\_fast} numbers + your choice (partial/steps/vanilla).
+Quota 6/6: p3v2-turn-ppo, rung-4$\times$2 (parallel session), ppo-retry2, grpo-fast3.
+
+\section*{3. Cost history of the fast-config attempts (transparency)}
+Attempt 1: \code{set -u} unbound \code{ADV\_ESTIMATOR} in protocol DYNBSZ block (fixed; critic keys moved to \code{run\_condition}).
+Attempt 2: fork validation \code{max\_num\_batched\_tokens $\ge$ max\_model\_len} (fixed: 17408 derived).
+Attempt 3: \run{} clean past both failure points. Total overhead $\sim$50 min.
+
+\section*{4. Pointers}
+Config audit: \code{docs/design/2026-07-30\_long\_horizon\_config\_audit.md}. Partial-rollout design:
+\code{docs/design/2026-07-29\_sync\_partial\_rollout.md}. Full profiling report:
+\code{docs/reports/2026-07-29\_p8b\_profiling/p8b\_profiling\_report.pdf}. All docs also at
+\code{\~{}/xiaoxuan/arlca-8b/docs/...}; wandb project
+\href{https://wandb.ai/rainyfields/ca-rung3-8b-asearcher}{\code{rainyfields/ca-rung3-8b-asearcher}}.
+\end{document}
