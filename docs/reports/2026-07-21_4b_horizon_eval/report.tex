@@ -184,28 +184,27 @@ We therefore re-ran both arms with \texttt{enable\_thinking=False} at the \emph{
 500 steps, batch, seeds and $\gamma{=}\lambda{=}1$ --- so \emph{only} the thinking flag differs.
 
 \begin{table}[h]\centering\small
-\caption{Thinking-mode ablation, SearchQA 4B (val-2048 macro-EM at step 500; full-set evals in
-progress). Non-thinking matches or beats thinking at $\approx$4$\times$ fewer tokens per turn, and
-the GRPO-over-turn-PPO ordering \textbf{survives} --- the gap narrows from 0.054 to 0.030 but does
-not close.}
+\caption{Thinking-mode ablation, SearchQA 4B --- \textbf{full-set macro-EM} (51{,}713 q, step-500
+checkpoints; same metric as Table 1). Non-thinking beats thinking for \emph{both} methods at
+$\approx$4$\times$ fewer tokens per turn, and the GRPO-over-turn-PPO ordering \textbf{survives}
+(gap $0.052\to0.046$). GRPO non-thinking (0.463) is the best SearchQA result in this report.}
 \begin{tabular}{lccc c cc}
 \toprule
 & \multicolumn{3}{c}{\textbf{macro-EM}} && \multicolumn{2}{c}{\textbf{mean resp.\ tokens/turn}}\\
 \cmidrule(lr){2-4}\cmidrule(lr){6-7}
 & thinking & non-thinking & $\Delta$ && thinking & non-thinking\\
 \midrule
-GRPO      & 0.443 & \good{0.452} & $+0.009$ && 476 & \good{111}\\
-turn-PPO  & 0.389 & \good{0.422} & $+0.033$ && 610 & \good{207}\\
+GRPO      & 0.441 & \good{\textbf{0.463}} & $+0.022$ && 476 & \good{111}\\
+turn-PPO  & 0.389 & \good{0.417} & $+0.028$ && 610 & \good{207}\\
 \midrule
-GRPO $-$ turn-PPO & $0.054$ & $0.030$ & & & &\\
+GRPO $-$ turn-PPO & $0.052$ & $0.046$ & & & &\\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Three readings. (i) \textbf{The finding is robust}: GRPO still leads turn-PPO when the truncation
 channel is largely removed (turn-PPO's clip falls 0.084 $\to$ 0.057), so the ordering is not a
-clipping artifact --- though the narrowing from 0.054 to 0.030 says clipping was contributing
-\emph{part} of it. (ii) \textbf{Thinking is not paying for itself here}: both arms do at least as
+clipping artifact; the gap barely moves ($0.052\to0.046$). (ii) \textbf{Thinking is not paying for itself here}: both arms do at least as
 well without it while generating 66--77\% fewer tokens, i.e.\ the 4-turn budget rewards deciding
 \emph{what to search for} far more than deliberating about it. (iii) \textbf{The critic arm gains
 most} ($+0.033$ vs $+0.009$), consistent with it having been the arm penalised by truncation.
