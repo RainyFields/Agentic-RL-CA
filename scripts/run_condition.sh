@@ -67,8 +67,8 @@ if [[ "$ADV_ESTIMATOR" == "gae" || "$ADV_ESTIMATOR" == "gae_turn" ]]; then
     critic.model.use_remove_padding=True
     critic.model.enable_gradient_checkpointing=True
     critic.ppo_micro_batch_size_per_gpu="$MICRO_BSZ"
-    critic.model.fsdp_config.param_offload=False
-    critic.model.fsdp_config.optimizer_offload=False
+    critic.model.fsdp_config.param_offload="${CRITIC_PARAM_OFFLOAD:-False}"
+    critic.model.fsdp_config.optimizer_offload="${CRITIC_OPTIM_OFFLOAD:-False}"
   )
 fi
 
@@ -103,7 +103,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="${LOGPROB_MICRO:-32}" \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.gpu_memory_utilization="${GPU_MEMORY_UTIL:-0.6}" \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \

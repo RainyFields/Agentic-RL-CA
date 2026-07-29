@@ -39,6 +39,14 @@ export TOPK=5                      # ASearcher top-5 search docs
 
 export WANDB_PROJECT=ca-rung3-8b-asearcher
 
+# 8B memory posture (profiling 2026-07-29): actor-only GRPO fits at KV 0.6 but with zero
+# headroom (peak 85GB allocated on 80GB via expandable segments); adding the 8B critic
+# OOMs at vLLM wake_up(kv_cache) on step 2. Shrink the KV fraction and offload the critic
+# (gae arms only; CRITIC_* knobs are inert for critic-free arms).
+export GPU_MEMORY_UTIL="${GPU_MEMORY_UTIL:-0.5}"
+export CRITIC_PARAM_OFFLOAD="${CRITIC_PARAM_OFFLOAD:-True}"
+export CRITIC_OPTIM_OFFLOAD="${CRITIC_OPTIM_OFFLOAD:-True}"
+
 # ASearcher trajectory-format env flags (new keys -> '+' prefix).
 export PROTOCOL_OVERRIDES=(
   +env.search.info_char_cap=5000
