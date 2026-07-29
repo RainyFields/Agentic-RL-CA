@@ -126,6 +126,10 @@ echo "T1 exit=$T1_RC"
 # ---- 5. four short profiling configs ----
 run_cfg() {  # run_cfg <tag> <cond> <total_steps> <val_before_train> <extra hydra args...>
   local TAG="$1" C="$2" STEPS="$3" VBT="$4"; shift 4
+  # ONLY_CFG=<tag[,tag]>: run just the named configs (retry mode)
+  if [ -n "${ONLY_CFG:-}" ] && ! grep -qw "$TAG" <<<"${ONLY_CFG//,/ }"; then
+    echo "==== P8B-PROFILE cfg=$TAG SKIPPED (ONLY_CFG=$ONLY_CFG) ===="; return 0
+  fi
   echo "==== P8B-PROFILE cfg=$TAG start $(date -u) ===="
   export EXP_NAME="p8bprof_${TAG}"
   export DUMP_TRAIN_SAMPLE=1 DUMP_TRAIN_PATH="/tmp/p8b_dump/${TAG}"
