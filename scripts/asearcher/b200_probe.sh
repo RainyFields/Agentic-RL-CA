@@ -1,7 +1,7 @@
 #!/bin/bash
 # B200 feasibility probe: shared-storage mounts + Hopper-wheel behavior on Blackwell.
 echo "==== B200 PROBE $(date -u) host=$(hostname) ===="
-nvidia-smi -L | head -10
+uname -m; nvidia-smi -L | head -10
 echo "--- shared /home ---"; ls -d /home/tiger/xiaoxuan && echo HOME_OK || echo HOME_MISSING
 echo "--- HDFS mounts ---"
 ls /mnt/hdfs/mlsys/models/Qwen3-8B-Base/config.json 2>&1
