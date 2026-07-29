@@ -75,17 +75,54 @@ def _group_norm(x, groups, eps=1e-6):
 def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask,
                             rewards, uid, traj_uid, turn_index,
                             gamma=0.95, omega=1.0, t_temp=5.0, clip_lo=0.8, clip_hi=1.2,
-                            temporal_alpha=0.5, use_temporal=True, eps=1e-3, adv_clip=5.0):
-    """Returns (advantages, returns) each (B, T_resp). Value-free (returns mirrors advantages)."""
+                            temporal_alpha=0.5, use_temporal=True, eps=1e-3, adv_clip=5.0,
+                            rho_denominator="intra_traj_mean"):
+    """Returns (advantages, returns) each (B, T_resp). Value-free (returns mirrors advantages).
+
+    rho_denominator:
+      "intra_traj_mean" (DEFAULT, paper-correct, arXiv:2603.08754 Eq. 6-7)
+          pi_hind(a_t) = exp( (1/(T_temp*|a_t|)) * sum_j log pi(y_j | y_<j, s_t, s_final) )
+          rho_t        = clip( pi_hind(a_t) / mean_k pi_hind(a_k), C_min, C_max )
+          The denominator is the INTRA-TRAJECTORY MEAN over that trajectory's turns -- the paper's
+          "group-normalization across actions within the same episode". rho is centred on 1.0 by
+          construction (pivotal turns > 1, redundant turns < 1), which is what makes the symmetric
+          [0.8, 1.2] clip well-specified.
+      "on_policy" (LEGACY -- reproduces this repo's pre-2026-07-29 behaviour; DO NOT use for new
+          science) divided by the on-policy prob of the same action, i.e. rho = pi_hind/pi_policy.
+          That measures the off-distribution penalty of injecting s_final into the prompt, so it is
+          systematically < 1 (the upper clip never binds) and, because only the numerator carries
+          the 1/|a_t| normalisation, it makes rho rise as responses lengthen -- a structural
+          verbosity incentive that produced a length runaway (clip -> 0.78) in wave-3.
+    """
     device, dtype = policy_log_probs.device, policy_log_probs.dtype
     m = response_mask.float()
     ntok = m.sum(-1).clamp(min=1.0)
-    mean_logratio = ((hindsight_log_probs - policy_log_probs) * m).sum(-1) / ntok
-    rho = torch.exp(mean_logratio / t_temp).clamp(clip_lo, clip_hi).detach().cpu().numpy()
 
     r = np.asarray(rewards, dtype=np.float32)
     uid = np.asarray(uid); traj_uid = np.asarray(traj_uid)
     turn_index = np.asarray(turn_index).astype(np.int64)
+
+    if rho_denominator == "on_policy":
+        mean_logratio = ((hindsight_log_probs - policy_log_probs) * m).sum(-1) / ntok
+        rho = torch.exp(mean_logratio / t_temp).clamp(clip_lo, clip_hi).detach().cpu().numpy()
+    else:
+        # Eq. (6): per-token-normalised, temperature-sharpened hindsight log-prob. The POLICY
+        # log-probs play no part in rho under the paper's formulation.
+        log_pi_hind = ((hindsight_log_probs * m).sum(-1) / ntok / t_temp).detach().cpu().numpy()
+        # Eq. (7): self-normalise by the mean over the TURNS of the same trajectory. Averaging is
+        # over turns, so rows sharing a turn_index are deduped to one representative first.
+        rho = np.ones_like(log_pi_hind, dtype=np.float32)
+        for tu in np.unique(traj_uid):
+            idx = np.where(traj_uid == tu)[0]
+            ti = turn_index[idx]
+            _, first = np.unique(ti, return_index=True)
+            rep = idx[first]                                  # one row per distinct turn
+            x = log_pi_hind[idx]
+            xm = log_pi_hind[rep].max()                       # shift for numerical stability
+            denom = np.exp(log_pi_hind[rep] - xm).mean()      # == mean_k pi_hind(a_k) / e^xm
+            rho[idx] = np.exp(x - xm) / max(float(denom), eps)
+        rho = np.clip(rho, clip_lo, clip_hi)
+
     B = policy_log_probs.shape[0]
     R_traj = np.zeros(B, dtype=np.float32)
     QH = np.zeros(B, dtype=np.float32)

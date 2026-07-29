@@ -32,10 +32,11 @@ per-turn credit's value scales with \emph{genuine sequential depth}. On AlfWorld
 on-track (GRPO wastes turns wandering); on SearchQA the 4-turn cap is the binding ceiling, and the
 only positive horizon signal is the \emph{critic} methods narrowing GRPO's gap on the deepest
 truly-sequential chains (MuSiQue, turn-PPO $+0.031$ [$+0.003,+0.057$]), a benefit swamped by
-over-search on shallow comparison questions. A thinking-mode ablation confirms the SearchQA
-ordering is not a truncation artifact: with \texttt{enable\_thinking=False} at the same budget both
-arms match or beat their thinking counterparts using 66--77\% fewer tokens, and GRPO still leads
-turn-PPO. We release all figures, the rerunnable analysis, and the recovered required-hops
+over-search on shallow comparison questions. A thinking-mode ablation (SearchQA only) confirms the ordering is not a
+truncation artifact and exposes a second effect: without thinking, both arms score \emph{higher}
+using $\approx$70\% fewer tokens, and GRPO re-spends the freed budget on retrieval --- consuming
+3.99 of 4 turns and hitting the cap on 99.5\% of questions, versus 3.07 under thinking --- while
+turn-PPO does not (2.70 $\to$ 2.61 turns). We release all figures, the rerunnable analysis, and the recovered required-hops
 annotations.
 \end{abstract}
 
@@ -175,42 +176,56 @@ turns). Under a 4-turn SearchQA cap the same discount spans only a few hundred t
 granularity is nearly irrelevant --- and the two arms tie. This is the sharpest single piece of
 evidence for the paper's thesis, because it holds everything except granularity fixed.
 
-\subsection*{Robustness: does the SearchQA ranking survive without thinking mode?}
-The SearchQA results above use Qwen3's thinking mode with a 2048-token response budget, under which
-the critic arm clips 8.4\% of its turns --- a clipped turn emits no action and so wastes one of only
-four. That makes truncation a live confound for the report's central SearchQA claim (flat GRPO
-$>$ critic turn-PPO): the gap might be a truncation artifact rather than a credit-assignment one.
-We therefore re-ran both arms with \texttt{enable\_thinking=False} at the \emph{same} 2048 budget,
-500 steps, batch, seeds and $\gamma{=}\lambda{=}1$ --- so \emph{only} the thinking flag differs.
+\section{Thinking vs non-thinking (SearchQA, Qwen3-4B)}
+The SearchQA results above use Qwen3's thinking mode at a 2048-token response budget, under which
+the critic arm clips 8.4\% of its turns --- and a clipped turn emits no action, wasting one of only
+four. That makes truncation a live confound for the central SearchQA claim (flat GRPO $>$ critic
+turn-PPO). We therefore re-ran both arms with \texttt{enable\_thinking=False} at the \emph{same}
+2048 budget, 500 steps, batch, seed and $\gamma{=}\lambda{=}1$, so \emph{only} the thinking flag
+differs. \textbf{This ablation exists for SearchQA only}: AlfWorld was non-thinking throughout (its
+transcript prompt could not afford thinking blocks under a 2048-token prompt cap over $\le$50
+turns), so there is no thinking counterpart to compare against there.
 
-\begin{table}[h]\centering\small
-\caption{Thinking-mode ablation, SearchQA 4B --- \textbf{full-set macro-EM} (51{,}713 q, step-500
-checkpoints; same metric as Table 1). Non-thinking beats thinking for \emph{both} methods at
-$\approx$4$\times$ fewer tokens per turn, and the GRPO-over-turn-PPO ordering \textbf{survives}
-(gap $0.052\to0.046$). GRPO non-thinking (0.463) is the best SearchQA result in this report.}
-\begin{tabular}{lccc c cc}
+\begin{table}[h]\centering\small\setlength{\tabcolsep}{5pt}
+\caption{Thinking-mode ablation --- full-set metrics (51{,}713 q, step-500 checkpoints; same eval
+harness as Table 1). Non-thinking wins on accuracy for \emph{both} methods while generating
+$\approx$70\% fewer tokens. The behavioural split is the interesting part: GRPO converts the freed
+budget into \emph{search}, turn-PPO does not.}
+\begin{tabular}{llccccc}
 \toprule
-& \multicolumn{3}{c}{\textbf{macro-EM}} && \multicolumn{2}{c}{\textbf{mean resp.\ tokens/turn}}\\
-\cmidrule(lr){2-4}\cmidrule(lr){6-7}
-& thinking & non-thinking & $\Delta$ && thinking & non-thinking\\
+Method & mode & macro-EM & turns & searches & tokens/turn & hits 4-turn cap\\
 \midrule
-GRPO      & 0.441 & \good{\textbf{0.463}} & $+0.022$ && 476 & \good{111}\\
-turn-PPO  & 0.389 & \good{0.417} & $+0.028$ && 610 & \good{207}\\
+GRPO      & thinking      & 0.441 & 3.07 & 2.07 & 471 & 28\%\\
+GRPO      & non-thinking  & \good{\textbf{0.463}} & \good{3.99} & \good{2.99} & \good{111} & 99.5\%\\
+\addlinespace
+turn-PPO  & thinking      & 0.389 & 2.70 & 1.70 & 696 & 25\%\\
+turn-PPO  & non-thinking  & \good{0.417} & 2.61 & 1.61 & \good{213} & 17\%\\
 \midrule
-GRPO $-$ turn-PPO & $0.052$ & $0.046$ & & & &\\
+\multicolumn{2}{l}{GRPO $-$ turn-PPO} & $0.052\to0.046$ & & & &\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Three readings. (i) \textbf{The finding is robust}: GRPO still leads turn-PPO when the truncation
-channel is largely removed (turn-PPO's clip falls 0.084 $\to$ 0.057), so the ordering is not a
-clipping artifact; the gap barely moves ($0.052\to0.046$). (ii) \textbf{Thinking is not paying for itself here}: both arms do at least as
-well without it while generating 66--77\% fewer tokens, i.e.\ the 4-turn budget rewards deciding
-\emph{what to search for} far more than deliberating about it. (iii) \textbf{The critic arm gains
-most} ($+0.033$ vs $+0.009$), consistent with it having been the arm penalised by truncation.
-\emph{Caveat:} single seed per cell, and GRPO's $+0.009$ sits inside that run's own step-to-step
-oscillation band ($0.429$--$0.457$ over steps 250--400); the defensible claim is that non-thinking
-is \emph{not worse and much cheaper}, not that it is better.
+\textbf{(i) The headline finding is robust.} GRPO still leads turn-PPO once the truncation channel
+is largely removed (turn-PPO's clip falls $0.084\to0.057$), and the gap barely moves
+($0.052\to0.046$). The ordering is not a clipping artifact.
+
+\textbf{(ii) Thinking does not pay for itself on this task.} Both methods score \emph{higher}
+without it ($+0.022$ GRPO, $+0.028$ turn-PPO) at $\approx$70\% fewer generated tokens. With only
+four turns and a retrieval tool available, the budget is better spent acting than deliberating.
+
+\textbf{(iii) Thinking trades search calls for deliberation tokens --- and search wins.} This is
+the sharpest read. Non-thinking GRPO learns to consume its \emph{entire} turn budget: 3.99 of 4
+turns and $\approx$3 searches, hitting the cap on \textbf{99.5\%} of questions, versus 3.07 turns
+under thinking. The tokens freed by dropping the \texttt{<think>} block are re-spent on retrieval,
+and that is where the $+0.022$ comes from. \textbf{turn-PPO fails to make the same trade}: its turn
+count is essentially unchanged ($2.70\to2.61$), so it banks the token savings without converting
+them into extra evidence --- a plausible reason GRPO retains its lead. Note this is the same
+turn-under-use that \S4 diagnoses on the hop axis, and it is \emph{not} a truncation effect: at
+non-thinking lengths ($\approx$200 tokens/turn) neither arm is near the cap.
+
+\emph{Caveats:} single seed per cell, so the $+0.022$/$+0.028$ margins are suggestive rather than
+established; GRPO's advantage in particular sits close to its own run-to-run oscillation band.
 
 \section{Horizon-stratified analysis}
 
