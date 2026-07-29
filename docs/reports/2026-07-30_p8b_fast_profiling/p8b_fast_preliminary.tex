@@ -1,0 +1,99 @@
+\documentclass[10pt]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs,xcolor,hyperref,enumitem}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\setlist{nosep,leftmargin=1.4em}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\flag}[1]{\textcolor{red!70!black}{\textbf{#1}}}
+\title{\vspace{-1.4em}\code{p8bprof\_grpo\_fast} --- PRELIMINARY (steps 1--2 of 4)\\
+\large dynamic token-budget micro-batching + chunked prefill, on partial rollout\vspace{-0.5em}}
+\author{Agentic-RL-CA rung-3 --- \code{sync-partial-rollout-poc}}
+\date{2026-07-30 05:5x CST; final 4-cycle update follows in this folder}
+\begin{document}\maketitle\vspace{-1.8em}
+
+\section*{TL;DR (preliminary)}
+The fast config is \textbf{healthy, OOM-free at the full 24{,}576 token budget}, and cuts
+update-side phases $\sim$\textbf{2.5--4$\times$}; generation is unchanged ($\pm$7\%, within the
+KV-fraction confound). Matched first-two-cycles wall-clock: \textbf{3{,}053\,s vs 3{,}848\,s}
+(1.26$\times$; identical released counts 325/700). Projected 150-step GRPO arm:
+\textbf{$\sim$6.5\,d} (from 8.9\,d partial / 13.3\,d vanilla). All speedup is attributable to
+\textbf{dynamic micro-batching}; chunked prefill contributed $\approx$0 at these prompt lengths.
+One \flag{prominent flag} (\S4): the \code{actor/entropy\_loss} \emph{metric} reads
+$\sim$2$\times$ lower under packing --- a measurement artifact, not a policy change (evidence
+inside); all behavioral metrics match baseline within noise.
+
+\section*{1. Launch config \& deviations}
+Baseline \code{p8bprof\_grpo\_partial} + : \code{DYNBSZ=1} (\code{use\_dynamic\_bsz=True},
+24{,}576 tok/GPU, actor/old\_log\_prob/ref), chunked prefill ON with
+\code{max\_num\_batched\_tokens=17408}. Same data/seed 0/256$\times$5/4 cycles/partial args
+(\code{cycle\_turns=8}, \code{max\_age=4}); \code{ppo\_mini\_batch\_size=512}; template, KV 0.5,
+remove-padding, balance-batch, grad-ckpt, sampling, algorithm settings untouched.
+\textbf{Deviations from request:} (a) \code{max\_num\_batched\_tokens} 17{,}408, not 16{,}384 ---
+the verl fork requires $\ge$\code{max\_model\_len}; (b) baseline ran at KV 0.6, fast at 0.5
+(protocol default post-OOM-fix) --- affects only the gen-side comparison ($\lesssim$7\%);
+(c) two aborted launch attempts before this one (config bugs, $\sim$50\,min; no fallback used ---
+OOM ladder never triggered).
+
+\section*{2. Per-phase timing}
+\small
+\begin{tabular}{lrrr|rr}
+\toprule
+ & \multicolumn{3}{c|}{\textbf{4-cycle means (final)}} & \multicolumn{2}{c}{\textbf{matched cycles 1--2}}\\
+ & vanilla & partial & \textbf{fast\,(2-st.\ mean)} & partial & \textbf{fast}\\
+\midrule
+gen (s) & 3961 & 1591 & 1231 & 553\,/\,1753 & 587\,/\,1874\\
+old\_log\_prob (s) & 425 & 253 & \textbf{47} & 23\,/\,195 & 15\,/\,79\\
+ref (s) & 422 & 253 & \textbf{48} & 28\,/\,195 & 17\,/\,78\\
+actor update (s) & 2086 & 1262 & \textbf{197} & 125\,/\,967 & 51\,/\,342\\
+total step (s) & 7652 & 3728 & 1526 & 730\,/\,3118 & 672\,/\,2381\\
+released traj & 1280 & 932 avg & 512 avg & 325\,/\,700 & 325\,/\,700\\
+step-s / traj & 5.98 & 4.00 & 2.98 & 3.75 & \textbf{2.98}\\
+peak mem (GB) & 85.2 & 85.1 & 85.3 & & no OOM @24576\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\section*{3. Attribution}
+\begin{itemize}
+\item \textbf{Dynamic micro-batching (DYNBSZ)}: actor update 2.8$\times$, old\_log\_prob
+2.5$\times$, ref 2.5$\times$ at matched cycle 2 (967$\to$342, 195$\to$79, 195$\to$78\,s).
+This is the entire measured gain.
+\item \textbf{Chunked prefill}: gen 1753$\to$1874\,s at cycle 2 (\emph{$+$7\%}) --- no benefit at
+our prompt lengths, and the sign is within the KV 0.6$\to$0.5 confound. Keep (harmless) but
+attribute nothing to it.
+\item Generation now dominates: $\sim$80\% of fast step time $\Rightarrow$ \textbf{active-slot
+packing} (skip finished trajectories in gen) is the next real lever.
+\end{itemize}
+
+\section*{4. Sanity: training metrics vs baseline \hfill \flag{one metric flagged}}
+Matched pre-update step 1: success 0.218 vs 0.237, response length 430 vs $\sim$500 tok,
+episode turns and partial counters in band; step-2 success 0.203 vs 0.184. All within
+temp-1.0 sampling noise. \flag{Flag:} \code{actor/entropy\_loss} reads 1.05/1.22 (steps 1/2)
+vs baseline 2.07/2.38 --- $\sim$2$\times$ lower \emph{at identical initial weights on step 1},
+while the rollouts themselves are statistically indistinguishable. Since the entropy metric is
+computed during the old\_log\_prob recompute and aggregated over micro-batches, token-budget
+packing changes the \emph{weighting of the average}, not the per-token log-probs; entropy has
+\code{coeff=0} and never enters the loss. Classification: \textbf{measurement artifact
+(high confidence)} --- to be re-verified in the final report by recomputing token-weighted
+entropy from identical rollout dumps; if it were a true policy-distribution change it would
+have to appear in step-1 rollouts, and it does not.
+
+\section*{5. Updated projections \& recommendation (preliminary)}
+\small
+\begin{tabular}{lrrr}
+\toprule
+150-step arm & vanilla & partial & \textbf{fast (prelim)}\\
+\midrule
+GRPO & 13.3\,d & 8.9\,d & \textbf{$\sim$6.5\,d}\\
+turnPPO (est.) & 20.3\,d$^\dagger$ & 12.8\,d & $\sim$9--10\,d (DYNBSZ factors applied to critic arm)\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\noindent$^\dagger$pre-fix estimate; vanilla retry in flight. Two slots in parallel: the pair
+$\approx$10\,d calendar at 150 steps, $\approx$5\,d at 75 steps.
+\textbf{Recommendation:} adopt the fast config for the arms (gradient-identical, no observed
+behavioral drift, memory-safe); \textbf{active-slot packing is still worth building} --- gen is
+now 80\% of the step, and packing attacks exactly that without touching training data. Decide
+150 vs 75 steps on scientific grounds, not throughput (6.5\,d vs 3.3\,d for GRPO).
+\end{document}
