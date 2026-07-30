@@ -1425,9 +1425,11 @@ class RayPPOTrainer:
                     # SP4 HCAPO: hindsight log-prob pass — re-score actions conditioned on s_final.
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.HCAPO:
                         with _timer("hindsight", timing_raw):
+                            _hc_cfg = self.config.algorithm.get('hcapo', {}) or {}
                             hb = core_hcapo.build_hindsight_batch(
                                 batch, self.tokenizer,
-                                self.config.data.max_prompt_length, self.config.data.max_response_length)
+                                self.config.data.max_prompt_length, self.config.data.max_response_length,
+                                s_final_source=str(_hc_cfg.get('s_final_source', 'last_obs')))
                             hlp = self.actor_rollout_wg.compute_log_prob(hb)
                             batch.batch['hindsight_log_probs'] = hlp.batch['old_log_probs']
 

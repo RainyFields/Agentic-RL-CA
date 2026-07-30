@@ -13,9 +13,22 @@ from verl.utils.model import compute_position_id_with_mask
 
 
 def build_hindsight_batch(data, tokenizer, max_prompt_length, max_response_length,
-                          hindsight_prefix="\nThe episode's final observation was: "):
-    """DataProto whose prompts have s_final (the trajectory's last observation) appended before the
-    SAME response. Feed to actor_rollout_wg.compute_log_prob to get pi_hind."""
+                          hindsight_prefix="\nThe episode's final observation was: ",
+                          s_final_source="last_obs"):
+    """DataProto whose prompts have s_final appended before the SAME response. Feed to
+    actor_rollout_wg.compute_log_prob to get pi_hind.
+
+    s_final_source (config: +algorithm.hcapo.s_final_source; default preserves prior behaviour):
+      "last_obs"     -- the trajectory's final observation anchor (the last retrieved-docs block in
+                        SearchQA). Wave-3 diagnostic showed this LONG injection creates the length
+                        channel in the hindsight lift (corr(dm,len)=+0.43 pre-drift).
+      "final_answer" -- the agent's own final answer string (last <answer>..</answer> of the final
+                        turn; falls back to the final response text, then the anchor). A ~few-token
+                        injection: tests whether shrinking the perturbation removes the drift lever.
+                        Prefix becomes "The agent's final answer was: ". NB for successful
+                        trajectories (the only ones where rho matters, since R=0 zeroes Q^H) the
+                        agent's answer ~= the gold answer by EM.
+    """
     from verl import DataProto
     prompts = data.batch['prompts']            # (B, Lp) left-padded
     responses = data.batch['responses']        # (B, Lr) right-padded
@@ -28,11 +41,21 @@ def build_hindsight_batch(data, tokenizer, max_prompt_length, max_response_lengt
     anchor = np.asarray(data.non_tensor_batch['anchor_obs'])
     traj_uid = np.asarray(data.non_tensor_batch['traj_uid'])
     turn_index = np.asarray(data.non_tensor_batch['turn_index']).astype(np.int64)
+    if s_final_source == "final_answer":
+        import re as _re
+        hindsight_prefix = "\nThe agent's final answer was: "
+        _ans_re = _re.compile(r"<answer>(.*?)</answer>", _re.DOTALL)
     sfinal = {}
     for uid in np.unique(traj_uid):
         idx = np.where(traj_uid == uid)[0]
         last = idx[np.argmax(turn_index[idx])]
-        sfinal[uid] = str(anchor[last])
+        if s_final_source == "final_answer":
+            _resp_ids = responses[last][attn[last, -Lr:].bool()]
+            _txt = tokenizer.decode(_resp_ids, skip_special_tokens=True)
+            _m = _ans_re.findall(_txt)
+            sfinal[uid] = (_m[-1].strip() if _m else _txt.strip()[-256:]) or str(anchor[last])
+        else:
+            sfinal[uid] = str(anchor[last])
 
     prompt_attn = attn[:, :Lp]
     resp_attn = attn[:, -Lr:]
