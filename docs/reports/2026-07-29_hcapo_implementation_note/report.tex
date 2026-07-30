@@ -10,10 +10,10 @@
         xleftmargin=6pt,framexleftmargin=6pt,commentstyle=\color{gray}}
 \sloppy
 \title{\textbf{An implementation note on HCAPO:}\\[2pt]
-\large how a wrong $\rho$ denominator manufactured a length runaway,\\
-and first evidence that the paper-correct form does not}
+\large how a wrong $\rho$ denominator manufactured a length runaway ---\\
+and why the paper-correct form ignites one too}
 \author{Agentic-RL-CA project}
-\date{2026-07-29}
+\date{2026-07-29, updated 2026-07-30 (step-200 falsification)}
 
 \begin{document}
 \maketitle
@@ -30,11 +30,16 @@ normalisation keeps growing, it \emph{rewards verbosity}: emitting more tokens m
 $\rho$, hence the advantage. We derive the mechanism, verify it in a controlled synthetic test
 (legacy $\rho$ moves $+0.13$ when responses lengthen $16\to64$ tokens; the paper form moves $0.0$),
 and show the corrected implementation restores every property the paper assumes: $\rho$ centred on
-$1.0$, two-sided (the upper clip binds for the first time), with growing rather than collapsing
-spread. Forty-five steps into the corrected run, length and clipping are normal; the legacy
-runaway's onset window (steps $\sim$75--200) has not yet been reached, so the behavioural
-confirmation is preliminary. All prior HCAPO numbers from this codebase (SearchQA 1.7B/4B, AlfWorld
-1.7B) characterise the buggy variant, not the published method.
+$1.0$, two-sided, and discriminating between turns for the first $\sim$150 steps.
+\textbf{Update (step 200): the corrected run then ignited the same runaway}
+($221\to1232$ tokens between steps 150 and 200, clip $0.51$) --- falsifying our structural
+prediction. The $\rho$ instrumentation identifies the shared root: Eq.~6's \emph{per-token-mean}
+scoring is pulled toward generic fluency as turns lengthen, so a below-mean turn can raise its
+$\rho$ by lengthening; the intra-trajectory normalisation cancels uniform inflation but not this
+transient, and the across-turn spread collapses ($\sigma$: $0.135\to0.030$) until the hindsight
+term is inert. On this task the published formulation, not merely our port of it, carries a length
+instability. All prior HCAPO numbers from this codebase characterise the buggy variant; the
+corrected run characterises the published method on SearchQA.
 \end{abstract}
 
 \section{The two formulas}
@@ -135,8 +140,8 @@ Throughout, accuracy stayed flat ($\approx$0.39 macro-EM): the verbosity was \em
 \caption{\textbf{The runaway, and its absence so far under the fix.} Mean response length (left)
 and cap-clip fraction (right) per training step. Legacy $\omega{=}1$ (red) undergoes a phase
 transition at $\sim$step 160 and saturates against the 2048 cap; $\omega{=}0.5$ (orange) follows the
-same path $\sim$125 steps later; the paper-correct run (green, 45 steps so far) is flat --- though it
-has not yet reached the window where the legacy runs took off.}
+same path $\sim$125 steps later; the paper-correct run (green) holds normal length for $\sim$150 steps --- then ignites the same
+phase transition $\sim$40 steps after legacy A, reaching 1232 tokens by step 200.}
 \label{fig:runaway}
 \end{figure}
 
@@ -159,18 +164,22 @@ The policy log-probs no longer enter $\rho$ at all, matching the paper. Unit tes
 synthetic length test above (legacy $+0.1325$, paper $0.0000$); (ii) $\rho$ centred on $1.0$ with
 two-sided spread on toy trajectories.
 
-\section{Initial observations: why the corrected form does not explode}
+\section{The corrected form: 150 clean steps, then the same runaway}
 
-\textbf{Structural reason.} The ratchet needs a way for a rollout to raise its $\rho$ by being
-globally more verbose than its siblings. Under Eq.~7 it has none: $\rho_t$ compares turn $t$ only
-against \emph{the same trajectory's other turns}, and numerator and denominator carry the same
-$1/|a|$ normalisation, so uniform verbosity cancels identically. What remains is a bounded,
-\emph{relative} preference between turns of one trajectory (a longer turn can score somewhat above
-its shorter siblings), clipped to $[0.8,1.2]$ and non-compounding --- there is no cross-rollout
-length gradient for group normalisation to amplify.
+\textbf{The structural argument we made --- and where it fails.} We argued the ratchet needs a way
+for a rollout to gain by being globally more verbose, and that Eq.~7 removes it: numerator and
+denominator share the $1/|a|$ normalisation, so \emph{uniform} verbosity cancels identically. That
+argument is correct as far as it goes --- and was \textbf{falsified at step 200} because the
+gradient it ignores is the \emph{transient, non-uniform} one. Eq.~6 scores a turn by its
+\emph{per-token mean} log-prob, and a long turn's mean is dominated by generically-predictable
+continuation tokens. A turn currently \emph{below} its trajectory's mean can therefore raise its
+$\rho$ simply by lengthening --- diluting its distinctive (low-probability) early tokens toward
+generic fluency. Lengthening is never uniform while this is happening, so the intra-trajectory
+normalisation does not cancel it; the process self-terminates only when all turns have homogenised
+($\rho\approx1$ everywhere) and the hindsight signal is dead.
 
-\textbf{Empirical, first 45 steps} (single seed; all values from the run's per-step
-instrumentation):
+\textbf{Empirical.} The first $\sim$150 steps looked exactly as the paper intends (single seed;
+per-step instrumentation):
 \begin{center}\small
 \begin{tabular}{lcc}
 \toprule
@@ -195,18 +204,27 @@ length $91$ tokens --- indistinguishable from GRPO at the same point, as expecte
 \begin{figure}[h]\centering\fig{fig_rho.pdf}
 \caption{\textbf{$\rho$ statistics per training step.} \emph{Left:} legacy $\rho$ (red/orange)
 starts at $0.91$ and is crushed toward $1.0$ from below as length inflates; the paper-correct run
-(green) sits at $1.0$ from step one. \emph{Right:} legacy spread collapses as $\rho$ saturates; the
-corrected spread grows --- the hindsight signal discriminates between turns rather than encoding
-response length.}
+(green) sits at $1.0$ from step one. \emph{Right:} legacy spread collapses as $\rho$ saturates toward $1$ from below; the corrected
+spread grows for $\sim$100 steps (discriminating between turns) and then \emph{also} collapses
+($0.135\to0.030$) as lengthening homogenises the per-token means --- the spread, not the mean, is
+where the corrected form's runaway is visible.}
 \label{fig:rho}
 \end{figure}
 
-\textbf{What this does not yet show.} The legacy runaway ignited in the window steps
-$\sim$75--200 ($171\to487\to1371$ tokens). The corrected run has not reached it; ``no explosion''
-is therefore a structural argument plus 45 clean steps, not yet a completed demonstration. The
-decisive within-batch test --- per-sample $\mathrm{corr}(\rho, n_{tok})$, predicted $\gg0$ for the
-legacy form and $\approx0$ for Eq.~7 --- is queued for the next instrumentation pass. This note will
-be updated at steps 100/200/500.
+\textbf{Then the ignition.} Length: $147@100 \to 221@150 \to 249@160 \to 412@170 \to 611@180
+\to 985@190 \to \mathbf{1232@200}$ (clip $0.505$); EM flat across it ($0.401\to0.417\to0.408$) ---
+the same phase-transition-then-waste signature as the legacy runs, $\sim$40 steps later than legacy
+A. Concurrently the $\rho$ spread \emph{collapsed} ($\sigma$: $0.135@100 \to 0.068@150 \to
+0.030@200$, both clip fractions $\to0$): by step 200 every turn scores $\rho\approx1$ and the
+hindsight term is inert --- HCAPO has degenerated to GRPO plus a positional discount
+$\gamma^{T-1-t}$, at $8\times$ GRPO's token cost. \emph{Interpretation caveats:} single seed;
+SearchQA trajectories have $T\le4$ turns (a noisy 4-sample mean in Eq.~7) and our $s_{final}$ is a
+long retrieved-documents block --- the paper's own tasks (ALFWorld/WebShop: short action-style
+turns, 512-token caps, Qwen2.5-7B) may never enter this regime, so this is a statement about the
+formulation \emph{on this task class}, not a refutation of the paper's results. The decisive
+within-batch probe --- per-sample $\mathrm{corr}(\rho, |a_t|)$ before vs during ignition --- is now
+the top instrumentation priority. The run continues to 500 (abort rule requires EM $<0.30$; it is
+$0.408$); final update at 500.
 
 \section{Record}
 Withdrawn: both legacy 4B runs (killed at steps $\sim$324/330), and all earlier HCAPO numbers from
