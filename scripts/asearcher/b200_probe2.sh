@@ -21,8 +21,9 @@ echo "--- attempt C: force system libcuda via LD_PRELOAD ---"
 SYSCUDA=$(ldconfig -p | grep "libcuda.so.1" | grep -v compat | head -1 | awk '{print $NF}')
 echo "system libcuda: $SYSCUDA"
 [ -n "$SYSCUDA" ] && env LD_PRELOAD="$SYSCUDA" python -c "import torch; torch.cuda.init(); print('C OK:', torch.cuda.get_device_name(0))" 2>&1 | tail -2
-echo "--- attempt D (if any passed, full stack): bf16 matmul + flash_attn + vllm import ---"
-python - <<'PYEOF' 2>&1 | tail -6
+echo "--- attempt D (full stack UNDER LD_PRELOAD fix): matmul + GEMM bench + flash_attn + vllm ---"
+export LD_PRELOAD="$SYSCUDA"
+python - <<'PYEOF' 2>&1 | tail -8
 import os, ctypes
 try:
     import torch
@@ -35,6 +36,15 @@ try:
     cu = torch.tensor([0, 128], device="cuda", dtype=torch.int32)
     o = flash_attn_varlen_func(q, q, q, cu, cu, 128, 128)
     print("flash_attn varlen OK:", tuple(o.shape))
+    # quick bf16 GEMM throughput datapoint (8192^3, 20 iters)
+    import time
+    a = torch.randn(8192, 8192, device="cuda", dtype=torch.bfloat16)
+    for _ in range(3): (a @ a)
+    torch.cuda.synchronize(); t0 = time.time()
+    for _ in range(20): (a @ a)
+    torch.cuda.synchronize()
+    tflops = 20 * 2 * 8192**3 / (time.time() - t0) / 1e12
+    print(f"bf16 GEMM: {tflops:.0f} TFLOPS")
     import vllm
     print("vllm import OK:", vllm.__version__)
 except Exception as e:
