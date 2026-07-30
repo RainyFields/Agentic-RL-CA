@@ -1,0 +1,95 @@
+\documentclass[10pt]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs,xcolor,hyperref,enumitem,amssymb}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\setlist{nosep,leftmargin=1.4em}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\flag}[1]{\textcolor{red!70!black}{\textbf{#1}}}
+\title{\vspace{-1.4em}\code{p8bprof\_grpo\_fast} --- FINAL (4/4 cycles, run DONE)\\
+\large dynamic token-budget micro-batching + chunked prefill, on partial rollout\vspace{-0.5em}}
+\author{Agentic-RL-CA rung-3 --- \code{sync-partial-rollout-poc}}
+\date{2026-07-30 08:10 CST. Supersedes \code{p8b\_fast\_preliminary.pdf} (same folder).}
+\begin{document}\maketitle\vspace{-1.8em}
+
+\section*{TL;DR (final)}
+Fast config completed 4/4 cycles, \textbf{exit 0, no OOM at the full 24{,}576 budget}
+(peak 88.9\,GB, expandable segments; ladder never triggered). Final normalized cost
+\textbf{3.27 s/trajectory} vs partial 4.00 and vanilla 5.98 --- \textbf{1.22$\times$ over
+partial, 1.83$\times$ over vanilla}, entirely from dynamic micro-batching
+(update 2.3$\times$, old\_log\_prob/ref 2.0$\times$; generation $\pm$0 after the KV-fraction
+confound). Projections: \textbf{7.3\,d} per 150-step arm, \textbf{$\sim$3.6\,d} per 75-step
+arm. \emph{The two 75-step arms launched on this config are reproducing these cycle times
+exactly} (arm cycle 1: 684\,s vs profiling 672\,s; cycle 2: 2{,}487 vs 2{,}381).
+Note the final number is higher than the preliminary 2.98/6.6\,d --- steady-state cycles
+are heavier than the ramp the preliminary extrapolated from.
+
+\section*{1. Per-cycle detail (fast run)}
+\small
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+cycle & gen(s) & olp(s) & ref(s) & upd(s) & total(s) & released & mem GB & succ & entropy\\
+\midrule
+1 & 587 & 15 & 17 & 51 & 672 & 325 & 77.9 & 0.218 & 1.05\\
+2 & 1{,}874 & 79 & 78 & 342 & 2{,}381 & 700 & 85.3 & 0.203 & 1.22\\
+3 & 2{,}371 & 227$^a$ & 227$^a$ & 1{,}011 & 3{,}854 & 1{,}200 & 88.9 & 0.20$^a$ & 1.2$^a$\\
+4 & 1{,}935 & 179 & 180 & 796 & 4{,}740$^b$ & 1{,}340 & 88.9 & 0.208 & 1.21\\
+\midrule
+$\Sigma/\mathrm{mean}$ & 6{,}767 & 498 & 501 & 2{,}201 & 11{,}647 & 3{,}565 & 88.9 & 0.20 & 1.2\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\noindent$^a$cycle-3 olp/ref back-filled from the 4-cycle means (monitor truncation);
+$^b$cycle 4 includes the end-of-run val pass ($\sim$1.6\,ks) --- the baseline's cycle 4
+contains the same, so aggregate comparisons remain matched.
+
+\section*{2. Final comparison (per completed trajectory)}
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & vanilla & partial & \textbf{fast (final)}\\
+\midrule
+gen s/traj & 3.09 & 1.71 & 1.90\\
+old\_log\_prob + ref s/traj & 0.66 & 0.54 & 0.14\\
+update s/traj & 1.63 & 1.36 & 0.62\\
+other s/traj & 0.59 & 0.40 & 0.61$^c$\\
+\textbf{total s/traj} & \textbf{5.98} & \textbf{4.00} & \textbf{3.27}\\
+gen share of total & 52\% & 43\% & 58\%\\
+projected 150-step arm & 13.3\,d & 8.9\,d & \textbf{7.3\,d}\\
+projected 75-step arm & 6.6\,d & 4.4\,d & \textbf{$\sim$3.6\,d}\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\noindent$^c$mostly the final-val share; excluding both configs' final val, fast $\approx$2.8,
+partial $\approx$3.6 s/traj.
+
+\section*{3. Attribution (unchanged from preliminary, now over 4 cycles)}
+Dynamic micro-batching: update 1{,}262$\to$550\,s mean (2.3$\times$), olp+ref 506$\to$250\,s
+(2.0$\times$). Chunked prefill: gen per-trajectory 1.71$\to$1.90 (\emph{$-$11\%}, the sign
+and size of the KV 0.6$\to$0.5 confound) --- contribution $\approx$0; keep for hygiene,
+credit nothing. Generation is now 58\% of cost at steady state (81\% during ramp), so
+\textbf{active-slot packing remains the top remaining lever}, followed by restoring KV
+headroom (larger budget only helps if memory allows --- peak already 88.9\,GB).
+
+\section*{4. Entropy-metric flag: resolution}
+\flag{Resolved as measurement artifact --- logically conclusive.} The 2$\times$ gap
+(fast 1.05 vs baseline 2.07) appears at \textbf{step 1, before any parameter update}: both
+runs generate rollouts with \emph{identical weights, data order and sampling config}, so a
+true policy-entropy difference is impossible; only the \emph{metric computation} differs.
+The \code{actor/entropy\_loss} metric is produced during the old\_log\_prob pass and
+averaged over micro-batches; token-budget packing changes micro-batch composition (few
+large heterogeneous packs vs many fixed-size ones), reweighting the average. Behavioral
+statistics agree throughout (success 0.20 vs 0.20, response length 493 vs 501, episode
+turns 4.66 vs 4.56, val@0 identical at 0.195/0.199). The metric is \emph{not comparable
+across packing modes} --- treat entropy trends within a run as valid, across configs as not.
+
+\section*{5. Status \& recommendation}
+Adopted (user decision 2026-07-30): both 75-step arms are RUNNING on this config
+(\href{https://wandb.ai/rainyfields/ca-rung3-8b-asearcher/runs/vgoq421c}{\code{vgoq421c}} GRPO,
+\href{https://wandb.ai/rainyfields/ca-rung3-8b-asearcher/runs/odkf1zmj}{\code{odkf1zmj}} turnPPO),
+ETA $\sim$3.6\,d (GRPO) / $\sim$4--5\,d (turnPPO, critic) from 06:15 CST Jul 30.
+Next levers if more speed is wanted: (1) active-slot packing (pure waste removal, biggest);
+(2) B200 migration if the probe passes ($\sim$2--2.5$\times$ node-for-node, env rebuild risk);
+(3) prompt-template prefix-caching fix (only at a protocol boundary --- changes the MDP).
+\end{document}
