@@ -151,6 +151,42 @@ cleaner, and it cannot reward re-reading your own padding.
 place --- a last resort, not a fix.
 \end{enumerate}
 
+\section*{Appendix: the diagnostic in numbers}
+456 logged trajectories (256 questions each regime; greedy), every turn re-scored under three
+matched conditions differing only in the injected text. ``Healthy'' = the pre-RL model's rollouts
+(normal reply lengths); ``post-runaway'' = the fixed-HCAPO policy at step 250. All correlations are
+within-trajectory (per-trajectory demeaned, pooled); ``partial'' controls for turn position.
+
+\begin{center}\small
+\begin{tabular}{lcc}
+\toprule
+& healthy & post-runaway\\
+\midrule
+\multicolumn{3}{l}{\emph{Does a turn's score rise with its length?}}\\
+plain score vs length            & $-0.02$ (partial $-0.30$) & $+0.53$ ($+0.43$)\\
+hindsight score vs length        & $+0.41$ ($+0.30$) & $+0.78$ ($+0.74$)\\
+\textbf{hindsight lift vs length} & $\bad{+0.43}$ ($+0.33$) & $\bad{+0.77}$ ($+0.73$)\\
+\addlinespace
+\multicolumn{3}{l}{\emph{Where does the credit go?}}\\
+$\rho$ on answer turns           & \bad{1.062} & 0.978\\
+$\rho$ on search turns           & 0.973 & 1.010\\
+top-credit turn = final turn     & \bad{73\%} (base 39\%) & 11\% (base 28\%)\\
+credit vs turn position (corr)   & $+0.66$ & $-0.44$\\
+\addlinespace
+\multicolumn{3}{l}{\emph{Do the estimator variants even differ?}}\\
+Eq.~7 vs lift (rank corr)        & 0.95 & 0.97\\
+lift vs gold-answer injection    & 0.71 & 0.73\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Reading guide: the \emph{lift} (hindsight minus plain score) is supposed to isolate pure hindsight
+information --- instead it carries the entire length artifact, in both regimes. In the healthy
+regime the credit concentrates on the answer turn (73\% of trajectories; the leak survives both the
+lift and the gold-answer variant); after the runaway, padded search turns out-score everything and
+every preference flips sign. Data: \texttt{outputs/diag\_hcapo/estdiag\_\{hcapo250,floor\}.json}
+(per-turn arrays included --- further slicing needs no GPU).
+
 \section*{Fine print}
 Single seed per run; all on SearchQA (4-turn episodes, Qwen3-4B, non-thinking, 2048-token cap).
 The HCAPO paper's own benchmarks (ALFWorld, WebShop) use short action-style turns under tight
