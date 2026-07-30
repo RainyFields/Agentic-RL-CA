@@ -117,17 +117,34 @@ $\sim$1{,}370 tokens per turn to score \emph{below} both plain GRPO (111 tokens)
 \end{figure}
 
 \section{What we're doing about it}
-\textbf{Running now:} an offline diagnostic that re-scores logged rollouts under matched conditions
-(with and without the hindsight text, and with the \emph{gold answer} injected instead) to measure
-exactly how much of HCAPO's score is length/position nuisance versus genuine hindsight
-information --- including whether the ``pivotal turn'' it picks even survives the controls.
+\textbf{The diagnostic has now run} (456 logged trajectories re-scored under matched conditions:
+with the hindsight text, without it, and with the \emph{gold answer} injected instead). Three
+findings, each a different nuisance channel:
+\begin{itemize}
+\item \textbf{The length channel is injected by the hindsight text itself.} Without it, longer
+turns do \emph{not} score higher per token (corr $-0.02$ in the healthy regime). Add the hindsight
+suffix and a $+0.43$ length correlation appears --- and the ``lift'' (hindsight minus plain score),
+which should isolate pure hindsight information, carries \emph{all} of it ($+0.43$ healthy,
+$+0.77$ post-runaway, both surviving position controls).
+\item \textbf{In the healthy regime, the credit mostly just points at the answer turn.} The
+top-credit turn is the \emph{final} (answer) turn in \textbf{73\%} of trajectories --- nearly twice
+the 39\% base rate --- because the episode's ending trivially ``explains'' the turn that produced
+it. Injecting the gold answer instead of the last retrieval \emph{keeps} this preference: the leak
+survives every normalisation we tried.
+\item \textbf{The credit's direction flips with the regime.} Healthy: answer turns +0.09 over
+search turns, later turns favoured (corr with position $+0.66$). Post-runaway: answer turns
+$-0.03$ \emph{under} search turns, earlier turns favoured ($-0.44$) --- the padded search turns
+out-score everything. A credit signal whose preferences invert with the policy's own verbosity is
+tracking artifacts, not pivotal decisions.
+\end{itemize}
 
 \textbf{Candidate fixes, in rough order of appeal:}
 \begin{enumerate}
 \item \textbf{Stop averaging over a paddable denominator} --- score turns on a fixed window or a
 length-controlled statistic, so filler cannot move the score.
-\item \textbf{Exclude the final (answer) turn} from hindsight credit --- the ending trivially
-``explains'' the answer turn, a leak no normalisation removes.
+\item \textbf{Exclude the final (answer) turn} from hindsight credit --- now measured, not
+hypothesised: it is the top-credit turn in 73\% of healthy-regime trajectories, so this changes
+most credit assignments.
 \item \textbf{Inject the gold answer, not the last retrieval}, as the hindsight context --- shorter,
 cleaner, and it cannot reward re-reading your own padding.
 \item A blunt \textbf{per-turn length penalty} would mask the symptom, but leaves the mis-scoring in
