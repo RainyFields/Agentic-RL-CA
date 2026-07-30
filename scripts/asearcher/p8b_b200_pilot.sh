@@ -8,8 +8,12 @@
 set -uo pipefail
 export PYTHONUNBUFFERED=1
 
-# --- B200 fix: bypass the stale compat libcuda (validated by b200_probe2.sh) ---
+# --- B200 fix 1: bypass the stale compat libcuda (validated by b200_probe2.sh) ---
 export LD_PRELOAD=/lib/x86_64-linux-gnu/libcuda.so.1
+# --- B200 fix 2: vLLM's vendored flash-attn ships sm_80/90 ONLY (cuobjdump-verified) and
+# segfaults in CUDA-graph capture on sm_100; Triton backend JIT-compiles per-arch.
+# Training-side flash-attn (standalone wheel) HAS sm_100 and is unaffected.
+export VLLM_ATTENTION_BACKEND=TRITON_ATTN
 
 REPO=${REPO:-/home/tiger/xiaoxuan/arlca-8b}
 export PYTHONPATH="$REPO"
