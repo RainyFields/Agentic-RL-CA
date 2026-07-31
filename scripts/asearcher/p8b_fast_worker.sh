@@ -122,7 +122,7 @@ if attempt p8bprof_grpo_fast; then
   status=DONE
 elif oomed; then
   echo "==== P8B-FAST FALLBACK: OOM at 24576 -> DYNBSZ_TOK=16384 ===="
-  export DYNBSZ_TOK=16384
+  export DYNBSZ_TOK=20480  # >= max_seq_len 17408 required
   if attempt p8bprof_grpo_fast; then
     status=DONE; echo "FALLBACK_16384_USED $(date -u +%FT%TZ)" > "$HLOG/FALLBACK_16384"
   elif oomed; then
