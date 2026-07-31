@@ -24,6 +24,23 @@ After completing your reasoning, choose only one of the following actions (do no
 (2) If you have enough knowledge to answer the question confidently, provide your final answer within <answer> </answer> tags, without detailed illustrations. For example, <answer>Beijing</answer>.
 """
 
+# ASearcher-style full-trajectory history (rung-3 8B/32-turn): past model responses
+# (<think> + <search>) are kept verbatim alongside the <information> blocks, so the
+# agent sees its own prior reasoning. Selected via SEARCH_HISTORY_KEEP_RESPONSE=1.
+SEARCH_TEMPLATE_FULLHIS = """
+You are an expert agent tasked with answering the given question step-by-step.
+Your question: {task_description}
+
+Prior to this step, you have already taken {step_count} step(s). Below is the full interaction history: each of your past responses (reasoning enclosed in <think> </think> and the search query in <search> </search>), followed by the corresponding search results returned by the external search engine, enclosed in <information> </information>. History:
+{memory_context}
+
+Now it's your turn to respond for the current step.
+You should first conduct reasoning process. This process MUST be enclosed within <think> </think> tags.
+After completing your reasoning, choose only one of the following actions (do not perform both):
+(1) If you find you lack some knowledge, you can call a search engine to get more external information using format: <search> your query </search>.
+(2) If you have enough knowledge to answer the question confidently, provide your final answer within <answer> </answer> tags, without detailed illustrations. For example, <answer>Beijing</answer>.
+"""
+
 SEARCH_TEMPLATE = """
 You are an expert agent tasked with answering the given question step-by-step.
 Your question: {task_description}

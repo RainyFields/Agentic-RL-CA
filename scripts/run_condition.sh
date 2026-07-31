@@ -125,7 +125,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.max_actor_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.max_critic_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.test_freq="$VAL_FREQ" \
-    trainer.total_epochs=1 \
+    trainer.total_epochs="${TOTAL_EPOCHS:-1}" \
     trainer.total_training_steps="$TOTAL_STEPS" \
     trainer.default_local_dir="$CKPT_DIR" \
     trainer.val_before_train="$VAL_BEFORE_TRAIN" \

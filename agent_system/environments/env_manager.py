@@ -49,6 +49,10 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
     """
     def __init__(self, envs, projection_f, config):
         self.memory = SearchMemory()
+        # ASearcher-style history (rung-3 8B/32-turn): keep the model's FULL response
+        # (<think> + <search>) in the rebuilt prompt, not just the projected query.
+        # Gated by env var — default off, byte-identical behavior for all other arms.
+        self.keep_response = os.environ.get("SEARCH_HISTORY_KEEP_RESPONSE", "0") == "1"
         super().__init__(envs, projection_f, config)
 
     def reset(self, kwargs) -> Tuple[Dict[str, Any], List[Dict]]:
@@ -68,10 +72,13 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
     def step(self, text_actions: List[str]):
         actions, valids = self.projection_f(text_actions)
         next_obs, rewards, dones, infos = self.envs.step(actions)
-        self.memory.store({
+        record = {
             "search": actions,
             "information": next_obs,
-        })
+        }
+        if self.keep_response:
+            record["response"] = list(text_actions)
+        self.memory.store(record)
 
         next_observations = {
             "text": self.build_text_obs(next_obs),
@@ -95,11 +102,23 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
         postprocess_text_obs: List[str] = []
 
         if not init and self.config.env.history_length > 0:
-            memory_ctx, _ = self.memory.fetch(
-                self.config.env.history_length,
-                obs_key="information",
-                action_key="search"
-            )
+            if self.keep_response:
+                # ASearcher-style: past responses verbatim (think + search), each
+                # followed by its <information> block; falls back to the projected
+                # query for records stored before the flag flipped on.
+                memory_ctx = []
+                for i in range(self.memory.batch_size):
+                    recent = self.memory._data[i][-self.config.env.history_length:]
+                    memory_ctx.append("\n".join(
+                        f"{rec.get('response', rec['search'])}\n{rec['information']}"
+                        for rec in recent
+                    ))
+            else:
+                memory_ctx, _ = self.memory.fetch(
+                    self.config.env.history_length,
+                    obs_key="information",
+                    action_key="search"
+                )
 
         for i in range(len(text_obs)):
             if init or self.config.env.history_length <= 0:
@@ -107,7 +126,8 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
                     task_description=self.tasks[i]
                 )
             else:
-                obs_i = SEARCH_TEMPLATE.format(
+                template = SEARCH_TEMPLATE_FULLHIS if self.keep_response else SEARCH_TEMPLATE
+                obs_i = template.format(
                     task_description=self.tasks[i],
                     memory_context=memory_ctx[i],
                     step_count=len(self.memory[i]),
@@ -178,6 +198,18 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
             n_steps = len(self.memory._data[i])
             if n_steps == 0 or history_length <= 0:
                 out.append(SEARCH_TEMPLATE_NO_HIS.format(task_description=self.tasks[i]))
+            elif self.keep_response:
+                recent = self.memory._data[i][-history_length:]
+                out.append(
+                    SEARCH_TEMPLATE_FULLHIS.format(
+                        task_description=self.tasks[i],
+                        memory_context="\n".join(
+                            f"{rec.get('response', rec['search'])}\n{rec['information']}"
+                            for rec in recent
+                        ),
+                        step_count=n_steps,
+                    )
+                )
             else:
                 recent = self.memory._data[i][-history_length:]
                 start_idx = n_steps - len(recent)

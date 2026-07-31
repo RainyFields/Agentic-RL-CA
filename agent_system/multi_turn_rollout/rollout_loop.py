@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import torch
 import numpy as np
 from verl import DataProto
@@ -340,6 +341,12 @@ class TrajectoryCollector:
         nochange_count = np.zeros(batch_size, dtype=np.int64)   # consecutive no-state-change
         early_stopped = np.zeros(batch_size, dtype=bool)
         early_stop_reason = np.array([""] * batch_size, dtype=object)
+        # Agentic-RL-CA rung-3 8B (ASearcher 32-turn): PROMPT_OVERFLOW_TERMINATE=1 ends an
+        # episode when the NEXT rebuilt prompt no longer fits data.max_prompt_length,
+        # instead of letting left-truncation silently eat the template header + question.
+        # Default off — behavior byte-identical for every other arm.
+        overflow_terminate = os.environ.get("PROMPT_OVERFLOW_TERMINATE") == "1"
+        length_terminated = np.zeros(batch_size, dtype=bool)
         prev_action = [None] * batch_size
         prev_obs_text = [None] * batch_size
         rollout_records = []   # SP3.1: reliable per-turn debug log (written to JSONL at loop end)
@@ -348,6 +355,17 @@ class TrajectoryCollector:
             active_masks = np.logical_not(is_done)
 
             batch = self.preprocess_batch(gen_batch=gen_batch, obs=obs)
+
+            if overflow_terminate and 'prompt_pretrunc_len' in batch.non_tensor_batch:
+                _ptl = np.asarray(batch.non_tensor_batch['prompt_pretrunc_len'], dtype=np.int64)
+                _over = (_ptl > int(self.config.data.max_prompt_length)) & active_masks
+                if _over.any():
+                    # These slots' trajectories end at the PREVIOUS turn: this step's row
+                    # (generated from a truncated prompt) is recorded with active_masks
+                    # False, so it never reaches the loss or success bookkeeping.
+                    length_terminated = np.logical_or(length_terminated, _over)
+                    is_done = np.logical_or(is_done, _over)
+                    active_masks = np.logical_not(is_done)
 
             if pre_gen_hook is not None:
                 pre_gen_hook(_step, active_masks, batch)
@@ -466,6 +484,7 @@ class TrajectoryCollector:
                     "repeated_count_so_far": int(repeated_count[i]),
                     "response_token_count": int(resp_tok0[i]),
                     "early_stopped": bool(early_stopped[i]), "early_stop_reason": str(early_stop_reason[i]),
+                    "length_terminated": bool(length_terminated[i]),
                     "observation": (cur_text[i] if cur_text is not None else ""),
                     "raw_model_response": text_actions[i],
                     # rung-4 sciworld gate fields (guarded .get: empty/False for other envs)
@@ -496,6 +515,7 @@ class TrajectoryCollector:
             batch.non_tensor_batch['response_token_count'] = torch_to_numpy(resp_tok).astype(np.int64)
             batch.non_tensor_batch['early_stopped'] = np.array(early_stopped, dtype=object)
             batch.non_tensor_batch['early_stop_reason'] = early_stop_reason.copy()
+            batch.non_tensor_batch['length_terminated'] = np.array(length_terminated, dtype=object)
 
             if post_step_hook is not None:
                 post_step_hook(_step, active_masks, dones_np, batch)
@@ -517,6 +537,11 @@ class TrajectoryCollector:
             # Break if all environments are done
             if is_done.all():
                 break
+
+        if overflow_terminate and length_terminated.any():
+            print(f"[overflow_terminate] {int(length_terminated.sum())}/{batch_size} trajectories "
+                  f"length-terminated (next prompt > {int(self.config.data.max_prompt_length)} tokens)",
+                  flush=True)
 
         return (total_batch_list, episode_rewards, episode_lengths, tool_callings,
                 total_infos, rollout_records)

@@ -152,11 +152,19 @@ def _cap_doc(content: str, max_words: int = _DOC_MAX_WORDS) -> str:
     return " ".join(words[:max_words]) + " …[truncated]"
 
 
+# ASearcher-style BLOCK-level cap (rung-3 8B/32-turn): the whole joined top-k
+# reference (the <information> payload) is capped at N chars — ASearcher caps the
+# <search> observation at 5000. 0 disables (default: per-doc cap alone applies).
+_INFO_BLOCK_MAX_CHARS = int(os.environ.get("SEARCH_INFO_BLOCK_MAX_CHARS", "0"))
+
+
 def _passages2string(retrieval_result):
     format_reference = ""
     for idx, doc_item in enumerate(retrieval_result):
         content = _cap_doc(doc_item["document"]["contents"].strip())
         format_reference += f"Doc {idx+1}: {content}\n"
+    if _INFO_BLOCK_MAX_CHARS > 0 and len(format_reference) > _INFO_BLOCK_MAX_CHARS:
+        format_reference = format_reference[:_INFO_BLOCK_MAX_CHARS] + " …[truncated]"
     return format_reference
 
 
