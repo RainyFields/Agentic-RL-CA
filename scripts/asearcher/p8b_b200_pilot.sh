@@ -39,7 +39,9 @@ finish() { echo "$status $(date -u +%FT%TZ)" > "$HLOG/$status"
 trap finish EXIT
 
 eval "$(grep -E '^export (HF_TOKEN|WANDB_API_KEY)=' /home/tiger/.bashrc)" || true
-[ -z "${WANDB_API_KEY:-}" ] && export WANDB_MODE=offline
+# B200 fix 3: useast1b pods cannot reach wandb.ai (init timeout 90s) -> always offline;
+# sync the run dir from the dev node afterwards.
+export WANDB_MODE=offline
 echo "==== B200-PILOT start $(date -u) on $(hostname) ===="
 uname -m; nvidia-smi -L | head -2; nvidia-smi | sed -n 3p
 
