@@ -188,3 +188,18 @@ short action-style turns, 512-token caps, Qwen2.5-7B) may never enter the regime
 s_final injection (full <information> block) is a large prompt perturbation. The within-batch
 corr(rho, |a_t|) probe -- now clearly the decisive instrument -- remains queued.
 Run continues to 500 per the abort rule (EM 0.408 >> 0.30).
+
+## WAVE-4 pre-registration, 2026-07-31 (before any lift-arm data): the 2x2
+User-requested side-by-side of the two m_t formulations across injection sizes. New score option
+rho_score="lift": m_t = per-token-mean of [log pi(y|..,s_final) - log pi(y|..)], Eq.7
+normalisation unchanged. Grid (all Qwen3-4B non-thinking@2048, 500 steps, s0):
+                      s_final=last_obs           s_final=final_answer
+  score=hind (Eq.6)   hcapo_paper (running/378)  hcapo_ans (running/235)
+  score=lift          hcapo_lift  (NEW)          hcapo_lift_ans (NEW)
+Predictions (from the offline diagnostic's rho_dm: Spearman 0.95-0.97 vs Eq.6 score, corr(lift,len)
+= +0.43 healthy / +0.77 post-ignition, leakage unchanged):
+  P-L1: hcapo_lift re-ignites the drift at ~step 160+-25, matching hcapo_paper's trajectory.
+  P-L2: hcapo_lift_ans tracks hcapo_ans (damped, plateau ~450-500 tokens, clip ~0.1).
+  P-L3: EM differences between lift and hind arms at matched s_final stay within noise (~+-0.02).
+  If P-L1 fails (no ignition on last_obs+lift), the static-ranking -> training-dynamics inference
+  is wrong and the lift genuinely changes the feedback loop -- the most informative outcome.

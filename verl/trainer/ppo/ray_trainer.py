@@ -445,6 +445,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             clip_hi=float(_hc.get('clip_hi', 1.2)),
             temporal_alpha=float(_hc.get('temporal_alpha', 0.5)),
             use_temporal=bool(_hc.get('use_temporal', True)),
+            rho_score=str(_hc.get('rho_score', 'hind')),
         )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns

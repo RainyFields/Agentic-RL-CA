@@ -99,7 +99,7 @@ def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask
                             rewards, uid, traj_uid, turn_index,
                             gamma=0.95, omega=1.0, t_temp=5.0, clip_lo=0.8, clip_hi=1.2,
                             temporal_alpha=0.5, use_temporal=True, eps=1e-3, adv_clip=5.0,
-                            rho_denominator="intra_traj_mean"):
+                            rho_denominator="intra_traj_mean", rho_score="hind"):
     """Returns (advantages, returns) each (B, T_resp). Value-free (returns mirrors advantages).
 
     rho_denominator:
@@ -129,9 +129,21 @@ def compute_hcapo_advantage(policy_log_probs, hindsight_log_probs, response_mask
         mean_logratio = ((hindsight_log_probs - policy_log_probs) * m).sum(-1) / ntok
         rho = torch.exp(mean_logratio / t_temp).clamp(clip_lo, clip_hi).detach().cpu().numpy()
     else:
-        # Eq. (6): per-token-normalised, temperature-sharpened hindsight log-prob. The POLICY
-        # log-probs play no part in rho under the paper's formulation.
-        log_pi_hind = ((hindsight_log_probs * m).sum(-1) / ntok / t_temp).detach().cpu().numpy()
+        if rho_score == "lift":
+            # Wave-4 (user 2026-07-31): score = the per-token-mean LIFT
+            #   m_t = (1/|a_t|) sum_j [log pi(y_j|.., s_final) - log pi(y_j|..)]
+            # then Eq. 7's intra-trajectory normalisation on top. Motivation: subtract the shared
+            # per-token predictability profile. NB the offline diagnostic (estdiag_*.json, rho_dm)
+            # measured this exact estimator: corr(lift, len) = +0.43/+0.77 (the injection-dilution
+            # channel survives the subtraction) and Spearman 0.95-0.97 vs the Eq.6 score -- so the
+            # pre-registered prediction is that it re-ignites the drift on last_obs and tracks the
+            # damped trajectory on final_answer. This arm tests the DYNAMICS of that prediction.
+            log_pi_hind = (((hindsight_log_probs - policy_log_probs) * m).sum(-1)
+                           / ntok / t_temp).detach().cpu().numpy()
+        else:
+            # Eq. (6): per-token-normalised, temperature-sharpened hindsight log-prob. The POLICY
+            # log-probs play no part in rho under the paper's formulation.
+            log_pi_hind = ((hindsight_log_probs * m).sum(-1) / ntok / t_temp).detach().cpu().numpy()
         # Eq. (7): self-normalise by the mean over the TURNS of the same trajectory. Averaging is
         # over turns, so rows sharing a turn_index are deduped to one representative first.
         rho = np.ones_like(log_pi_hind, dtype=np.float32)
