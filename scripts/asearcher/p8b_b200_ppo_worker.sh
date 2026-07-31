@@ -7,7 +7,15 @@
 set -uo pipefail
 export PYTHONUNBUFFERED=1
 
-export LD_PRELOAD=/lib/x86_64-linux-gnu/libcuda.so.1
+# Pod images in this pool are heterogeneous: some have the real driver libcuda at
+# /lib/x86_64-linux-gnu, others only a stub there ("file too short") with the real one
+# elsewhere. Pick the first real (>1MB) non-compat libcuda; fall back to no preload.
+LIBCUDA=""
+for c in $(ldconfig -p 2>/dev/null | awk '/libcuda\.so\.1/{print $NF}' | grep -v compat) \
+         /lib/x86_64-linux-gnu/libcuda.so.1 /usr/lib/x86_64-linux-gnu/libcuda.so.1; do
+  if [ -f "$c" ] && [ "$(stat -Lc %s "$c" 2>/dev/null || echo 0)" -gt 1000000 ]; then LIBCUDA="$c"; break; fi
+done
+if [ -n "$LIBCUDA" ]; then export LD_PRELOAD="$LIBCUDA"; echo "[libcuda] preloading $LIBCUDA"; else unset LD_PRELOAD; echo "[libcuda] no real system libcuda found — no preload"; fi
 export VLLM_ATTENTION_BACKEND=TRITON_ATTN
 export WANDB_MODE=offline
 
