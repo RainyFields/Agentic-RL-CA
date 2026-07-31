@@ -95,7 +95,7 @@ WATCHDOG_PID=$!
 
 # ---- the arm: 75 steps, fast config, 3 attempts with resume ----
 export EXP_NAME="${COND}_qwen3-8b-base_32turn_fast75_s0"
-export DYNBSZ=1 DYNBSZ_TOK=24576
+export DYNBSZ=1 DYNBSZ_TOK="${DYNBSZ_TOK:-24576}"
 PR_ARGS=(+env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 +env.partial_rollout_max_age=4)
 for attempt in 1 2 3; do
   echo "==== P8B-ARM $COND attempt $attempt $(date -u) ===="
@@ -105,7 +105,14 @@ for attempt in 1 2 3; do
   echo "==== P8B-ARM $COND attempt $attempt exit=$RC $(date -u) ===="
   if [ "$RC" = "0" ]; then status=DONE; break; fi
   pkill -9 -f verl.trainer.main_ppo 2>/dev/null || true
+  pkill -9 -f "ray::" 2>/dev/null || true
   "$VENV/bin/ray" stop --force >/dev/null 2>&1 || true
-  sleep 60
+  # drain until GPUs actually free (OOM-wedged workers can hold memory for minutes;
+  # 2026-07-31: a 60s fixed sleep burned two retries on 'Total available GPUs 0')
+  for d in $(seq 1 60); do
+    MAXUSED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | sort -n | tail -1)
+    [ "${MAXUSED:-99999}" -lt 2000 ] && { echo "[retry] GPUs drained after $((d*20))s"; break; }
+    sleep 20
+  done
 done
 echo "==== P8B-ARM $COND complete ($status) $(date -u) ===="
