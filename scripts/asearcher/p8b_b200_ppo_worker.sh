@@ -17,6 +17,7 @@ for c in $(ldconfig -p 2>/dev/null | awk '/libcuda\.so\.1/{print $NF}' | grep -v
 done
 if [ -n "$LIBCUDA" ]; then export LD_PRELOAD="$LIBCUDA"; echo "[libcuda] preloading $LIBCUDA"; else unset LD_PRELOAD; echo "[libcuda] no real system libcuda found — no preload"; fi
 export VLLM_ATTENTION_BACKEND=TRITON_ATTN
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1  # useast1b cannot reach huggingface.co; e5 is in the shared /home cache
 export WANDB_MODE=offline
 
 REPO=${REPO:-/home/tiger/xiaoxuan/arlca-8b}
