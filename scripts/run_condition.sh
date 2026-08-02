@@ -134,8 +134,8 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger="['console','wandb']" \
     trainer.project_name="$WANDB_PROJECT" \
     trainer.experiment_name="$EXP_NAME" \
-    trainer.n_gpus_per_node=8 \
-    trainer.nnodes=1 \
+    trainer.n_gpus_per_node="${N_GPUS_PER_NODE:-8}" \
+    trainer.nnodes="${NNODES:-1}" \
     trainer.save_freq="$SAVE_FREQ" \
     trainer.max_actor_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
     trainer.max_critic_ckpt_to_keep="${MAX_CKPT_KEEP:-1}" \
