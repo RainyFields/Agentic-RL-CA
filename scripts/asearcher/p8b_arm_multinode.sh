@@ -11,7 +11,9 @@ COND="${COND:?set COND=...}"
 REPO=${REPO:-/home/tiger/xiaoxuan/arlca-8b}
 export PYTHONPATH="$REPO"
 export VENV=/home/tiger/xiaoxuan/envs/agentic-rl-ca
-RAY_PORT="${RAY_PORT:-6379}"
+# Merlin allocates the inter-node port (ARNOLD_WORKER_0_PORT); 6379 is NOT open
+# between nodes, and ARNOLD_WORKER_0_HOST is an IPv6 literal -> needs [brackets].
+RAY_PORT="${RAY_PORT:-${ARNOLD_WORKER_0_PORT:-6379}}"
 
 echo "==== P8B-MN [$COND] $(date -u) host=$(hostname) ===="
 # --- topology discovery: print everything relevant, then resolve role/head/size ---
@@ -21,7 +23,8 @@ ROLE="${ARNOLD_ID:-${METIS_TASK_INDEX:-0}}"
 NNODES="${NNODES:-${ARNOLD_WORKER_NUM:-${METIS_WORKER_NUM:-1}}}"
 HEAD="${ARNOLD_WORKER_0_HOST:-${METIS_WORKER_0_HOST:-}}"
 [ -z "$HEAD" ] && [ "$ROLE" = "0" ] && HEAD="$(hostname -i | awk '{print $1}')"
-echo "[topology] role=$ROLE nnodes=$NNODES head=$HEAD"
+case "$HEAD" in *:*:*) HEAD_ADDR="[$HEAD]";; *) HEAD_ADDR="$HEAD";; esac
+echo "[topology] role=$ROLE nnodes=$NNODES head=$HEAD addr=$HEAD_ADDR port=$RAY_PORT"
 if [ -z "$HEAD" ] || [ "$NNODES" = "1" ]; then
   echo "MULTINODE FAIL: could not resolve topology (role=$ROLE nnodes=$NNODES head=$HEAD)"
   echo "  -> falling back is NOT automatic; relaunch single-node if this persists"
@@ -33,8 +36,8 @@ export NNODES N_GPUS_PER_NODE=8
 
 if [ "$ROLE" = "0" ]; then
   echo "[ray] starting head on $HEAD:$RAY_PORT"
-  ray start --head --port="$RAY_PORT" --num-gpus=8 --dashboard-host=0.0.0.0 || exit 1
-  export RAY_ADDRESS="$HEAD:$RAY_PORT"
+  ray start --head --node-ip-address="$HEAD" --port="$RAY_PORT" --num-gpus=8 || exit 1
+  export RAY_ADDRESS="$HEAD_ADDR:$RAY_PORT"
   # wait for every node to register (8 GPUs each)
   want=$((NNODES * 8)); ok=0
   for i in $(seq 1 90); do
@@ -51,12 +54,12 @@ if [ "$ROLE" = "0" ]; then
   ray stop --force >/dev/null 2>&1
   exit $RC
 else
-  echo "[ray] joining head $HEAD:$RAY_PORT as role $ROLE"
+  echo "[ray] joining head $HEAD_ADDR:$RAY_PORT as role $ROLE"
   for i in $(seq 1 60); do
-    ray start --address="$HEAD:$RAY_PORT" --num-gpus=8 && break
+    ray start --address="$HEAD_ADDR:$RAY_PORT" --num-gpus=8 && break
     echo "[ray] head not up yet (try $i)"; sleep 10
   done
   # idle while the head drives the run; exiting here would tear this node out of the cluster
-  while ray status --address="$HEAD:$RAY_PORT" >/dev/null 2>&1; do sleep 60; done
+  while ray status --address="$HEAD_ADDR:$RAY_PORT" >/dev/null 2>&1; do sleep 60; done
   echo "==== P8B-MN [$COND] worker $ROLE: head cluster gone, exiting $(date -u) ===="
 fi
