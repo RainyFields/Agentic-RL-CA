@@ -6,15 +6,42 @@
 #           trajectory's FINAL state (hindsight) vs the on-policy prompt.
 # A = (R-muR)/sigmaR + omega * (Q^H-muH)/sigmaH , broadcast to response tokens. Optional temporal
 # smoothing of Q^H across adjacent turns. No critic.
+import re
+
 import numpy as np
 import torch
 from verl.utils.model import compute_position_id_with_mask
 
 
+_ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.IGNORECASE | re.DOTALL)
+
+
+def _extract_final_answer(text: str) -> str:
+    """The <answer> payload of a turn's response; falls back to the trimmed raw text so a
+    trajectory that hit the turn/context cap without answering still yields a hindsight token."""
+    m = _ANSWER_RE.search(text or "")
+    if m:
+        return m.group(1).strip()
+    return (text or "").strip()
+
+
 def build_hindsight_batch(data, tokenizer, max_prompt_length, max_response_length,
-                          hindsight_prefix="\nThe episode's final observation was: "):
-    """DataProto whose prompts have s_final (the trajectory's last observation) appended before the
-    SAME response. Feed to actor_rollout_wg.compute_log_prob to get pi_hind."""
+                          hindsight_prefix=None, hindsight_source="answer"):
+    """DataProto whose prompts have s_final appended before the SAME response. Feed to
+    actor_rollout_wg.compute_log_prob to get pi_hind.
+
+    hindsight_source:
+      "answer"      — s_final = the trajectory's FINAL ANSWER (decoded from the last turn's
+                      response, <answer> payload). This is the search-task reading of the
+                      HCAPO paper's terminal state: the outcome that makes earlier turns
+                      look good or bad in hindsight is the answer the agent committed to.
+      "observation" — s_final = the last retrieved observation (anchor_obs). Original
+                      behavior, kept for ablation.
+    """
+    assert hindsight_source in ("answer", "observation"), hindsight_source
+    if hindsight_prefix is None:
+        hindsight_prefix = ("\nThe episode's final answer was: " if hindsight_source == "answer"
+                            else "\nThe episode's final observation was: ")
     from verl import DataProto
     prompts = data.batch['prompts']            # (B, Lp) left-padded
     responses = data.batch['responses']        # (B, Lr) right-padded
@@ -24,17 +51,25 @@ def build_hindsight_batch(data, tokenizer, max_prompt_length, max_response_lengt
     device = prompts.device
     pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
 
-    anchor = np.asarray(data.non_tensor_batch['anchor_obs'])
+    prompt_attn = attn[:, :Lp]
+    resp_attn = attn[:, -Lr:]
+
     traj_uid = np.asarray(data.non_tensor_batch['traj_uid'])
     turn_index = np.asarray(data.non_tensor_batch['turn_index']).astype(np.int64)
+    anchor = (np.asarray(data.non_tensor_batch['anchor_obs'])
+              if hindsight_source == "observation" else None)
     sfinal = {}
     for uid in np.unique(traj_uid):
         idx = np.where(traj_uid == uid)[0]
         last = idx[np.argmax(turn_index[idx])]
-        sfinal[uid] = str(anchor[last])
+        if hindsight_source == "observation":
+            sfinal[uid] = str(anchor[last])
+        else:
+            # s_final = the answer the trajectory committed to on its last turn.
+            last_resp = responses[last][resp_attn[last].bool()]
+            sfinal[uid] = _extract_final_answer(
+                tokenizer.decode(last_resp, skip_special_tokens=True))
 
-    prompt_attn = attn[:, :Lp]
-    resp_attn = attn[:, -Lr:]
     new_input, new_attn, new_resp = [], [], []
     for i in range(B):
         p_valid = prompts[i][prompt_attn[i].bool()]

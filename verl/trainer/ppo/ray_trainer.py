@@ -1388,7 +1388,9 @@ class RayPPOTrainer:
                         with _timer("hindsight", timing_raw):
                             hb = core_hcapo.build_hindsight_batch(
                                 batch, self.tokenizer,
-                                self.config.data.max_prompt_length, self.config.data.max_response_length)
+                                self.config.data.max_prompt_length, self.config.data.max_response_length,
+                                hindsight_source=self.config.algorithm.get(
+                                    'hcapo', {}).get('hindsight_source', 'answer'))
                             hlp = self.actor_rollout_wg.compute_log_prob(hb)
                             batch.batch['hindsight_log_probs'] = hlp.batch['old_log_probs']
 

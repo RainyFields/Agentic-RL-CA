@@ -1068,8 +1068,15 @@ class TrajectoryCollector:
         # estimators that group by anchor state across a same-cycle batch (GiGPO) or with
         # dynamic sampling (filter_groups) — both assume all group members share a cycle.
         if is_train and bool(self.config.env.get('partial_rollout_enable', False)):
-            assert str(self.config.algorithm.adv_estimator) not in ('carl', 'gigpo'), \
-                "partial rollout PoC does not support CARL/GiGPO"
+            # CARL builds its own per-prompt rollout tree (snapshot/resume from inside the
+            # loop) — incompatible. GiGPO IS compatible: its grouping unit is the uid group
+            # (episode advantage over the group, step advantage over anchor-matched turns
+            # WITHIN a uid group), and partial rollout releases uid groups ATOMICALLY, so
+            # every released batch contains each group whole, with all of its turns.
+            # (Measured 2026-08-03: 51.9% of non-empty-anchor turns share an anchor with a
+            # sibling, so the step-level term is non-degenerate in this env.)
+            assert str(self.config.algorithm.adv_estimator) != 'carl', \
+                "partial rollout does not support CARL (it builds its own rollout tree)"
             assert not self.config.algorithm.filter_groups.enable, \
                 "partial rollout PoC is incompatible with filter_groups (dynamic sampling)"
             return self.partial_multi_turn_loop(gen_batch, actor_rollout_wg, envs)
