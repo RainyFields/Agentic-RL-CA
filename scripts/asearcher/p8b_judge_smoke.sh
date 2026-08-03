@@ -35,12 +35,17 @@ source "$VENV/bin/activate"; export VIRTUAL_ENV="$VENV"
 python -c 'import vllm, httpx; print("vllm", vllm.__version__)' || { echo "venv incomplete"; exit 1; }
 
 # ---- stage weights (HDFS FUSE is too slow to serve 60GB of shards from directly) ----
-if [ ! -f "$STAGE_MODEL/config.json" ]; then
+# Skip the 61G metal/ dir (Apple-Metal weights vLLM never reads); 8-way parallel cp;
+# completeness marker written after the copy, since config.json lands early.
+if [ ! -f "$STAGE_MODEL/.staged" ]; then
   echo "[stage] copying $SRC_MODEL -> $STAGE_MODEL $(date -u)"
   mkdir -p "$STAGE_MODEL"
-  cp -r "$SRC_MODEL"/. "$STAGE_MODEL"/ || { echo "PREFLIGHT FAIL: stage copy"; exit 1; }
+  ( cd "$SRC_MODEL" && ls | grep -v "^metal$" ) | \
+    xargs -P 8 -I{} cp -r "$SRC_MODEL/{}" "$STAGE_MODEL/" \
+    || { echo "PREFLIGHT FAIL: stage copy"; exit 1; }
+  touch "$STAGE_MODEL/.staged"
 fi
-du -sh "$STAGE_MODEL"; df -h /tmp | tail -1
+du -sh --apparent-size "$STAGE_MODEL"; df -h /tmp | tail -1
 
 # ---- server ----
 SRV_LOG="$REPO/outputs/judge_smoke_server.log"; : > "$SRV_LOG"

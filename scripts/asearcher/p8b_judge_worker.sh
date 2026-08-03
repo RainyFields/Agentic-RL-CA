@@ -38,11 +38,18 @@ source "$VENV/bin/activate"; export VIRTUAL_ENV="$VENV"
 python -c 'import vllm, httpx' || { echo "venv incomplete"; exit 1; }
 
 # ---- stage weights to local disk (HDFS FUSE is far too slow to serve shards from) ----
+# Copy ONLY what vLLM loads: the gpt-oss-120b repo carries a 61G metal/ dir (Apple-Metal
+# weights) that cp -r would drag along, tripling the copy. Completeness is signalled by a
+# marker written AFTER the copy — config.json lands early, so its presence proves nothing.
 STAGE_MODEL="${STAGE_MODEL:-/tmp/$(basename "$JUDGE_MODEL_PATH")}"
-if [ ! -f "$STAGE_MODEL/config.json" ]; then
+if [ ! -f "$STAGE_MODEL/.staged" ]; then
   echo "[judge] staging $JUDGE_MODEL_PATH -> $STAGE_MODEL $(date -u)"
   mkdir -p "$STAGE_MODEL"
-  cp -r "$JUDGE_MODEL_PATH"/. "$STAGE_MODEL"/ || { echo "PREFLIGHT FAIL: stage copy"; exit 1; }
+  ( cd "$JUDGE_MODEL_PATH" && ls | grep -v "^metal$" ) | \
+    xargs -P 8 -I{} cp -r "$JUDGE_MODEL_PATH/{}" "$STAGE_MODEL/" \
+    || { echo "PREFLIGHT FAIL: stage copy"; exit 1; }
+  touch "$STAGE_MODEL/.staged"
+  echo "[judge] staged $(du -sh --apparent-size "$STAGE_MODEL" | cut -f1) $(date -u)"
 fi
 df -h /tmp | tail -1
 
