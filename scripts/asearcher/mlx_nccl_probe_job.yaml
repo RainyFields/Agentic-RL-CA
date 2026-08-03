@@ -31,10 +31,10 @@ jobDefVersion:
   name: 'nccl-2node-probe'
   resource:
     arnoldConfig:
-      clusterId: 0        # TODO: numeric id from https://arnold.byted.org/v2/cluster
+      clusterId: 4        # arnold.byted.org/v2/cluster (user-provided 2026-08-04)
       elasticTraining: {}
       groupIds:
-        - 0               # TODO: numeric id from https://arnold.byted.org/v2/group
+        - 1362            # arnold.byted.org/v2/group (user-provided 2026-08-04)
       keepMins: 15
       preemptible: true
       quotaPool: default
