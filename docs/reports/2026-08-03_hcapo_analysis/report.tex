@@ -169,6 +169,9 @@ hind (published) & 165 & 1742 & 0.75\\
 posted the best mid-training accuracy of any HCAPO run ($0.447$ at step 350, level with GRPO's
 endpoint). Then it ignited between steps 450 and 500. Full-set macro-EM $0.429$: better than the
 published form's $0.410$, worse than the answer-injection form's $0.440$, and below GRPO's $0.463$.
+The lift$\times$answer cell completed after this report was first compiled: final val-EM $0.411$ at
+the cap (2047 tokens, clip $\approx$1.0), confirming its $\sim$step-375 ignition; its full-set
+number will be appended when its eval lands.
 
 The static diagnostic had predicted the lift would behave \emph{identically} to Eq.~6 (Spearman
 $0.97$ co-ranking). It did not --- so rank-equivalence at a policy snapshot does not imply
