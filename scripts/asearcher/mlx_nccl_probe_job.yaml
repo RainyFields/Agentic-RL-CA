@@ -1,0 +1,66 @@
+# 2-node NCCL probe as a Merlin TRAINING JOB (mlx job submitv2 -p <this file>).
+#
+# Purpose: workspace workers on the inference-guarantee queue firewall NCCL's ephemeral
+# socket ports, so cross-node allreduce fails there (verdict 2026-08-03, nccl_probe.sh).
+# Arnold training jobs schedule differently (declared port reservations, typically
+# RDMA-capable training hosts) — this job re-runs the SAME probe under that path.
+#
+# BEFORE SUBMITTING, fill the two TODO fields from https://arnold.byted.org/v2/cluster
+# and /v2/group (needs SSO):
+#   - resource.arnoldConfig.clusterId
+#   - resource.arnoldConfig.groupIds
+#
+# Submit from the durable checkout (it is a real git repo, giving submitv2 its branch):
+#   cd /home/tiger/xiaoxuan/arlca-8b && mlx job submitv2 -p scripts/asearcher/mlx_nccl_probe_job.yaml \
+#     --branch sync-partial-rollout-poc --caption "nccl-2node-probe"
+#   mlx job list; mlx job log <id>
+#
+# Interpretation of results (probe prints all of this):
+#   /dev/infiniband present + "NET/IB" in NCCL INFO + busbw >= ~40 GB/s -> multinode viable
+#   "Using network Socket" but allreduce COMPLETES -> ports open; viable but bandwidth-bound
+#   ncclRemoteError on first allreduce -> same firewalling as workers; multinode still dead
+caption: 'nccl-2node-probe'
+jobDefVersion:
+  entrypointMode: FULL_SCRIPT
+  gitRepo:
+    mnt: /home/tiger/xiaoxuan/arlca-8b
+  imageMeta:
+    imageSource: url
+    imageUrl: aliyun-va-hub.byted.org/arnold/modelchef-gpu:1.0.0.38
+  lazyDownloadCode: true
+  name: 'nccl-2node-probe'
+  resource:
+    arnoldConfig:
+      clusterId: 0        # TODO: numeric id from https://arnold.byted.org/v2/cluster
+      elasticTraining: {}
+      groupIds:
+        - 0               # TODO: numeric id from https://arnold.byted.org/v2/group
+      keepMins: 15
+      preemptible: true
+      quotaPool: default
+      roles:
+        - cpu: 16
+          gpuv: H100-SXM-80GB
+          memory: 65536
+          name: worker
+          num: 2          # <-- the whole point: two nodes
+          ports: 1        # reserved port surfaces as ARNOLD_WORKER_0_PORT for rendezvous
+    backend: ARNOLD
+jobRunParams:
+  # Self-sufficient: uses the probe from the shared-NFS checkout if mounted, else falls
+  # back to the copy the platform cloned from gitRepo. Either way the probe only needs
+  # the shared venv's torch — if /home/tiger is not mounted in job pods, the preflight
+  # message below is itself the finding (jobs would need a code+env staging strategy).
+  entrypointFullScript: |
+    set -x
+    echo "==== JOB-ENV probe $(date -u) host=$(hostname) role=${ARNOLD_ID:-?}/${ARNOLD_WORKER_NUM:-?} ===="
+    env | grep -E "^ARNOLD_(ID|WORKER_NUM|WORKER_0_HOST|WORKER_0_PORT)=" | sort
+    mount | grep -E "home|nfs" | head -5
+    PROBE=/home/tiger/xiaoxuan/arlca-8b/scripts/asearcher/nccl_probe.sh
+    [ -f "$PROBE" ] || PROBE=./scripts/asearcher/nccl_probe.sh
+    if [ ! -f "$PROBE" ]; then echo "PREFLIGHT FAIL: probe script not reachable (no shared /home, no repo code)"; exit 1; fi
+    if [ ! -d /home/tiger/xiaoxuan/envs/agentic-rl-ca ]; then echo "PREFLIGHT FAIL: shared venv not mounted in job pods — jobs need env staging"; exit 1; fi
+    bash "$PROBE"
+  envsList:
+    NCCL_DEBUG: INFO
+namespace: /user/xiaoxuan.lei
