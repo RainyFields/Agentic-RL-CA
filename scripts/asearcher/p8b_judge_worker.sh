@@ -37,10 +37,19 @@ echo "==== P8B-JUDGE start $(date -u) on $(hostname) ===="
 source "$VENV/bin/activate"; export VIRTUAL_ENV="$VENV"
 python -c 'import vllm, httpx' || { echo "venv incomplete"; exit 1; }
 
+# ---- stage weights to local disk (HDFS FUSE is far too slow to serve shards from) ----
+STAGE_MODEL="${STAGE_MODEL:-/tmp/$(basename "$JUDGE_MODEL_PATH")}"
+if [ ! -f "$STAGE_MODEL/config.json" ]; then
+  echo "[judge] staging $JUDGE_MODEL_PATH -> $STAGE_MODEL $(date -u)"
+  mkdir -p "$STAGE_MODEL"
+  cp -r "$JUDGE_MODEL_PATH"/. "$STAGE_MODEL"/ || { echo "PREFLIGHT FAIL: stage copy"; exit 1; }
+fi
+df -h /tmp | tail -1
+
 # ---- judge server ----
 SRV_LOG="$REPO/outputs/judge_server.log"
 : > "$SRV_LOG"
-vllm serve "$JUDGE_MODEL_PATH" \
+vllm serve "$STAGE_MODEL" \
   --served-model-name gpt-oss-120b \
   --port "$JUDGE_PORT" \
   --tensor-parallel-size "$JUDGE_TP" \
