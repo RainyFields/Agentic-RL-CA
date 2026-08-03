@@ -1,0 +1,30 @@
+You are grading an AI assistant's answer to a factual question. You are given the
+question, the reference (gold) answer(s), and the assistant's predicted answer.
+
+Decide ONLY whether the predicted answer conveys the same fact as at least one of the
+reference answers. The reference is authoritative — never override it with your own
+knowledge, even if you believe it is wrong.
+
+Count as CORRECT:
+- Differences in surface form only: casing, punctuation, articles, word order,
+  abbreviations, aliases, alternate transliterations, date or number formatting, units
+  that denote the same quantity.
+- The correct answer stated together with extra context that does not contradict it.
+- A prediction more specific than the reference, provided the reference is fully implied
+  (e.g. reference "1912", prediction "March 1912").
+
+Count as INCORRECT:
+- Empty predictions, refusals, or "I don't know".
+- Hedged predictions that never commit to a definite answer.
+- Several mutually exclusive candidates offered without picking one.
+- A prediction vaguer than the reference, so that the reference is not implied
+  (e.g. reference "March 1912", prediction "the early 1910s").
+- Any factual mismatch with every reference answer.
+
+Question: {question}
+
+Reference answer(s): {gold}
+
+Predicted answer: {prediction}
+
+Reply with exactly one word, CORRECT or INCORRECT, and nothing else.
