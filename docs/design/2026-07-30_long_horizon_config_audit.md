@@ -85,3 +85,36 @@ Numbers cited are from the P8B profiling report (`docs/reports/2026-07-29_p8b_pr
 Items 1–3 compose multiplicatively with partial rollout since they attack different
 phases. Rough stack: GRPO-partial 8.9 d/arm → with (1)+(3) plausibly ~4–6 d/arm; vanilla
 13.3 d → with (1)+(2)+(3) plausibly ~5–7 d (to be measured, not promised).
+
+---
+
+## Addendum 2026-08-03: multi-node (2×H100) is NOT usable on this queue
+
+Measured, not inferred (`scripts/asearcher/nccl_probe.sh`, 2-node launch):
+
+- **No InfiniBand on these pods**: `/dev/infiniband` absent, `NCCL INFO NET/IB : No device
+  found`, `GPU Direct RDMA Disabled for HCA`.
+- NCCL falls back to **`Using network Socket`** (TCP over eth0), and then the first
+  cross-node allreduce **fails**: `ncclRemoteError ... operation=Connect, res=3, closing
+  connection`. No bandwidth figure exists because no collective completed.
+- Root cause: the pod network only opens the **Merlin-allocated ports**
+  (`ARNOLD_WORKER_0_PORT=10100`, `ARNOLD_EXTRA_PORT_NAMES=MERLIN_INTERNAL_0..5`). Rendezvous
+  over the allocated port works — NCCL's socket transport then opens its own ephemeral data
+  ports, which are blocked. NCCL cannot be restricted to a port allowlist
+  (`NCCL_SOCKET_IFNAME` selects an interface, not ports), so this is not tunable by us.
+
+Consequence: cross-node FSDP/vLLM cannot run here. Multi-node needs the queue owners to
+either provision RDMA/IB or open an inter-node port range. **Do not schedule multi-node
+arms until that changes.**
+
+Cluster-formation plumbing that DOES work (kept in `p8b_arm_multinode.sh` for the day the
+fabric is fixed): mlx `--node N` schedules in ~4 min and runs the same script on every node
+with **no Ray cluster** started; role/topology come from `ARNOLD_ID` / `ARNOLD_WORKER_NUM` /
+`ARNOLD_WORKER_0_HOST` (an **IPv6 literal** — bracket it) / `ARNOLD_WORKER_0_PORT`; the head
+must start Ray, wait for peers, run the trainer, and non-head nodes must idle (exiting
+removes them from the cluster). Note `ray status` may fail to parse a bracketed IPv6
+`RAY_ADDRESS` — verify peer joins from the peer's own log, not the head's GPU count.
+
+Alternatives for throughput, in order of preference: (1) active-slot packing (generation is
+58–81% of step time and finished trajectories still generate every round); (2) B200
+(measured 1.53× end-to-end, `docs/reports/2026-08-01_b200_turnppo_experiment.md`).
