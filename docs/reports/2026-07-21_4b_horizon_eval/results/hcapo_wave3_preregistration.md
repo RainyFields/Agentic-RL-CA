@@ -203,3 +203,63 @@ Predictions (from the offline diagnostic's rho_dm: Spearman 0.95-0.97 vs Eq.6 sc
   P-L3: EM differences between lift and hind arms at matched s_final stay within noise (~+-0.02).
   If P-L1 fails (no ignition on last_obs+lift), the static-ranking -> training-dynamics inference
   is wrong and the lift genuinely changes the feedback loop -- the most informative outcome.
+
+## CORRECTION 2026-07-31: "injection size stabilises the drift" was WRONG -- it only DELAYS it
+At step 250 of hcapo_ans (s_final=final_answer) I wrote that the plateau "increasingly looks like a
+genuine stabilisation, not a delay". Falsified at step 300.
+
+  s_final=answer ignition trace (len / clip):
+    230:497/.13  240:432/.10  250:477/.13  260:504/.14  |  270:1177/.48  280:1149/.46  300:1226/.50
+  -> a sharp phase transition between steps 260 and 270 (504 -> 1177 tokens in TEN steps),
+     the same discontinuous shape as last_obs (551->1371) and legacy (487->1371), just LATER.
+
+Ignition step by variant (all Qwen3-4B non-thinking@2048, otherwise matched):
+    legacy (buggy rho, omega=1.0)      ~ step  90
+    legacy softened (omega=0.5)        ~ step 290  (delay via smaller step size)
+    paper-correct, s_final=last_obs    ~ step 165
+    paper-correct, s_final=answer      ~ step 265  (delay via smaller injection)
+Every knob tried so far -- omega, rho denominator, injection size -- moves the ignition step but
+none prevents it. Consistent with the ratchet account: these knobs change the GAIN of the length
+gradient, not its DIRECTION. The untested structural change is length-invariant scoring (fixed
+window / removing the /|a_t| dependence), which alters the direction.
+
+Also of note: rho spread did NOT monotonically collapse this time -- 0.062@150 -> 0.094@250 (rising,
+pre-ignition) -> 0.052@300 (falling, post). So sigma_rho rises while the ratchet is actively
+selecting among differently-lengthed siblings, then collapses once they homogenise. That is a
+sharper signature than "sigma just decays", and it fits the mechanism better than my earlier
+description of it.
+
+## FINAL CORRECTION 2026-08-02: ALL FOUR 2x2 cells ran away. No configuration prevented it.
+I repeatedly described lift+last_obs (arm A) as the surviving cell -- "the only configuration that
+avoids the runaway", and generalised to "the scoring formulation determines WHETHER the runaway
+happens; injection size only determines WHEN". Both statements are now FALSE. Arm A ignited between
+steps 450 and 500 (648 -> 1420 tokens, clip .26 -> .65) after 300 steps of genuine stability.
+
+Ignition step by configuration (all Qwen3-4B non-thinking@2048, otherwise matched, single seed):
+    legacy rho (buggy), omega=1.0                ~  90
+    paper rho,  score=hind, s_final=last_obs     ~ 165
+    paper rho,  score=hind, s_final=answer       ~ 265
+    legacy rho, omega=0.5                        ~ 290
+    paper rho,  score=lift, s_final=answer       ~ 375
+    paper rho,  score=lift, s_final=last_obs     ~ 460
+FIVE knobs tested -- omega, the rho denominator, injection size, and the m_t formulation (lift vs
+Eq.6 hind) -- across six runs. Every one moves the ignition step; NONE prevents ignition. Ordering
+is monotone in how much each damps the length gradient's gain, exactly as the ratchet account
+predicts: they change the GAIN, never the DIRECTION.
+
+Final SearchQA numbers (val-2048 @500 / mean tokens / clip):
+    hind+last_obs  0.406 / 1742 / 0.75    full-set macro-EM 0.410
+    hind+answer    0.434 / 2048 / 1.00    full-set macro-EM 0.440
+    lift+last_obs  0.419 / 1420 / 0.65    full-set pending
+    lift+answer    (running, ignited @375; 2033 tokens @400)
+    reference: GRPO 0.452 / 111 / ~0      full-set macro-EM 0.463
+The lift is still the best-behaved variant by a wide margin (it held ~600 tokens for 300 steps and
+finished at 1420 rather than the cap), but "best-behaved" is not "fixed". The one intervention
+still untested is the structural one: length-INVARIANT scoring (fixed-window m_t), which removes
+the /|a_t| dependence rather than shrinking its coefficient.
+
+Process note: this is the fifth premature stability call in this experiment (step-150 "decelerating",
+step-150 "omega refuted", step-250 "EM declining", step-250 "injection size stabilises", and now
+arm A "the lone survivor"). The three-consecutive-points rule was insufficient here -- arm A had SIX
+consecutive flat readings before igniting. For runaway dynamics with a long fuse, the only safe
+statement is the one made AFTER the run terminates.
