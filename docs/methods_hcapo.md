@@ -201,3 +201,48 @@ Algorithm 1  Training LLM Agents with HCAPO
 10. **Discounting inside $Q^H$:** unlike vanilla GRPO (undiscounted terminal reward for all steps), HCAPO's micro term uses $\gamma^{T-t}R(\tau_i)$, $\gamma = 0.95$ — earlier steps get exponentially smaller raw hindsight Q before normalization.
 11. **Prompts:** agent templates in Appendix C.2 use `<think></think>` + `<action></action>` (ALFWorld/WebShop, history length 2) and `<think>/<search>/<answer>/<information>` tags for Search-QA (full history). The hindsight-verification prompt conditions on state + hindsight info $s_{\mathrm{final}}$ (Figure 2a); its exact template text is **not** printed in the paper.
 12. **Everything follows GiGPO's experimental configuration** (benchmarks, baselines, and unlisted knobs) — the GiGPO (verl-agent) codebase is the reference for any hyperparameter the paper omits (e.g. PPO $\epsilon$, optimizer details, warmup).
+
+---
+
+## 5. Cross-check against the Search-R1 codebase (2026-08-03)
+
+HCAPO's Search-augmented-QA setting is the Search-R1 task, so Search-R1's own reference
+configs are an independent check on the Appendix C.1 numbers transcribed above. Checked
+against `github.com/PeterGriffinJin/Search-R1` @ `598e61b` (re-cloned after
+`~/xiaoxuan/searchr1/` was lost to a node reprovision; only
+`/mnt/hdfs/.../searchr1/eval_fullset` survived).
+
+**Confirmed — HCAPO's Search-QA column is Search-R1's config.** Four values match exactly,
+which is strong evidence the transcription is right: group size $G=5$
+(`rollout.n_agent=5`), actor LR `1e-6`, $\beta_{\mathrm{KL}}=0.001$ (`kl_loss_coef=0.001`,
+`kl_loss_type=low_var_kl`), rollout temperature `1.0`. Max prompt length 4096 also matches;
+max response is 500 in the repo vs the paper's 512 (rounding).
+
+**⚠ Batch-size labels are probably transposed.** The paper's Search-QA column reads
+"mini-batch size **512**" and "training data size **256**". Search-R1 uses
+`data.train_batch_size=512` and `actor_rollout_ref.actor.ppo_mini_batch_size=256` — the
+same two numbers with the roles swapped. The likelier reading is that the paper's
+"mini-batch" is the rollout/train batch (512) and its "training data size" is the PPO
+mini-batch (256). Our protocol (`configs/protocol_asearcher_32turn_8b.sh`) currently
+implements `TRAIN_BATCH=256` / `PPO_MINI_BATCH=512`, i.e. the paper-as-transcribed reading.
+This is a *shared-protocol* setting applied identically to every arm, so it does not bias
+the HCAPO-vs-GRPO-vs-PPO comparison — but it should not be described as matching HCAPO's
+Search-QA batch config without this caveat.
+
+**Deliberate, already-documented deviations** (ASearcher-matched, not HCAPO-matched):
+32 turns vs Search-R1's 2–4, 16k prompt vs 4096, 1024 response vs 500, retrieval top-5 vs
+top-3.
+
+**Reward-scorer provenance.** `verl/utils/reward_score/search_r1_like_qa_em.py` is
+byte-identical to Search-R1's `verl/utils/reward_score/qa_em.py` for `normalize_answer`,
+`em_check` and `subem_check` (whitespace-normalized diff). `extract_solution` differs by
+one line on purpose: Search-R1 requires **2+** `<answer>` matches because it scores
+prompt+response and the prompt template contains an example `<answer>Beijing</answer>`;
+we score the response/chat-history only, so **1+** is the correct threshold.
+
+**⚠ The env rewards strict EM, not sub-EM.**
+`agent_system/environments/.../search/env.py` imports `compute_score` (exact match), not
+`compute_score_subem`. So `episode/success_rate`, `val/asearcher_base/em` and every arm
+result quoted for the 8B/4B runs are **strict EM**. Measured on the 8B GRPO dump: EM 0.192
+vs sub-EM 0.274 over the same 4,201 trajectories — a ~8-point gap, so the distinction
+matters when comparing to papers that quote sub-EM. `judge_rollouts.py` reports both.

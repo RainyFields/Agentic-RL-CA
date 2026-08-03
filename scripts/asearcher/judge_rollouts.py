@@ -38,10 +38,16 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from agent_system.environments.env_package.search.third_party.skyrl_gym.envs.search.utils import (  # noqa: E402
+    em_check,
     extract_solution,
     normalize_answer,
     subem_check,
 )
+
+# The search env scores with `compute_score` (STRICT exact match), so `em` — not `subem` —
+# is the rule-based number comparable to the training-time val/asearcher_base/em. sub-EM is
+# reported alongside it because it is what the Search-R1 line of work usually quotes.
+RULE_METRICS = ("em", "subem")
 
 DEFAULT_EVALSET = "/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/data_asearcher_eval/asearcher_eval.parquet"
 DEFAULT_PROMPT = REPO / "configs" / "judge_prompts" / "asearcher_mbe_v1.txt"
@@ -164,9 +170,9 @@ def attach_gold(trajs: list[dict], gold: dict[str, dict]) -> list[dict]:
         t["targets"] = g["targets"]
         # The dump's own data_source is authoritative; fall back to the goldset's.
         t["data_source"] = t.get("data_source") or g["data_source"]
-        t["subem"] = (
-            subem_check(t["prediction"], t["targets"]) if t["prediction"] is not None else 0
-        )
+        has_pred = t["prediction"] is not None
+        t["em"] = em_check(t["prediction"], t["targets"]) if has_pred else 0
+        t["subem"] = subem_check(t["prediction"], t["targets"]) if has_pred else 0
         matched.append(t)
     if unmatched:
         pct = 100.0 * unmatched / max(1, len(trajs))
@@ -256,6 +262,7 @@ async def judge_all(
                 "prediction": t["prediction"],
                 "n_turns": t["n_turns"],
                 "env_won": t["env_won"],
+                "em": t["em"],
                 "subem": t["subem"],
                 "judge": verdict,  # None = judge failed; excluded from the judge mean
                 "judge_raw": raw,
@@ -277,14 +284,16 @@ def _mean(xs: list[float]) -> float:
 
 def aggregate(items: list[dict]) -> dict:
     """Avg@k semantics: average the samples of a question first, then average questions."""
+    metrics = (*RULE_METRICS, "judge")
     per_q: dict[tuple[str, str], dict[str, list]] = defaultdict(
-        lambda: {"subem": [], "judge": [], "turns": []}
+        lambda: {m: [] for m in (*metrics, "turns")}
     )
     judge_failed = 0
     judge_attempted = any(it.get("judge_raw") for it in items)
     for it in items:
         key = (it["data_source"], normalize_answer(it["question"]))
-        per_q[key]["subem"].append(float(it["subem"]))
+        for m in RULE_METRICS:
+            per_q[key][m].append(float(it[m]))
         per_q[key]["turns"].append(float(it["n_turns"]))
         if it["judge"] is None:
             # In --no-judge mode every item is unjudged by design, not a failure.
@@ -293,23 +302,22 @@ def aggregate(items: list[dict]) -> dict:
             per_q[key]["judge"].append(float(it["judge"]))
 
     by_bench: dict[str, dict] = defaultdict(
-        lambda: {"subem": [], "judge": [], "turns": [], "n_q": 0, "n_traj": 0}
+        lambda: {**{m: [] for m in (*metrics, "turns")}, "n_q": 0, "n_traj": 0}
     )
     for (ds, _q), v in per_q.items():
         b = by_bench[ds]
         b["n_q"] += 1
-        b["n_traj"] += len(v["subem"])
-        b["subem"].append(_mean(v["subem"]))
+        b["n_traj"] += len(v["em"])
         b["turns"].append(_mean(v["turns"]))
-        if v["judge"]:
-            b["judge"].append(_mean(v["judge"]))
+        for m in metrics:
+            if v[m]:
+                b[m].append(_mean(v[m]))
 
     benches = {
         ds: {
             "n_questions": b["n_q"],
             "n_trajectories": b["n_traj"],
-            "subem": _mean(b["subem"]),
-            "judge": _mean(b["judge"]),
+            **{m: _mean(b[m]) for m in metrics},
             "avg_turns": _mean(b["turns"]),
         }
         for ds, b in sorted(by_bench.items())
@@ -317,34 +325,41 @@ def aggregate(items: list[dict]) -> dict:
 
     def group(names: list[str]) -> dict:
         present = [n for n in names if n in benches]
-        q_sub, q_judge = [], []
+        micro: dict[str, list] = {m: [] for m in metrics}
         for (ds, _q), v in per_q.items():
             if ds not in present:
                 continue
-            q_sub.append(_mean(v["subem"]))
-            if v["judge"]:
-                q_judge.append(_mean(v["judge"]))
-        return {
-            "benchmarks": present,
-            "n_questions": len(q_sub),
-            "macro_subem": _mean([benches[n]["subem"] for n in present]),
-            "macro_judge": _mean([benches[n]["judge"] for n in present]),
-            "micro_subem": _mean(q_sub),
-            "micro_judge": _mean(q_judge),
-        }
+            for m in metrics:
+                if v[m]:
+                    micro[m].append(_mean(v[m]))
+        out = {"benchmarks": present, "n_questions": len(micro["em"])}
+        for m in metrics:
+            out[f"macro_{m}"] = _mean([benches[n][m] for n in present])
+            out[f"micro_{m}"] = _mean(micro[m])
+        return out
 
-    # judge-vs-EM calibration (decision A3): where do the two scorers disagree?
+    # Judge-vs-rule calibration (decision A3). Compared against strict EM, the metric the
+    # env actually rewards and the training vals report.
     both = [it for it in items if it["judge"] is not None]
     tbl = {
-        "judge1_em1": sum(1 for it in both if it["judge"] == 1 and it["subem"] == 1),
-        "judge1_em0": sum(1 for it in both if it["judge"] == 1 and it["subem"] == 0),
-        "judge0_em1": sum(1 for it in both if it["judge"] == 0 and it["subem"] == 1),
-        "judge0_em0": sum(1 for it in both if it["judge"] == 0 and it["subem"] == 0),
+        "judge1_em1": sum(1 for it in both if it["judge"] == 1 and it["em"] == 1),
+        "judge1_em0": sum(1 for it in both if it["judge"] == 1 and it["em"] == 0),
+        "judge0_em1": sum(1 for it in both if it["judge"] == 0 and it["em"] == 1),
+        "judge0_em0": sum(1 for it in both if it["judge"] == 0 and it["em"] == 0),
         "n_scored": len(both),
     }
     tbl["agreement"] = (
         (tbl["judge1_em1"] + tbl["judge0_em0"]) / tbl["n_scored"] if tbl["n_scored"] else float("nan")
     )
+
+    # Sanity check on answer extraction: our recomputed EM should track the env's own
+    # terminal reward. The env scores the whole concatenated chat history while we score the
+    # last turn's committed <answer>, so a small residual disagreement is expected.
+    env_chk = {
+        "em1_envwon0": sum(1 for it in items if it["em"] == 1 and not it["env_won"]),
+        "em0_envwon1": sum(1 for it in items if it["em"] == 0 and it["env_won"]),
+    }
+    env_chk["agreement"] = 1.0 - (env_chk["em1_envwon0"] + env_chk["em0_envwon1"]) / max(1, len(items))
 
     return {
         "n_trajectories": len(items),
@@ -354,6 +369,7 @@ def aggregate(items: list[dict]) -> dict:
         "live_web": group(LIVEWEB_BENCHMARKS),
         "by_benchmark": benches,
         "judge_vs_em": tbl,
+        "em_vs_env_reward": env_chk,
     }
 
 
@@ -364,20 +380,28 @@ def render_markdown(label: str, summary: dict) -> str:
         lines += [
             f"**{gname}** ({g['n_questions']} questions, {len(g['benchmarks'])} benchmarks): "
             f"judge macro {g['macro_judge']:.3f} / micro {g['micro_judge']:.3f} · "
+            f"EM macro {g['macro_em']:.3f} / micro {g['micro_em']:.3f} · "
             f"sub-EM macro {g['macro_subem']:.3f} / micro {g['micro_subem']:.3f}",
             "",
         ]
-    lines += ["| benchmark | n_q | judge | sub-EM | avg turns |", "|---|---|---|---|---|"]
+    lines += ["| benchmark | n_q | judge | EM | sub-EM | avg turns |", "|---|---|---|---|---|---|"]
     for ds, b in summary["by_benchmark"].items():
         tag = " *(live-web)*" if ds in LIVEWEB_BENCHMARKS else ""
         lines.append(
-            f"| {ds}{tag} | {b['n_questions']} | {b['judge']:.3f} | {b['subem']:.3f} | {b['avg_turns']:.2f} |"
+            f"| {ds}{tag} | {b['n_questions']} | {b['judge']:.3f} | {b['em']:.3f} | "
+            f"{b['subem']:.3f} | {b['avg_turns']:.2f} |"
         )
     t = summary["judge_vs_em"]
+    e = summary["em_vs_env_reward"]
     lines += [
+        "",
+        "EM is strict exact match — the metric the env rewards and `val/asearcher_base/em` "
+        "reports. sub-EM is the more permissive substring variant.",
         "",
         f"Judge-vs-EM agreement: {t['agreement']:.3f} over {t['n_scored']} trajectories "
         f"(judge✓EM✗ {t['judge1_em0']}, judge✗EM✓ {t['judge0_em1']}).",
+        f"Extraction check — recomputed EM vs the env's own reward: {e['agreement']:.4f} "
+        f"(EM✓env✗ {e['em1_envwon0']}, EM✗env✓ {e['em0_envwon1']}).",
         f"Trajectories with no `<answer>`: {summary['no_answer_frac']:.3f}. "
         f"Judge failures: {summary['judge_failures']}.",
         "",
@@ -435,6 +459,7 @@ def main() -> int:
                     "prediction": t["prediction"],
                     "n_turns": t["n_turns"],
                     "env_won": t["env_won"],
+                    "em": t["em"],
                     "subem": t["subem"],
                     "judge": None,
                     "judge_raw": "",

@@ -2,10 +2,12 @@
 # P8B EVAL: run one 8B checkpoint over the ASearcher-paper evaluation suite
 # (10 benchmarks / 7,152 questions, data_source-tagged so verl emits per-benchmark metrics).
 #   CKPT=<hdfs ckpt dir or HF dir> LABEL=<tag> [EVAL_REPEAT=1] [EVAL_TEMP=0] bash p8b_eval_worker.sh
-# Default is GREEDY single-sample + rule-based sub-EM (cheap, directly comparable to our
-# training vals). For the paper's Avg@4 protocol set EVAL_TEMP=0.6 and point EVAL_FILE at
-# a --repeat 4 parquet. Rollouts are dumped so an LLM-judge (MBE) pass can score them later
-# without re-running generation.
+# Default is GREEDY single-sample scored by the env's own reward, which is STRICT exact
+# match (search/.../utils.py:compute_score) — the same metric as val/asearcher_base/em, so
+# these numbers are directly comparable to the training vals. NOT sub-EM. For the paper's
+# Avg@4 protocol set EVAL_TEMP=0.6 and point EVAL_FILE at a --repeat 4 parquet.
+# Rollouts are dumped so judge_rollouts.py can score them later (LLM judge + EM + sub-EM)
+# without re-running generation; see p8b_judge_worker.sh.
 set -uo pipefail
 export PYTHONUNBUFFERED=1
 
