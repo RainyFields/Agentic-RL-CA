@@ -113,7 +113,7 @@ def _make_turn_row(collector, prow: Dict, resp_ids: List[int],
         "anchor_obs": prow["anchor_obs"],
         "index": prow["index"],
         "data_source": prow["data_source"],
-        "response_token_count": int(resp_attn.sum().item()),
+        "response_token_count": np.int64(resp_attn.sum().item()),
     }
     if "raw_prompt" in prow:
         row["raw_prompt"] = prow["raw_prompt"]
@@ -245,23 +245,26 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         if "tool_calling" in info:
             tool_c += float(info["tool_calling"])
 
+        # numpy scalars, matching the sync path's element types — downstream code
+        # calls numpy methods on per-item values (e.g. is_action_valid.astype at
+        # apply_invalid_action_penalty; Python bool/float there crashes).
         row.update({
             "uid": unit["uid"],
             "traj_uid": unit["traj_uid"],
-            "policy_version": ctx.policy_version,
-            "is_action_valid": is_valid,
+            "policy_version": np.int64(ctx.policy_version),
+            "is_action_valid": np.bool_(is_valid),
             "tool_calling": bool(info.get("tool_calling", False)),
             "b1_hit": bool(info.get("b1_hit", False)),
-            "rewards": float(reward),
-            "active_masks": True,
-            "turn_index": t_off + steps,
+            "rewards": np.float32(reward),
+            "active_masks": np.bool_(True),
+            "turn_index": np.int64(t_off + steps),
             "parse_status": str(info.get("parse_status", "unknown")),
-            "env_reward": float(reward),
-            "env_done": bool(env_done),
-            "env_won": bool(env_done and reward > 0),
-            "invalid_count_so_far": int(invalid),
-            "repeated_count_so_far": int(repeated),
-            "early_stopped": bool(early_stopped),
+            "env_reward": np.float32(reward),
+            "env_done": np.bool_(env_done),
+            "env_won": np.bool_(env_done and reward > 0),
+            "invalid_count_so_far": np.int64(invalid),
+            "repeated_count_so_far": np.int64(repeated),
+            "early_stopped": np.bool_(early_stopped),
             "early_stop_reason": str(early_reason),
         })
         ctx.rollout_records.append({

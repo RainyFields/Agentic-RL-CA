@@ -16,6 +16,7 @@ Run:  PYTHONPATH=. python tests/test_async_rollout.py
 """
 import asyncio
 import sys
+import zlib
 import time
 from collections import defaultdict
 
@@ -50,9 +51,10 @@ def make_config(n=2, cycle_turns=3, max_steps=6):
 class FakeServer:
     """Mimics AsyncvLLMServer.generate_token_ids as a Ray-free awaitable .remote()."""
 
-    def __init__(self, eos_id, gen_delay=0.05):
+    def __init__(self, eos_id, gen_delay=0.05, delay_fn=None):
         self.eos_id = eos_id
         self.gen_delay = gen_delay
+        self.delay_fn = delay_fn  # optional (prompt_ids) -> seconds, for engineered tests
         self.calls = []          # (request_id, prompt_ids, t_start, t_end)
         self.responses = {}      # request_id -> token_ids returned
         outer = self
@@ -71,9 +73,12 @@ class FakeServer:
 
     async def _gen(self, prompt_ids, sp, rid):
         t0 = time.monotonic()
-        # heterogeneous latency per request: without it all trajectories stay
-        # accidentally phase-aligned and the overlap test can't discriminate
-        await asyncio.sleep(self.gen_delay * (0.3 + (hash(rid) % 100) / 50.0))
+        if self.delay_fn is not None:
+            await asyncio.sleep(self.delay_fn(prompt_ids))
+        else:
+            # heterogeneous latency per request: without it all trajectories stay
+            # accidentally phase-aligned and timing tests can't discriminate
+            await asyncio.sleep(self.gen_delay * (0.3 + (zlib.crc32(rid.encode()) % 100) / 50.0))
         # deterministic ids derived from the request; end with EOS
         ids = [100 + (len(self.calls) % 50), 200, self.eos_id]
         lps = [-0.1, -0.2, -0.3]
@@ -102,7 +107,8 @@ class FakeEnvs:
 
     async def areset_one(self, idx, kwargs):
         self.state[idx] = {"steps": 0, "ep_len": int(kwargs["ep_len"]),
-                           "task": kwargs["question"]}
+                           "task": kwargs["question"],
+                           "search_delay": kwargs.get("search_delay")}
         self.reward_for.setdefault(kwargs["question"], float(kwargs.get("reward", 1.0)))
         return {"text": f"TASK {kwargs['question']} step 0",
                 "anchor": kwargs["question"]}, {}
@@ -115,7 +121,10 @@ class FakeEnvs:
     async def astep_one(self, idx, text_action):
         t0 = time.monotonic()
         s0 = self.state[idx]
-        await asyncio.sleep(self.search_delay * (0.3 + (hash(s0["task"] + str(s0["steps"])) % 100) / 50.0))
+        d = s0.get("search_delay")
+        if d is None:
+            d = self.search_delay * (0.3 + (zlib.crc32((s0["task"] + str(s0["steps"])).encode()) % 100) / 50.0)
+        await asyncio.sleep(d)
         s = self.state[idx]
         s["steps"] += 1
         done = s["steps"] >= s["ep_len"]
@@ -136,7 +145,8 @@ class FakeEnvs:
         return {"success_rate": np.array([float(r > 0) for r in episode_rewards])}
 
 
-def make_gen_batch(questions, ep_lens, tokenizer, policy_version=7, rewards=None):
+def make_gen_batch(questions, ep_lens, tokenizer, policy_version=7, rewards=None,
+                   search_delays=None):
     B = len(questions)
     raw_prompt = np.empty(B, dtype=object)
     data_source = np.empty(B, dtype=object)
@@ -145,7 +155,8 @@ def make_gen_batch(questions, ep_lens, tokenizer, policy_version=7, rewards=None
         raw_prompt[i] = [{"role": "user", "content": q}]
         data_source[i] = "fake"
         env_kwargs[i] = {"question": q, "ep_len": ep_lens[i],
-                         "reward": (rewards or {}).get(q, 1.0), "ground_truth": "x"}
+                         "reward": (rewards or {}).get(q, 1.0), "ground_truth": "x",
+                         "search_delay": (search_delays or {}).get(q)}
     gb = DataProto.from_single_dict({
         "input_ids": torch.zeros(B, 4, dtype=torch.long),
         "attention_mask": torch.ones(B, 4, dtype=torch.long),
@@ -213,36 +224,46 @@ def main():
     check("2. no lockstep (wall << serial)", wall < serial * 0.7,
           f"wall {wall:.2f}s vs serial {serial:.2f}s")
 
-    # test 3: search of one traj overlaps generation of ANOTHER traj (timestamps).
-    # gen calls are attributed to a task by decoding the prompt (contains "TASK <q>").
-    def call_task(pids):
-        text = tok.decode(pids)
-        for q in ("qA", "qB"):
-            if f"TASK {q}" in text:
-                return q
-        return "?"
+    # test 3: ENGINEERED overlap scenario (deterministic): trajectory qL has slow
+    # generation (0.5s), trajectory qS has fast generation but slow search (0.3s).
+    # qS's search must run strictly inside qL's generation window, and qS must submit
+    # its NEXT generation before qL's current generation finishes.
+    cfg3 = make_config(n=1, cycle_turns=8, max_steps=8)
+    coll3 = TrajectoryCollector(config=cfg3, tokenizer=tok, processor=None)
+
+    def delay_fn(pids):
+        return 0.5 if "qL" in tok.decode(pids) else 0.01
+    srv3 = FakeServer(eos, delay_fn=delay_fn)
+    envs3 = FakeEnvs(pool=2, search_delay=0.01)
+    gb3 = make_gen_batch(["qL", "qS"], [3, 3], tok,
+                         search_delays={"qL": 0.01, "qS": 0.3})
+    run_collection(coll3, gb3, [srv3], envs3)
+
+    def call_task3(pids):
+        return "qL" if "qL" in tok.decode(pids) else "qS"
     overlap = False
-    for slot, task, e0, e1 in envs.step_log:
-        for rid, pids, g0, g1 in all_calls:
-            if call_task(pids) != task and g0 < e0 and e1 < g1:
+    for slot, task, e0, e1 in envs3.step_log:
+        if task != "qS":
+            continue
+        for rid, pids, g0, g1 in srv3.calls:
+            if call_task3(pids) == "qL" and g0 < e0 and e1 < g1:
                 overlap = True
                 break
         if overlap:
             break
-    # and: a trajectory SUBMITS its next generation while another traj is mid-generation
     submit_during_other = False
-    for r1, p1, a1, b1 in all_calls:
-        if int(r1.split(":")[2]) == 0:
-            continue  # only turns >= 1 prove "next generation submitted"
-        for r2, p2, a2, b2 in all_calls:
-            if r2.split(":")[1] != r1.split(":")[1] and a2 < a1 < b2:
+    for r1, p1, a1, b1 in srv3.calls:
+        if call_task3(p1) != "qS" or int(r1.split(":")[2]) == 0:
+            continue
+        for r2, p2, a2, b2 in srv3.calls:
+            if call_task3(p2) == "qL" and a2 < a1 < b2:
                 submit_during_other = True
                 break
         if submit_during_other:
             break
     check("3. search overlaps generation across trajectories",
           overlap and submit_during_other,
-          f"env-inside-other-gen={overlap} next-gen-submitted-during-other-gen={submit_during_other}")
+          f"qS-search-inside-qL-gen={overlap} qS-next-gen-during-qL-gen={submit_during_other}")
 
     # test 5a: released batch has whole uid groups, exact tokens, policy version
     n_rows = len(out.batch["responses"])
