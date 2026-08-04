@@ -88,9 +88,16 @@ conservative, unimpeachable number. True rollout-phase speedup ≈ 3–4×.
 of divergent sampling also contribute. GRPO group semantics verified (atomic
 release, groups whole in every batch).
 
-Turn-PPO (phase D, separate worker): async step 1 = gen 239 s, critic update 51 s,
-actor update 47 s, step 363 s — critic-based training works on async batches
-(fresh-critic vf_explained_var −55 at step 1, normal).
+Turn-PPO (phase D, TWO independent workers — full replication):
+
+| run | gen s1 / s2 | critic upd s1 / s2 | val@2 |
+|---|---|---|---|
+| worker 1 | 238.6 / 483.0 | 50.5 / 381.3 | 0.205 |
+| worker 2 | 239.5 / 517.5 | 42.9 / 430.0 | 0.207 |
+
+Gen within 0.4% / 7% across runs, val within 0.002 — the async engine is
+deterministic-stable at run granularity. Turn-PPO async gen ≈ the GRPO async legs
+(232 / 505), vs sync turn-PPO's 2,057 s matched-step average.
 
 Async engine also released groups on EVERY collection (no no-release cycles),
 vs sync's 2 empty cycles in 5 — immediate backfill keeps release pressure up.
