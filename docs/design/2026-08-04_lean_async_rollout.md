@@ -62,10 +62,47 @@ so the snapshot at the previous turn boundary is exact.
 5. uid groups whole; response token ids byte-exact vs server log; rewards and
    episode_rewards correct; attention mask counts real tokens
 
-## Measured results
+## Measured results — matched H100 profile (2026-08-05)
 
-(to be filled from the matched H100 profile — phases B/C of
-`scripts/asearcher/p8b_async_profile_worker.sh`)
+Same node class, same config/seed/data/retriever, token_grpo, 3 steps + final val:
+sync baseline (phase B, worker n124-104-025) vs async collector (phase C).
+
+| metric | sync | async | ratio |
+|---|---|---|---|
+| phase wall-clock (setup→exit, incl. val + ckpt) | 8,953 s | 4,454 s | **2.01×** |
+| rollout gen, step 1 / 2 / 3 (s) | 610 / 1,839 / 2,441 | 232 / 505 / 491 | 2.6× / 3.6× / 5.0× |
+| rollout gen, 3-step total (s) | 4,890 | 1,228 | **3.98×** † |
+| trained tokens (3 steps) | 51.8 M | 56.0 M | 1.08× more data |
+| released trajectories | 2,300 | 2,695 | 1.17× |
+| zombie generated tokens | 9.98 M / 20.1 M = **49.6%** | **0** | — |
+| final-step throughput (tok/s) | 783 | 1,844 | 2.35× |
+| effective trained-tokens/s (wall) | 5.8 k | 12.6 k | **2.17×** |
+| val@3 (greedy, 512 q) | 0.264 / 6.41 turns | 0.244 / 5.52 turns | Δ0.020 ≈ noise band ‡ |
+| overlap (timestamps) | n/a (lockstep) | 19,406/19,409 turns env-inside-gen, 1,280 concurrent gens | — |
+
+† per-step gen counters exclude the sync engine's two no-release remainder
+collections (unmetered in step metrics but included in wall-clock), so 3.98×
+slightly overstates the pure collection ratio; the 2.01× wall figure is the
+conservative, unimpeachable number. True rollout-phase speedup ≈ 3–4×.
+‡ same-checkpoint greedy re-evals on this setup historically vary ±0.02; 3 steps
+of divergent sampling also contribute. GRPO group semantics verified (atomic
+release, groups whole in every batch).
+
+Turn-PPO (phase D, separate worker): async step 1 = gen 239 s, critic update 51 s,
+actor update 47 s, step 363 s — critic-based training works on async batches
+(fresh-critic vf_explained_var −55 at step 1, normal).
+
+Async engine also released groups on EVERY collection (no no-release cycles),
+vs sync's 2 empty cycles in 5 — immediate backfill keeps release pressure up.
+
+**Launch criteria (user's five): all pass.** Smoke+tests ✓, GRPO semantics ✓
+(val in noise band, groups atomic), no finished-trajectory regeneration ✓
+(zombie = 0 by construction, verified), measured speedup ✓ (2.01× e2e, ~3–4×
+rollout), no hangs/leaks/failed resumes across three clean runs (incl. a
+cross-phase checkpoint auto-resume and 410 cross-cycle trajectory resumes) ✓.
+**Recommendation: restart the campaign (GRPO + turn-PPO, H100) on the async
+engine.** Residual risk: longest async soak so far is ~75 min — the 75-step arms
+are the first long-duration run; mitigated by 3-attempt auto-resume + monitors.
 
 ## Risks / open items
 
