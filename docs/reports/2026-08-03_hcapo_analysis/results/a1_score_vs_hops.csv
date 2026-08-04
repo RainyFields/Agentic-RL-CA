@@ -1,0 +1,64 @@
+panel,method,H_gold,EM,n
+Pooled (all 7 tasks),floor,1,0.40548132922233643,29190
+Pooled (all 7 tasks),floor,2,0.2742516257322513,18607
+Pooled (all 7 tasks),floor,3,0.042105263157894736,760
+Pooled (all 7 tasks),floor,4,0.4005069708491762,3156
+Pooled (all 7 tasks),grpo,1,0.5459061322370675,29190
+Pooled (all 7 tasks),grpo,2,0.44483258988552693,18607
+Pooled (all 7 tasks),grpo,3,0.1013157894736842,760
+Pooled (all 7 tasks),grpo,4,0.4448669201520912,3156
+Pooled (all 7 tasks),turn_ppo,1,0.5364850976361768,29190
+Pooled (all 7 tasks),turn_ppo,2,0.40264416617402055,18607
+Pooled (all 7 tasks),turn_ppo,3,0.06447368421052632,760
+Pooled (all 7 tasks),turn_ppo,4,0.36248415716096327,3156
+Pooled (all 7 tasks),hcapo_paper,1,0.5118876327509421,29190
+Pooled (all 7 tasks),hcapo_paper,2,0.3837802977374106,18607
+Pooled (all 7 tasks),hcapo_paper,3,0.0881578947368421,760
+Pooled (all 7 tasks),hcapo_paper,4,0.3612167300380228,3156
+Pooled (all 7 tasks),hcapo_ans,1,0.5354916067146283,29190
+Pooled (all 7 tasks),hcapo_ans,2,0.41183425592518946,18607
+Pooled (all 7 tasks),hcapo_ans,3,0.1118421052631579,760
+Pooled (all 7 tasks),hcapo_ans,4,0.4838403041825095,3156
+Pooled (all 7 tasks),hcapo_lift,1,0.5282288454950326,29190
+Pooled (all 7 tasks),hcapo_lift,2,0.41124308056107917,18607
+Pooled (all 7 tasks),hcapo_lift,3,0.08421052631578947,760
+Pooled (all 7 tasks),hcapo_lift,4,0.3083016476552598,3156
+Pooled (all 7 tasks),hcapo_lift_ans,1,0.5332648167180541,29190
+Pooled (all 7 tasks),hcapo_lift_ans,2,0.40667490729295425,18607
+Pooled (all 7 tasks),hcapo_lift_ans,3,0.05131578947368421,760
+Pooled (all 7 tasks),hcapo_lift_ans,4,0.438212927756654,3156
+Within MuSiQue,floor,2,0.11022364217252396,1252
+Within MuSiQue,floor,3,0.042105263157894736,760
+Within MuSiQue,floor,4,0.024691358024691357,405
+Within MuSiQue,grpo,2,0.2827476038338658,1252
+Within MuSiQue,grpo,3,0.1013157894736842,760
+Within MuSiQue,grpo,4,0.05925925925925926,405
+Within MuSiQue,turn_ppo,2,0.21884984025559107,1252
+Within MuSiQue,turn_ppo,3,0.06447368421052632,760
+Within MuSiQue,turn_ppo,4,0.04938271604938271,405
+Within MuSiQue,hcapo_paper,2,0.23961661341853036,1252
+Within MuSiQue,hcapo_paper,3,0.0881578947368421,760
+Within MuSiQue,hcapo_paper,4,0.044444444444444446,405
+Within MuSiQue,hcapo_ans,2,0.2547923322683706,1252
+Within MuSiQue,hcapo_ans,3,0.1118421052631579,760
+Within MuSiQue,hcapo_ans,4,0.06419753086419754,405
+Within MuSiQue,hcapo_lift,2,0.25798722044728434,1252
+Within MuSiQue,hcapo_lift,3,0.08421052631578947,760
+Within MuSiQue,hcapo_lift,4,0.056790123456790124,405
+Within MuSiQue,hcapo_lift_ans,2,0.2388178913738019,1252
+Within MuSiQue,hcapo_lift_ans,3,0.05131578947368421,760
+Within MuSiQue,hcapo_lift_ans,4,0.03209876543209877,405
+Within 2Wiki,floor,2,0.2965903307888041,9825
+Within 2Wiki,floor,4,0.4558342420937841,2751
+Within 2Wiki,grpo,2,0.4537404580152672,9825
+Within 2Wiki,grpo,4,0.5016357688113413,2751
+Within 2Wiki,turn_ppo,2,0.4219847328244275,9825
+Within 2Wiki,turn_ppo,4,0.40857869865503454,2751
+Within 2Wiki,hcapo_paper,2,0.3919592875318066,9825
+Within 2Wiki,hcapo_paper,4,0.4078516902944384,2751
+Within 2Wiki,hcapo_ans,2,0.4183206106870229,9825
+Within 2Wiki,hcapo_ans,4,0.5456197746274082,2751
+Within 2Wiki,hcapo_lift,2,0.4216793893129771,9825
+Within 2Wiki,hcapo_lift,4,0.34532897128316975,2751
+Within 2Wiki,hcapo_lift_ans,2,0.41038167938931297,9825
+Within 2Wiki,hcapo_lift_ans,4,0.4980007270083606,2751

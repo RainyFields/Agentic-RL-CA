@@ -2,6 +2,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,graphicx,booktabs,amssymb,xcolor,hyperref}
 \usepackage[skip=4pt]{caption}
+\usepackage{float}
 \hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black}
 \newcommand{\fig}[1]{\includegraphics[width=\linewidth]{figs/#1}}
 \newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
@@ -180,6 +181,176 @@ The static diagnostic had predicted the lift would behave \emph{identically} to 
 $0.97$ co-ranking). It did not --- so rank-equivalence at a policy snapshot does not imply
 equivalent training dynamics. That is a genuine, reusable finding about how to evaluate credit
 estimators offline: snapshot rankings are insufficient; the feedback loop must be simulated.
+
+
+\section{The full comparative suite}
+This section reproduces, for the HCAPO arms, every analysis of the cross-environment report
+(\texttt{2026-07-21\_4b\_horizon\_eval}): training curves, per-task accuracy, turn behaviour,
+accuracy-vs-turns, spend-vs-need, and the stratified-horizon analyses with cluster-bootstrap
+horizon-gain contrasts. All SearchQA arms here are protocol-matched (non-thinking@2048, 500 steps,
+seed 0) with \textbf{GRPO as the $\Delta$-reference}; the thinking-protocol GiGPO/token-PPO rows of
+\S4 are excluded from the matched contrasts.
+
+\subsection{Training curves}
+\begin{figure}[H]\centering\fig{fig_training_curves.pdf}
+\caption{\emph{Left:} AlfWorld seen success — both HCAPO legs (orange/red) climb like the others
+but plateau lower; the paper-correct leg peaks 0.922@145 vs the buggy 0.859. \emph{Right:} SearchQA
+val-EM — every HCAPO arm tracks GRPO until its runaway ignites, then oscillates below it.}
+\end{figure}
+
+\subsection{Per-task accuracy}
+\begin{table}[H]\centering\footnotesize\setlength{\tabcolsep}{4.2pt}
+\caption{SearchQA full-set EM per task (51{,}713 q, non-thinking protocol). Best per column
+\good{green}. GRPO leads every task except Bamboogle; the answer-injection arm is the closest HCAPO
+on five of seven tasks.}
+\begin{tabular}{lcccccccc}
+\toprule
+method & NQ & TriviaQA & PopQA & HotpotQA & 2Wiki & MuSiQue & Bamb. & \textbf{macro}\\
+\midrule
+pre-RL floor  & 0.292 & 0.517 & 0.346 & 0.271 & 0.331 & 0.074 & 0.360 & 0.313\\
+\good{GRPO}   & \good{0.490} & \good{0.645} & \good{0.482} & \good{0.459} & \good{0.464} & \good{0.188} & 0.512 & \good{\textbf{0.463}}\\
+turn-PPO      & 0.473 & 0.638 & 0.472 & 0.409 & 0.419 & 0.142 & 0.368 & 0.417\\
+HCAPO hind+obs & 0.455 & 0.609 & 0.449 & 0.397 & 0.395 & 0.159 & 0.408 & 0.410\\
+HCAPO hind+ans & 0.480 & 0.640 & 0.466 & 0.429 & 0.446 & 0.178 & 0.440 & 0.440\\
+HCAPO lift+obs & 0.449 & 0.621 & 0.475 & 0.422 & 0.405 & 0.170 & 0.464 & 0.429\\
+HCAPO lift+ans & 0.455 & 0.636 & 0.471 & 0.430 & 0.430 & 0.145 & 0.392 & 0.423\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Turn behaviour}
+\begin{figure}[H]\centering
+\begin{minipage}{0.44\linewidth}\fig{fig2_alfworld_turns.pdf}\end{minipage}\hfill
+\begin{minipage}{0.54\linewidth}\fig{fig3_searchqa_turns_box.pdf}\end{minipage}
+\caption{\emph{Left:} AlfWorld trajectory length — both HCAPO legs sit at $\sim$17 turns, between
+GRPO's wandering (14.9) and token-PPO's collapse (24.2), far above GiGPO/turn-PPO ($\sim$9--11).
+\emph{Right:} SearchQA turns per dataset — the HCAPO arms saturate the 4-turn budget like GRPO,
+but (unlike GRPO) largely via truncated non-action turns.}
+\end{figure}
+
+\noindent\textbf{AlfWorld by task type} (unseen success): the $\rho$ fix \emph{redistributed}
+failure rather than removing it. The paper-correct leg recovered \texttt{examine}
+($0.421\!\to\!0.789$) but collapsed \texttt{pick\_two} --- the longest-horizon type --- from the
+buggy leg's $0.769$ to \textbf{0.308}, against $1.000$ for GRPO/GiGPO/turn-PPO. Net unseen change:
+$0.791\to0.784$.
+
+\subsection{Accuracy vs turns used}
+\begin{figure}[H]\centering\fig{fig_acc_vs_turns_bothenv.pdf}
+\caption{\emph{Left:} AlfWorld — every method solves $\approx$100\% of episodes finishing
+$\le$20 turns; the ranking is set entirely by how often each drags past 20. Both HCAPO legs have
+heavy $>$20 tails. \emph{Right:} SearchQA — the HCAPO arms cluster at 4 turns (cap saturation);
+accuracy falls with turns used for all methods.}
+\end{figure}
+
+\subsection{Turns used vs required hops}
+\begin{figure}[H]\centering\fig{fig4_searchqa_turns_vs_gold.pdf}
+\caption{Turns used vs required hops (accurate / failed / all; band $\pm$1SD). The HCAPO arms pin
+at the cap regardless of $H_{gold}$ --- they no longer \emph{modulate} search effort with question
+depth, unlike GRPO/turn-PPO whose failed trajectories escalate with hops.}
+\end{figure}
+
+\subsection{Horizon-stratified accuracy and the horizon-gain contrasts}
+\begin{figure}[H]\centering\fig{fig_a1_score_vs_hops.pdf}
+\caption{EM vs required hops, pooled and within the two multi-hop-spanning tasks
+(protocol-matched arms).}
+\end{figure}
+
+\begin{table}[H]\centering\small
+\caption{Within-task EM by $H_{gold}$ (full-set). \good{Green} marks HCAPO cells that beat GRPO
+\emph{absolutely}: the answer-injection arm wins every deep stratum.}
+\begin{tabular}{lccc c cc}
+\toprule
+& \multicolumn{3}{c}{MuSiQue} && \multicolumn{2}{c}{2Wiki}\\
+\cmidrule(lr){2-4}\cmidrule(lr){6-7}
+& H2 & H3 & H4 && H2 & H4\\
+\midrule
+GRPO           & 0.283 & 0.101 & 0.059 && 0.454 & 0.502\\
+turn-PPO       & 0.219 & 0.064 & 0.049 && 0.422 & 0.409\\
+HCAPO hind+obs & 0.240 & 0.088 & 0.044 && 0.392 & 0.408\\
+HCAPO hind+ans & 0.255 & \good{0.112} & \good{0.064} && 0.418 & \good{0.546}\\
+HCAPO lift+obs & 0.258 & 0.084 & 0.057 && 0.422 & 0.345\\
+HCAPO lift+ans & 0.239 & 0.051 & 0.032 && 0.410 & 0.498\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]\centering\small
+\caption{Horizon-gain contrasts vs GRPO, $\Delta_m(\text{high})-\Delta_m(\text{low})$, 1000-resample
+cluster bootstrap; $^\star$ = 95\% CI excludes 0. \textbf{HCAPO hind+answer is the first arm in the
+entire campaign with significant POSITIVE horizon-gain on all three scopes.}}
+\begin{tabular}{lccc}
+\toprule
+method & within-MuSiQue & within-2Wiki & pooled\\
+\midrule
+turn-PPO       & $+0.036^\star$ & $-0.061^\star$ & $-0.064^\star$\\
+HCAPO hind+obs & $+0.029^\star$ & $-0.032^\star$ & $-0.036^\star$\\
+\good{HCAPO hind+ans} & \good{$+0.037^\star$} & \good{$+0.079^\star$} & \good{$+0.044^\star$}\\
+HCAPO lift+obs & $+0.013$ & $-0.124^\star$ & $-0.096^\star$\\
+HCAPO lift+ans & $+0.002$ & $+0.040^\star$ & $-0.002$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{The one genuinely positive HCAPO result.} The answer-injection arm loses to GRPO
+overall ($0.440$ vs $0.463$) --- but the loss is entirely concentrated on \emph{shallow} questions.
+On every deep stratum it beats GRPO absolutely (MuSiQue-3: $0.112$ vs $0.101$; MuSiQue-4: $0.064$
+vs $0.059$; 2Wiki-4hop: $0.546$ vs $0.502$, the best value of any arm in the campaign), and its
+horizon-gain contrast is significantly positive pooled and within both tasks. Read against \S2--3:
+by the end of training this arm is a max-search policy (4 turns, $\approx$3 searches on
+everything, most turns truncated) --- indiscriminate evidence-gathering that wastes budget on
+single-hops but pays on deep chains. Whether that is \emph{hindsight credit} working or simply the
+runaway manufacturing a search-everything policy cannot be separated with one seed; but it is the
+only configuration in six that moved the deep-chain numbers past GRPO.
+
+\subsection{Spend vs need, and where the budget dies}
+\begin{figure}[H]\centering\fig{fig_a3_spend_vs_need.pdf}
+\caption{Median turns and searches vs required hops. GRPO and the HCAPO arms sit at the cap for
+every stratum; turn-PPO and the floor under-spend.}
+\end{figure}
+
+\begin{table}[H]\centering\small
+\caption{Cap-exhausted failures (episode used all 4 turns and still failed), by stratum. For
+max-turn policies (GRPO, HCAPO) this tracks $1-$EM; the informative rows are the floor and
+turn-PPO, which fail \emph{without} exhausting the budget.}
+\begin{tabular}{lcccc}
+\toprule
+method & H1 & H2 & H3 & H4\\
+\midrule
+floor & 0.030 & 0.087 & 0.225 & 0.180\\
+turn-PPO & 0.059 & 0.192 & 0.458 & 0.480\\
+GRPO & 0.453 & 0.555 & 0.899 & 0.555\\
+HCAPO hind+ans & 0.356 & 0.527 & 0.868 & 0.467\\
+HCAPO lift+obs & 0.288 & 0.362 & 0.679 & 0.556\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Turn distributions and secondary splits}
+\begin{figure}[H]\centering\fig{fig_a4_turn_violins.pdf}
+\caption{Turn-count distributions per task. The HCAPO arms show the cap-pile signature on every
+dataset --- including the single-hop tasks where a calibrated policy stops early.}
+\end{figure}
+\begin{figure}[H]\centering\fig{fig_a5_secondary.pdf}
+\caption{Secondary splits: HotpotQA bridge vs comparison, PopQA head vs tail popularity. The HCAPO
+arms preserve the baselines' pattern (comparison $\gg$ bridge; head $>$ tail) at a lower level ---
+no HCAPO-specific redistribution.}
+\end{figure}
+
+\subsection{Per-method verdicts (suite view)}
+\begin{itemize}\itemsep2pt
+\item \textbf{HCAPO hind+obs (published form):} dominated --- below GRPO on every task, no positive
+horizon signal beyond the MuSiQue critic-style contrast ($+0.029$), worst SearchQA macro of the
+family, and the AlfWorld replication loses \texttt{pick\_two} almost entirely (0.308).
+\item \textbf{HCAPO hind+ans:} the interesting one. Overall $-0.023$ vs GRPO, but absolutely ahead
+on every deep stratum with the campaign's only fully-positive horizon-gain --- at $17\times$ GRPO's
+token cost and 100\% truncation. If anything from HCAPO merits a follow-up seed, it is this cell.
+\item \textbf{HCAPO lift+obs / lift+ans (our variant):} the best-behaved dynamics (latest
+ignitions, lowest clip) and mid-family accuracy, but no horizon advantage --- the lift trades away
+the deep-chain gains along with the runaway pressure.
+\item \textbf{turn-PPO / GRPO baselines:} unchanged from the cross-environment report --- GRPO wins
+the aggregate; turn-PPO keeps the only \emph{calibrated} spend profile (turns scale with hops,
+budget not exhausted).
+\end{itemize}
 
 \section{Verdict and what would actually fix it}
 HCAPO as published did not reproduce in our hands, on its own benchmark or ours, with an
