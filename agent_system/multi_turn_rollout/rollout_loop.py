@@ -1035,6 +1035,7 @@ class TrajectoryCollector:
             actor_rollout_wg,
             envs: EnvironmentManagerBase,
             is_train: bool = True,
+            async_rollout_manager=None,
             ) -> DataProto:
         """
         Select and run the appropriate rollout loop (dynamic or vanilla).
@@ -1044,10 +1045,26 @@ class TrajectoryCollector:
             actor_rollout_wg: Actor model workers.
             envs (EnvironmentManagerBase): Environment manager for interaction.
             is_train (bool): Whether in training mode (affects dynamic sampling).
+            async_rollout_manager: AsyncLLMServerManager (rollout.mode=async only) —
+                required by the lean async collector (+env.async_rollout_enable).
 
         Returns:
             DataProto: Final collected trajectory data with metadata.
         """
+        # Lean async rollout (2026-08-04): trajectory-level concurrency, no turn
+        # lockstep. Train uses partial-rollout semantics (same _pr_groups state as the
+        # sync PoC); val runs every prompt to completion. Requires rollout.mode=async.
+        if bool(self.config.env.get('async_rollout_enable', False)):
+            assert async_rollout_manager is not None, \
+                "env.async_rollout_enable=true requires rollout.mode=async " \
+                "(AsyncLLMServerManager not passed to multi_turn_loop)"
+            assert str(self.config.algorithm.adv_estimator) != 'carl', \
+                "async rollout does not support CARL (it builds its own rollout tree)"
+            assert not self.config.algorithm.filter_groups.enable, \
+                "async rollout is incompatible with filter_groups (dynamic sampling)"
+            from agent_system.multi_turn_rollout.async_rollout import async_multi_turn_loop
+            return async_multi_turn_loop(self, gen_batch, async_rollout_manager,
+                                         envs, is_train=is_train)
         # Agentic-RL-CA Phase 2b: CARL builds its own per-prompt rollout tree (n0 phase-1
         # rollouts + n_total-n0 snapshot resumes) — group repetition happens inside the
         # loop, NOT via env.rollout.n (which only sizes the env pool for this arm).

@@ -881,12 +881,20 @@ class RayPPOTrainer:
             # test_output_gen_batch = unpad_dataproto(test_output_gen_batch_padded, pad_size=pad_size)
 
             ################ agent-environment loop ###############
-            test_output_gen_batch = self.traj_collector.multi_turn_loop(
-                                                    gen_batch=test_gen_batch,
-                                                    actor_rollout_wg=self.actor_rollout_wg,
-                                                    envs=self.val_envs,
-                                                    is_train=False,
-                                                    )
+            # Lean async rollout: engine must be awake for collection, asleep after.
+            if self.async_rollout_mode:
+                self.async_rollout_manager.wake_up()
+            try:
+                test_output_gen_batch = self.traj_collector.multi_turn_loop(
+                                                        gen_batch=test_gen_batch,
+                                                        actor_rollout_wg=self.actor_rollout_wg,
+                                                        envs=self.val_envs,
+                                                        is_train=False,
+                                                        async_rollout_manager=getattr(self, 'async_rollout_manager', None),
+                                                        )
+            finally:
+                if self.async_rollout_mode:
+                    self.async_rollout_manager.sleep()
             print('validation generation end')
             del test_batch
             test_batch = test_output_gen_batch
@@ -1073,6 +1081,11 @@ class RayPPOTrainer:
                 config=self.config.actor_rollout_ref,
                 worker_group=self.actor_rollout_wg,
             )
+            # Sleep immediately after init: engines auto-load weights from DISK at
+            # init_engine (load_format=auto). Sleeping here forces the first wake_up()
+            # to run the sharding manager's FSDP->vLLM weight sync, so a run resumed
+            # from a checkpoint never generates with stale base weights.
+            self.async_rollout_manager.sleep()
 
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
@@ -1248,12 +1261,22 @@ class RayPPOTrainer:
                         # Sync partial rollout: stamp the behavior-policy version so every
                         # generated row records which global_step's weights produced it.
                         gen_batch.meta_info['policy_version'] = int(self.global_steps)
-                        gen_batch_output = self.traj_collector.multi_turn_loop(
-                                                                gen_batch=gen_batch,
-                                                                actor_rollout_wg=self.actor_rollout_wg,
-                                                                envs=self.envs,
-                                                                is_train=True,
-                                                                )
+                        # Lean async rollout: wake the AsyncLLM engines (syncs the
+                        # freshly-updated FSDP weights in), collect, then sleep them
+                        # so the GPUs are free for the update phases.
+                        if self.async_rollout_mode:
+                            self.async_rollout_manager.wake_up()
+                        try:
+                            gen_batch_output = self.traj_collector.multi_turn_loop(
+                                                                    gen_batch=gen_batch,
+                                                                    actor_rollout_wg=self.actor_rollout_wg,
+                                                                    envs=self.envs,
+                                                                    is_train=True,
+                                                                    async_rollout_manager=getattr(self, 'async_rollout_manager', None),
+                                                                    )
+                        finally:
+                            if self.async_rollout_mode:
+                                self.async_rollout_manager.sleep()
                     # Sync partial rollout: a cycle can end with zero fully-terminated
                     # uid groups — nothing to train on. Consume the next dataloader batch
                     # without an update (global_steps unchanged).

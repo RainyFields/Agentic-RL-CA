@@ -281,6 +281,13 @@ class AsyncLLMServerManager:
         self.chat_scheduler_ready.wait()
 
     def _init_chat_scheduler(self):
+        # Lean async rollout (2026-08-04): no chat scheduler needed — the collector
+        # drives the servers directly via generate_token_ids RPCs. With a null
+        # chat_scheduler config, skip scheduler init entirely.
+        if not self.config.rollout.get("chat_scheduler", None):
+            self.chat_scheduler = None
+            self.chat_scheduler_ready.set()
+            return
         self.chat_scheduler_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.chat_scheduler_loop)
 

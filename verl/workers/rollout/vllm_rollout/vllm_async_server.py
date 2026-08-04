@@ -242,6 +242,40 @@ class AsyncvLLMServer(AsyncServerBase):
             data = generator.model_dump_json(exclude_unset=True)
             yield 200, f"data: {data}\n\n"
 
+    async def generate_token_ids(
+        self, prompt_token_ids: List[int], sampling_params: Dict[str, Any], request_id: str
+    ) -> Dict[str, Any]:
+        """Token-in/token-out generation for the lean async rollout collector
+        (Agentic-RL-CA 2026-08-04). Bypasses chat templating and HTTP entirely: the
+        collector sends the exact prompt ids it tokenized (same truncation path as the
+        sync engine) and gets the exact sampled ids + per-token logprobs back. Called
+        as a Ray async actor method — many requests run concurrently on this engine.
+        """
+        from vllm.inputs import TokensPrompt
+
+        sp = SamplingParams(**sampling_params)
+        final = None
+        async for out in self.engine.generate(
+            TokensPrompt(prompt_token_ids=list(prompt_token_ids)), sp, request_id
+        ):
+            final = out
+        seq = final.outputs[0]
+        logprobs = None
+        if seq.logprobs is not None:
+            logprobs = [float(d[t].logprob) for t, d in zip(seq.token_ids, seq.logprobs)]
+        return {
+            "token_ids": list(seq.token_ids),
+            "logprobs": logprobs,
+            "finish_reason": str(seq.finish_reason),
+        }
+
+    async def abort_request(self, request_id: str):
+        """Best-effort abort of an in-flight generate_token_ids request (drain path)."""
+        try:
+            await self.engine.abort(request_id)
+        except Exception:
+            pass
+
     async def wake_up(self):
         await self.engine.wake_up()
 

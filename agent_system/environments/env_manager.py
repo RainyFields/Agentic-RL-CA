@@ -235,6 +235,63 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
         infos = list(infos) + [{} for _ in range(R)]
         return observations, infos
 
+    # ---- Lean async rollout (2026-08-04 plan): per-slot async variants of
+    # reset/restore/step. One coroutine owns one slot at a time, all driven from a
+    # single event loop, so per-slot mutation of memory._data[i] / tasks[i] needs no
+    # locking; only the blocking env HTTP call runs in the pool's thread executor.
+    # size_pool() must be called once per collection before any per-slot call. ----
+    def size_pool(self, pool: int):
+        self.memory.reset(batch_size=pool)
+        self.tasks = [""] * pool
+
+    async def areset_one(self, idx: int, kwargs: Dict):
+        """Fresh-reset slot `idx` (async mirror of one lane of reset())."""
+        import asyncio as _aio
+        loop = _aio.get_running_loop()
+        obs, info = await loop.run_in_executor(
+            self.envs._executor, self.envs._sync_reset, self.envs.envs[idx], kwargs)
+        self.tasks[idx] = obs
+        self.memory._data[idx] = []
+        text = self.rebuild_text_obs([idx])[0]
+        return {"text": text, "anchor": obs}, info
+
+    async def arestore_one(self, idx: int, snap: Dict):
+        """Restore a snapshot into slot `idx` (async mirror of one lane of restore_batch())."""
+        from copy import deepcopy
+        self.envs.set_states([snap["env"]], [idx])
+        self.memory._data[idx] = deepcopy(snap["memory"])
+        self.tasks[idx] = snap["task"]
+        text = self.rebuild_text_obs([idx])[0]
+        anchor = (self.memory._data[idx][-1].get("information", self.tasks[idx])
+                  if self.memory._data[idx] else self.tasks[idx])
+        return {"text": text, "anchor": anchor}
+
+    async def astep_one(self, idx: int, text_action: str):
+        """Step slot `idx` with one action (async mirror of one lane of step()).
+        Returns (obs_dict, reward, done, info) with the same per-slot semantics —
+        projection, asearcher_history storage, ctx_terminate — as the batch path."""
+        import asyncio as _aio
+        actions, valids = self.projection_f([text_action])
+        action = actions[0]
+        loop = _aio.get_running_loop()
+        obs, reward, done, info = await loop.run_in_executor(
+            self.envs._executor, self.envs._sync_step, self.envs.envs[idx], action)
+        if self._asearcher_history:
+            from agent_system.environments.env_package.search.projection import _postprocess_action
+            stored = _postprocess_action(text_action)
+        else:
+            stored = action
+        self.memory._data[idx].append({"search": stored, "information": obs})
+        text = self.rebuild_text_obs([idx])[0]
+        info["is_action_valid"] = to_numpy(valids[0])
+        done = bool(done)
+        if self._ctx_terminate and not done:
+            budget = int(self.config.data.max_prompt_length) - self._ctx_margin
+            if len(text) >= 2.5 * budget and self._ctx_ntok(text) > budget:
+                done = True
+                info["ctx_overflow"] = True
+        return {"text": text, "anchor": obs}, float(reward), done, info
+
     def rebuild_text_obs(self, indices: List[int]) -> List[str]:
         """Rebuild the templated per-turn prompt for the given env slots from the current
         (possibly just-restored) memory + task state. Mirrors build_text_obs() exactly
