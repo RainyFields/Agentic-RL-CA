@@ -404,6 +404,24 @@ async def _collect(ctx: _Ctx, units: List[Dict], pool: int,
                       f"finished_traj={ctx.finished_traj} "
                       f"ctx_p50={pct(0.5)} ctx_p90={pct(0.9)} ctx_p99={pct(0.99)}",
                       flush=True)
+                # engine-side truth (running/waiting/KV%/preemptions) via the
+                # injected stat logger's RPC; skipped silently for fake servers.
+                try:
+                    refs = [s.get_engine_stats.remote() for s in ctx.servers]
+                    es = await asyncio.gather(
+                        *[asyncio.ensure_future(r) for r in refs])
+                    print(f"[async_engine_stats] wall={time.time():.1f} "
+                          f"running={[e['running'] for e in es]} "
+                          f"waiting={[e['waiting'] for e in es]} "
+                          f"kv={[round(e['kv_usage'], 3) for e in es]} "
+                          f"preempt={[e['preempted_cum'] for e in es]} "
+                          f"ptok={[e['prompt_tokens_cum'] for e in es]} "
+                          f"gtok={[e['gen_tokens_cum'] for e in es]}",
+                          flush=True)
+                except (AttributeError, TypeError):
+                    pass
+                except Exception as _e:
+                    print(f"[async_engine_stats] poll failed: {_e!r}", flush=True)
         snap_task = asyncio.create_task(_snapshots())
 
     watchdog = None

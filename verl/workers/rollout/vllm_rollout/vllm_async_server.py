@@ -124,6 +124,36 @@ class ExternalRayDistributedExecutor(Executor):
         return
 
 
+_ENGINE_STATS = {
+    "running": 0, "waiting": 0, "kv_usage": 0.0,
+    "prompt_tokens_cum": 0, "gen_tokens_cum": 0, "preempted_cum": 0,
+}
+
+
+class _StatsCapture:
+    """Minimal StatLoggerBase-compatible logger: latest scheduler stats + cumulative
+    iteration counters into a process-global (one engine per actor process)."""
+
+    def __init__(self, vllm_config=None, engine_idx: int = 0):
+        pass
+
+    def record(self, scheduler_stats=None, iteration_stats=None, engine_idx: int = 0):
+        if scheduler_stats is not None:
+            _ENGINE_STATS["running"] = int(scheduler_stats.num_running_reqs)
+            _ENGINE_STATS["waiting"] = int(scheduler_stats.num_waiting_reqs)
+            _ENGINE_STATS["kv_usage"] = float(scheduler_stats.kv_cache_usage)
+        if iteration_stats is not None:
+            _ENGINE_STATS["prompt_tokens_cum"] += int(iteration_stats.num_prompt_tokens)
+            _ENGINE_STATS["gen_tokens_cum"] += int(iteration_stats.num_generation_tokens)
+            _ENGINE_STATS["preempted_cum"] += int(iteration_stats.num_preempted_reqs)
+
+    def log(self):
+        pass
+
+    def log_engine_initialized(self):
+        pass
+
+
 @ray.remote(num_cpus=1)
 class AsyncvLLMServer(AsyncServerBase):
     """
@@ -209,7 +239,11 @@ class AsyncvLLMServer(AsyncServerBase):
         vllm_config = engine_args.create_engine_config()
         namespace = ray.get_runtime_context().namespace
         vllm_config.instance_id = f"{namespace}:{self.wg_prefix}:{self.vllm_dp_size}:{self.vllm_dp_rank}"
-        self.engine = AsyncLLM.from_vllm_config(vllm_config)
+        # Diagnostics (2026-08-05): inject a stat logger that keeps the LATEST
+        # scheduler stats + cumulative iteration counters in this actor process,
+        # queryable via the get_engine_stats RPC. V1's periodic stat logging does
+        # not run in this embedding and AsyncLLM exposes no metrics API in 0.11.
+        self.engine = AsyncLLM.from_vllm_config(vllm_config, stat_loggers=[_StatsCapture])
 
         # build serving chat
         model_config = self.engine.model_config
@@ -302,6 +336,10 @@ class AsyncvLLMServer(AsyncServerBase):
             "t_first_token": t_first,
             "t_done": _time.time(),
         }
+
+    async def get_engine_stats(self) -> Dict[str, Any]:
+        """Latest scheduler stats + cumulative iteration counters (diagnostics)."""
+        return dict(_ENGINE_STATS)
 
     async def abort_request(self, request_id: str):
         """Best-effort abort of an in-flight generate_token_ids request (drain path)."""
