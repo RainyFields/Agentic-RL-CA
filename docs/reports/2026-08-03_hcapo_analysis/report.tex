@@ -123,6 +123,7 @@ method & macro-EM & tok/q & mean turns\\
 GiGPO$^*$ & 0.446 & 1680 & 3.58\\
 HCAPO (hind, answer) & 0.440 & \bad{7719} & 3.77\\
 HCAPO (lift, last\_obs) & 0.429 & 5107 & 3.54\\
+HCAPO (lift, answer) & 0.423 & 7754 & 3.80\\
 turn-PPO & 0.417 & 556 & 2.61\\
 HCAPO (hind, last\_obs) & \bad{0.410} & 6801 & 3.91\\
 token-PPO$^*$ & 0.381 & 2502 & 2.78\\
@@ -169,9 +170,11 @@ hind (published) & 165 & 1742 & 0.75\\
 posted the best mid-training accuracy of any HCAPO run ($0.447$ at step 350, level with GRPO's
 endpoint). Then it ignited between steps 450 and 500. Full-set macro-EM $0.429$: better than the
 published form's $0.410$, worse than the answer-injection form's $0.440$, and below GRPO's $0.463$.
-The lift$\times$answer cell completed after this report was first compiled: final val-EM $0.411$ at
-the cap (2047 tokens, clip $\approx$1.0), confirming its $\sim$step-375 ignition; its full-set
-number will be appended when its eval lands.
+The lift$\times$answer cell completed last: final val-EM $0.411$ at the cap (2047 tokens,
+clip $\approx$1.0), full-set macro-EM $0.423$ --- slotting between the other HCAPO variants and
+changing no conclusion. Final full-set ordering: GRPO $0.463>$ GiGPO $0.446>$ HCAPO
+(hind,answer) $0.440>$ (lift,last\_obs) $0.429>$ (lift,answer) $0.423>$ turn-PPO $0.417>$
+(hind,last\_obs) $0.410$.
 
 The static diagnostic had predicted the lift would behave \emph{identically} to Eq.~6 (Spearman
 $0.97$ co-ranking). It did not --- so rank-equivalence at a policy snapshot does not imply

@@ -103,6 +103,7 @@ POINTS = [
     ("HCAPO paper",    "eval4b_hcapo_paper_s0",    RED,    "^"),
     ("HCAPO answer",   "eval4b_hcapo_ans_s0",      TEAL,   "^"),
     ("HCAPO lift",     "eval4b_hcapo_lift_s0",     GREEN,  "^"),
+    ("HCAPO lift+ans", "eval4b_hcapo_lift_ans_s0", "#b07aa1", "^"),
 ]
 fig, ax = plt.subplots(figsize=(8.6, 5.2))
 for name, lab, c, mk in POINTS:
