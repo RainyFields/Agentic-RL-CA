@@ -121,12 +121,13 @@ WATCHDOG_PID=$!
 run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
   local TAG="$1" COND="$2" STEPS="$3"; shift 3
   echo "==== PHASE $TAG: $COND $STEPS steps $(date -u) ===="
-  export EXP_NAME="asyncprof_${TAG}_${COND}_s0"
+  export EXP_NAME="${EXP_NAME_OVERRIDE:-asyncprof}_${TAG}_${COND}_s0"
   TOTAL_STEPS="$STEPS" VAL_FREQ=1000000 SAVE_FREQ=1000000 VAL_BEFORE_TRAIN=False \
     DYNBSZ=1 DYNBSZ_TOK=20480 \
     timeout 4h bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL" \
       +env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 \
-      +env.partial_rollout_max_age=4 +env.rollout_profiling=true "$@"
+      +env.partial_rollout_max_age=4 +env.rollout_profiling=true \
+      ${PROFILE_EXTRA:-} "$@"
   local RC=$?
   echo "==== PHASE $TAG exit=$RC $(date -u) ===="
   pkill -9 -f verl.trainer.main_ppo 2>/dev/null || true

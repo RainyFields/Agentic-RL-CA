@@ -144,6 +144,19 @@ class _Ctx:
         if self.profile:
             self.events.append(kw)
 
+    # ---- pass-2 diagnostics (env.async_rollout_snap_s > 0): per-slot phase tracking
+    # for the periodic scheduler snapshot. Phases: gen (submitted to vLLM), env
+    # (waiting on tool/search), idle/done (slot free). ----
+    def init_diag(self, n_servers: int, snap_s: float):
+        self.snap_s = snap_s
+        self.slot_phase: Dict[int, str] = {}
+        self.prompt_lens: List[int] = []
+        self.finished_traj = 0
+
+    def set_phase(self, slot: int, phase: str):
+        if getattr(self, "snap_s", 0):
+            self.slot_phase[slot] = phase
+
 
 # --------------------------------------------------------------------------- #
 # one trajectory = one coroutine
@@ -187,6 +200,9 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
 
         rid = f"{ctx.run_id}:{unit['traj_uid']}:{t_off + steps}"
         server = ctx.servers[slot % len(ctx.servers)]  # sticky per slot: prefix cache
+        if getattr(ctx, "snap_s", 0):
+            ctx.prompt_lens.append(len(prow["raw_prompt_ids"]))
+            ctx.set_phase(slot, "gen")
         t0 = time.monotonic()
         ref = server.generate_token_ids.remote(list(prow["raw_prompt_ids"]), ctx.sp, rid)
         try:
@@ -209,6 +225,7 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         text_action = tokenizer.decode(resp_ids, skip_special_tokens=True)
         row = _make_turn_row(collector, prow, resp_ids, gen["logprobs"], ctx.eos_token_id)
 
+        ctx.set_phase(slot, "env")
         next_obs, reward, env_done, info = await envs.astep_one(slot, text_action)
         t2 = time.monotonic()
         ctx.event(slot=slot, traj=unit["traj_uid"], turn=t_off + steps,
@@ -299,6 +316,9 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         done = bool(env_done) or early_stopped
         obs = next_obs
 
+    ctx.set_phase(slot, "done")
+    if getattr(ctx, "snap_s", 0) and done:
+        ctx.finished_traj += 1
     snap = None
     if not done:
         snap = envs.snapshot([slot])[0]
@@ -320,6 +340,29 @@ async def _collect(ctx: _Ctx, units: List[Dict], pool: int,
     free_slots = list(range(pool))
     running: Dict[asyncio.Task, Dict] = {}
     results: List[Dict] = []
+
+    snap_task = None
+    if getattr(ctx, "snap_s", 0):
+        async def _snapshots():
+            n_srv = len(ctx.servers)
+            while True:
+                await asyncio.sleep(ctx.snap_s)
+                phases = list(ctx.slot_phase.items())
+                by = {"gen": 0, "env": 0, "done": 0}
+                per_engine = [0] * n_srv
+                for s, p in phases:
+                    by[p] = by.get(p, 0) + 1
+                    if p == "gen":
+                        per_engine[s % n_srv] += 1
+                pl = sorted(ctx.prompt_lens[-2048:])
+                pct = (lambda q: pl[min(len(pl) - 1, int(q * len(pl)))]) if pl else (lambda q: 0)
+                print(f"[async_snap] t={time.monotonic():.0f} in_gen={by['gen']} "
+                      f"in_env={by['env']} slots_done={by['done']} "
+                      f"finished_traj={ctx.finished_traj} "
+                      f"gen_per_engine={per_engine} "
+                      f"ctx_p50={pct(0.5)} ctx_p90={pct(0.9)} ctx_p99={pct(0.99)}",
+                      flush=True)
+        snap_task = asyncio.create_task(_snapshots())
 
     watchdog = None
     if drain_timeout_s:
@@ -355,6 +398,8 @@ async def _collect(ctx: _Ctx, units: List[Dict], pool: int,
             else:
                 results.append(task.result())
 
+    if snap_task is not None:
+        snap_task.cancel()
     if watchdog is not None:
         watchdog.cancel()
     # unstarted units (drain fired while queued): nothing generated, nothing to
@@ -430,6 +475,7 @@ def async_multi_turn_loop(collector, gen_batch: DataProto, async_rollout_manager
 
     ctx = _Ctx(collector, envs, servers, sp, eos_token_id, cycle_turns,
                policy_version, profile)
+    ctx.init_diag(len(servers), float(cfg_env.get("async_rollout_snap_s", 0) or 0))
     drain_timeout = cfg_env.get("async_rollout_drain_timeout_s", None)
     envs.size_pool(pool)
 
