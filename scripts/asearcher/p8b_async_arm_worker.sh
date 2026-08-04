@@ -94,7 +94,8 @@ done
 WATCHDOG_PID=$!
 
 # ---- the arm: 75 steps, fast config, 3 attempts with resume ----
-export EXP_NAME="${COND}_qwen3-8b-base_32turn_async75_s0"
+export EXP_NAME="${COND}_qwen3-8b-base_32turn_async75kv60_s0"
+export GPU_MEMORY_UTIL=0.60  # KV sweep 2026-08-05: +13% traj/min vs 0.5, 6.5GB headroom (0.65 rejected: 0.5GB margin)
 export DYNBSZ=1 DYNBSZ_TOK="${DYNBSZ_TOK:-24576}"
 PR_ARGS=(+env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 +env.partial_rollout_max_age=4 actor_rollout_ref.rollout.mode=async +env.async_rollout_enable=true)
 for attempt in 1 2 3; do
