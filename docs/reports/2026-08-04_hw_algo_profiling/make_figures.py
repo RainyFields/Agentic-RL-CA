@@ -178,7 +178,7 @@ for alg, disp in (("grpo", "GRPO"), ("turn_ppo", "turn-PPO")):
 for alg in ("turn_ppo", "grpo"):
     macro = alg.replace("_", "")
     if alg not in present:
-        L.append(f"\\newcommand{{\\matched{macro}}}{{\\multicolumn{{5}}{{c}}{{(B200 run in progress)}} \\\\}}")
+        L.append(f"\\newcommand{{\\matched{macro}}}{{\\multicolumn{{7}}{{c}}{{(B200 run in progress)}} \\\\}}")
         L.append(f"\\newcommand{{\\extrap{macro}}}{{(pending)}}")
         continue
     n = present[alg]
@@ -193,8 +193,13 @@ for alg in ("turn_ppo", "grpo"):
         rt = mh[ph] / mb[ph] if mb.get(ph, 0) > 0 else float("nan")
         rtok = (mh[ph] / mh["tokens"]) / (mb[ph] / mb["tokens"]) if mb.get(ph, 0) > 0 else float("nan")
         tok_ratio[ph] = rtok
-        L.append(f"{name} & {mh[ph]:.0f} & {mb[ph]:.0f} & {rt:.2f}$\\times$ & {rtok:.2f}$\\times$ \\\\")
-    L.append(f"\\midrule tokens/step & {mh['tokens']/1e6:.1f}M & {mb['tokens']/1e6:.1f}M & & \\\\")
+        ph_h = 100 * mh[ph] / mh["step"]
+        ph_b = 100 * mb[ph] / mb["step"]
+        pct_h = "100\\%" if ph == "step" else f"{ph_h:.1f}\\%"
+        pct_b = "100\\%" if ph == "step" else f"{ph_b:.1f}\\%"
+        L.append(f"{name} & {mh[ph]:.0f} & {pct_h} & {mb[ph]:.0f} & {pct_b} & "
+                 f"{rt:.2f}$\\times$ & {rtok:.2f}$\\times$ \\\\")
+    L.append(f"\\midrule tokens/step & {mh['tokens']/1e6:.1f}M & & {mb['tokens']/1e6:.1f}M & & & \\\\")
     L.append("}")
     # 75-step extrapolation: divide each H100 full-run phase total by its measured
     # per-token speedup (identical token trajectory assumed); unmeasured phases (ref on

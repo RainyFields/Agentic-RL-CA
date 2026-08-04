@@ -75,14 +75,14 @@ active-slot packing in gen (finished trajectories still generate every round).
 
 \section{H100 vs.\ B200, position-matched steps}
 \begin{table}[h]\centering\small
-\begin{tabular}{lrrrr}\toprule
-\multicolumn{5}{c}{\textbf{turn-PPO}, steps 1--7 mean}\\
-phase & H100 s & B200 s & wall ratio & per-token\\\midrule
+\begin{tabular}{lrrrrrr}\toprule
+\multicolumn{7}{c}{\textbf{turn-PPO}, matched early steps, mean}\\
+phase & H100 s & share & B200 s & share & wall ratio & per-token\\\midrule
 \matchedturnppo
 \bottomrule\end{tabular}\par\vspace{0.8em}
-\begin{tabular}{lrrrr}\toprule
-\multicolumn{5}{c}{\textbf{GRPO}, steps 1--8 mean}\\
-phase & H100 s & B200 s & wall ratio & per-token\\\midrule
+\begin{tabular}{lrrrrrr}\toprule
+\multicolumn{7}{c}{\textbf{GRPO}, matched early steps, mean}\\
+phase & H100 s & share & B200 s & share & wall ratio & per-token\\\midrule
 \matchedgrpo
 \bottomrule\end{tabular}
 \caption{Position-matched phase means. H100 critic is FSDP-offloaded; B200 critic on-GPU

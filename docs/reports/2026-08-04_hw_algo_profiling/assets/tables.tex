@@ -17,14 +17,14 @@ val + ckpt + reward/adv/other & 3.3\,h & 4.6\% \\
 \midrule TOTAL (in-step) & 72.3\,h & 100\% \\
 }
 \newcommand{\matchedturnppo}{%
-rollout gen & 2057 & 1787 & 1.15$\times$ & 1.08$\times$ \\
-old logprob & 149 & 96 & 1.56$\times$ & 1.46$\times$ \\
-critic fwd & 141 & 91 & 1.55$\times$ & 1.45$\times$ \\
-critic update & 631 & 394 & 1.60$\times$ & 1.50$\times$ \\
-actor update & 661 & 408 & 1.62$\times$ & 1.52$\times$ \\
-TOTAL / step & 3654 & 2787 & 1.31$\times$ & 1.23$\times$ \\
-\midrule tokens/step & 24.8M & 23.3M & & \\
+rollout gen & 2057 & 56.3\% & 1787 & 64.1\% & 1.15$\times$ & 1.08$\times$ \\
+old logprob & 149 & 4.1\% & 96 & 3.4\% & 1.56$\times$ & 1.46$\times$ \\
+critic fwd & 141 & 3.9\% & 91 & 3.3\% & 1.55$\times$ & 1.45$\times$ \\
+critic update & 631 & 17.3\% & 394 & 14.1\% & 1.60$\times$ & 1.50$\times$ \\
+actor update & 661 & 18.1\% & 408 & 14.6\% & 1.62$\times$ & 1.52$\times$ \\
+TOTAL / step & 3654 & 100\% & 2787 & 100\% & 1.31$\times$ & 1.23$\times$ \\
+\midrule tokens/step & 24.8M & & 23.3M & & & \\
 }
 \newcommand{\extrapturnppo}{56.6\,h (72.3\,h on H100, 1.28$\times$)}
-\newcommand{\matchedgrpo}{\multicolumn{5}{c}{(B200 run in progress)} \\}
+\newcommand{\matchedgrpo}{\multicolumn{7}{c}{(B200 run in progress)} \\}
 \newcommand{\extrapgrpo}{(pending)}
