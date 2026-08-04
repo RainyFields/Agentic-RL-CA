@@ -86,6 +86,7 @@ class ExternalRayDistributedExecutor(Executor):
         timeout: Optional[float] = None,
         args: Tuple = (),
         kwargs: Optional[Dict[str, Any]] = None,
+        non_block: bool = False,
     ) -> List[Any]:
         # TODO(wuxibin): support ray compiled graph
         if isinstance(method, str):
@@ -95,7 +96,28 @@ class ExternalRayDistributedExecutor(Executor):
         del method
 
         # ~3ms overhead per schedule step due to SchedulerOutput/ModelRunnerOutput serialization/deserialization.
-        outputs = ray.get([worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers])
+        refs = [worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers]
+        if non_block:
+            # vllm >= 0.9 executor interface: return Futures instead of results.
+            # We resolve synchronously and wrap — same blocking behavior as the
+            # 0.8.4-era glue, correct under the new calling convention.
+            from concurrent.futures import Future
+
+            futures = []
+            try:
+                outputs = ray.get(refs, timeout=timeout)
+            except Exception as e:
+                for _ in refs:
+                    f = Future()
+                    f.set_exception(e)
+                    futures.append(f)
+                return futures
+            for o in outputs:
+                f = Future()
+                f.set_result(o)
+                futures.append(f)
+            return futures
+        outputs = ray.get(refs, timeout=timeout)
         return outputs
 
     def check_health(self):

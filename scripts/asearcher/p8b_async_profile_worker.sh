@@ -55,14 +55,25 @@ if [ ! -f "$MODEL_PATH/config.json" ]; then
 fi
 [ -f "$MODEL_PATH/config.json" ] || { echo "model staging failed"; exit 1; }
 
-# ---- phase A: engine smoke ----
-echo "==== PHASE A: AsyncLLM engine smoke $(date -u) ===="
-TP=1 GPU_UTIL=0.5 python "$REPO/scripts/asearcher/async_llm_smoke.py" 2>&1 | tail -20
-SMOKE_RC=${PIPESTATUS[0]}
-echo "==== PHASE A exit=$SMOKE_RC ===="
-[ "$SMOKE_RC" = "0" ] || { echo "ENGINE SMOKE FAILED — aborting (sync-P1 fallback path)"; exit 1; }
+# ---- phase A: engine smoke (START_PHASE=B/C skips) ----
+START_PHASE="${START_PHASE:-A}"
+if [ "$START_PHASE" = "A" ]; then
+  echo "==== PHASE A: AsyncLLM engine smoke $(date -u) ===="
+  TP=1 GPU_UTIL=0.5 python "$REPO/scripts/asearcher/async_llm_smoke.py" 2>&1 | tail -20
+  SMOKE_RC=${PIPESTATUS[0]}
+  echo "==== PHASE A exit=$SMOKE_RC ===="
+  [ "$SMOKE_RC" = "0" ] || { echo "ENGINE SMOKE FAILED — aborting (sync-P1 fallback path)"; exit 1; }
+fi
 
 # ---- retriever (verbatim from p8b_arm_worker.sh — battle-tested block) ----
+# Reuse a healthy retriever from a previous attempt (phase-C-only reruns).
+if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/retrieve \
+      -H 'Content-Type: application/json' \
+      -d '{"queries":["health probe"],"topk":1,"return_scores":true}' 2>/dev/null)" = "200" ]; then
+  echo "[retriever] already healthy — reusing"
+  export SEARCH_URL="http://127.0.0.1:8000/retrieve"
+  RETRIEVER_REUSED=1
+fi
 [ -f "$STAGE/e5_Flat.index" ] || cp "$SEARCHR1_DATA/e5_Flat.index" "$STAGE/" || exit 1
 [ -f "$STAGE/wiki-18.jsonl" ] || cp "$SEARCHR1_DATA/wiki-18.jsonl" "$STAGE/" || exit 1
 mkdir -p "$REPO/outputs/retriever"
@@ -76,6 +87,9 @@ serve_retriever() {
       --topk 5 --retriever_name e5 --retriever_model intfloat/e5-base-v2 --faiss_gpu --port 8000 \
   ) >> "$RETR_LOG" 2>&1 &
 }
+if [ "${RETRIEVER_REUSED:-0}" = "1" ]; then
+  up=1
+else
 : > "$RETR_LOG"; serve_retriever
 export SEARCH_URL="http://127.0.0.1:8000/retrieve"
 up=0
@@ -86,6 +100,7 @@ for i in $(seq 1 240); do
       -d '{"queries":["health probe"],"topk":5,"return_scores":true}') || CODE=000
   [ "$CODE" = "200" ] && { echo "[retriever] healthy t=$((i*10))s"; up=1; break; }
 done
+fi
 [ "$up" = 1 ] || { echo "[retriever] health timeout"; exit 1; }
 ( fails=0
   while true; do
@@ -109,7 +124,7 @@ run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
   export EXP_NAME="asyncprof_${TAG}_${COND}_s0"
   TOTAL_STEPS="$STEPS" VAL_FREQ=1000000 SAVE_FREQ=1000000 VAL_BEFORE_TRAIN=False \
     DYNBSZ=1 DYNBSZ_TOK=20480 \
-    bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL" \
+    timeout 4h bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL" \
       +env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 \
       +env.partial_rollout_max_age=4 +env.rollout_profiling=true "$@"
   local RC=$?
@@ -123,8 +138,10 @@ run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
 
 ASYNC_ARGS=(actor_rollout_ref.rollout.mode=async +env.async_rollout_enable=true)
 
-# ---- phase B: sync baseline ----
-run_phase B_sync token_grpo "$N_STEPS" || { echo "SYNC BASELINE FAILED"; exit 1; }
+# ---- phase B: sync baseline (START_PHASE=C skips) ----
+if [ "$START_PHASE" != "C" ]; then
+  run_phase B_sync token_grpo "$N_STEPS" || { echo "SYNC BASELINE FAILED"; exit 1; }
+fi
 
 # ---- phase C: async collector ----
 run_phase C_async token_grpo "$N_STEPS" "${ASYNC_ARGS[@]}" || { echo "ASYNC RUN FAILED"; exit 1; }
