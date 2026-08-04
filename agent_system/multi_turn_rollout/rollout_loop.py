@@ -344,6 +344,11 @@ class TrajectoryCollector:
         prev_action = [None] * batch_size
         prev_obs_text = [None] * batch_size
         rollout_records = []   # SP3.1: reliable per-turn debug log (written to JSONL at loop end)
+        # Lean async plan P2 (baseline instrumentation, +env.rollout_profiling=true):
+        # count generated tokens on active vs done ("zombie") rows per cycle.
+        _profiling = bool(self.config.env.get('rollout_profiling', False))
+        _tok_active = 0
+        _tok_zombie = 0
         # Sync partial rollout: per-cycle turn budget (global horizon is still enforced by
         # the env's own max_turns, which persists across snapshot/restore).
         n_loop_steps = max_steps_override if max_steps_override is not None else self.config.env.max_steps
@@ -498,6 +503,10 @@ class TrajectoryCollector:
                 })
             resp_len = batch.batch['responses'].shape[1]
             resp_tok = batch.batch['attention_mask'][:, -resp_len:].sum(-1)
+            if _profiling:
+                _rt = torch_to_numpy(resp_tok)
+                _tok_active += int(_rt[active_masks].sum())
+                _tok_zombie += int(_rt[~active_masks].sum())
             batch.non_tensor_batch['parse_status'] = parse_status
             batch.non_tensor_batch['env_reward'] = torch_to_numpy(rewards, is_object=True)   # raw env reward
             batch.non_tensor_batch['env_done'] = np.array(dones_np, dtype=object)
@@ -528,6 +537,12 @@ class TrajectoryCollector:
             # Break if all environments are done
             if is_done.all():
                 break
+
+        if _profiling:
+            _tot = _tok_active + _tok_zombie
+            print(f"[sync_rollout_profile] generated tokens: active={_tok_active} "
+                  f"zombie={_tok_zombie} zombie_ratio="
+                  f"{(_tok_zombie / _tot if _tot else 0.0):.4f}", flush=True)
 
         return (total_batch_list, episode_rewards, episode_lengths, tool_callings,
                 total_infos, rollout_records)
