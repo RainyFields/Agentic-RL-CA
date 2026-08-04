@@ -138,8 +138,8 @@ run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
 
 ASYNC_ARGS=(actor_rollout_ref.rollout.mode=async +env.async_rollout_enable=true)
 
-# ---- phase B: sync baseline (START_PHASE=C skips) ----
-if [ "$START_PHASE" != "C" ]; then
+# ---- phase B: sync baseline (only for START_PHASE=A/B) ----
+if [ "$START_PHASE" = "A" ] || [ "$START_PHASE" = "B" ]; then
   run_phase B_sync token_grpo "$N_STEPS" || { echo "SYNC BASELINE FAILED"; exit 1; }
 fi
 
