@@ -134,6 +134,9 @@ class _Ctx:
         self.policy_version = policy_version
         self.profile = profile
         self.stop = asyncio.Event()          # drain: no NEW turns after this
+        self.routing = "sticky"              # or "least_loaded" (env.async_rollout_routing)
+        self.engine_load = [0] * len(servers)  # in-flight requests per engine (driver view)
+        self.slot_engine: Dict[int, int] = {}  # slot -> engine of its current/last request
         self.run_id = uuid.uuid4().hex[:8]
         self.events: List[Dict] = []         # minimal per-turn timing events
         self.rollout_records: List[Dict] = []
@@ -186,6 +189,7 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
     rows, infos = [], []
     ep_rew = 0.0
     tool_c = 0.0
+    last_engine = None   # prefix-affinity memory for least_loaded routing
     t_off = int(unit["turn_off"])
     invalid = repeated = nochange = 0
     prev_action = prev_obs_text = None
@@ -205,16 +209,26 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         )
 
         rid = f"{ctx.run_id}:{unit['traj_uid']}:{t_off + steps}"
-        server = ctx.servers[slot % len(ctx.servers)]  # sticky per slot: prefix cache
+        # Routing (env.async_rollout_routing): "sticky" (default) pins slot -> engine
+        # for maximal prefix-cache locality; "least_loaded" picks the engine with the
+        # fewest in-flight requests, preferring the trajectory's previous engine on
+        # ties (prefix-affinity tiebreak). A request never migrates once assigned.
+        n_srv = len(ctx.servers)
+        if getattr(ctx, "routing", "sticky") == "least_loaded":
+            loads = ctx.engine_load
+            m = min(loads)
+            eng = last_engine if (last_engine is not None and loads[last_engine] == m) \
+                else loads.index(m)
+        else:
+            eng = slot % n_srv
+        server = ctx.servers[eng]
+        ctx.engine_load[eng] += 1
+        last_engine = eng
+        ctx.slot_engine[slot] = eng
         if getattr(ctx, "snap_s", 0):
             ctx.prompt_lens.append(len(prow["raw_prompt_ids"]))
             ctx.set_phase(slot, "gen", prompt_tokens=len(prow["raw_prompt_ids"]))
-        inflight_at_enq = -1
-        if ctx.profile:
-            n_srv = len(ctx.servers)
-            inflight_at_enq = sum(
-                1 for s, p in getattr(ctx, "slot_phase", {}).items()
-                if p == "gen" and s % n_srv == slot % n_srv)
+        inflight_at_enq = ctx.engine_load[eng] - 1 if ctx.profile else -1
         w_enq = time.time()
         t0 = time.monotonic()
         ref = server.generate_token_ids.remote(list(prow["raw_prompt_ids"]), ctx.sp, rid)
@@ -229,9 +243,11 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
                 await server.abort_request.remote(rid)
             except Exception:
                 pass
+            ctx.engine_load[eng] -= 1
             print(f"[async_rollout] generation timeout ({ctx.hard_grace_s}s) "
                   f"traj={unit['traj_uid']} turn={t_off + steps} — turn discarded", flush=True)
             break
+        ctx.engine_load[eng] -= 1
         t1 = time.monotonic()
         w_recv = time.time()
 
@@ -242,7 +258,7 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         ctx.set_phase(slot, "env")
         next_obs, reward, env_done, info = await envs.astep_one(slot, text_action)
         t2 = time.monotonic()
-        ctx.event(slot=slot, engine=slot % len(ctx.servers),
+        ctx.event(slot=slot, engine=eng,
                   traj=unit["traj_uid"], turn=t_off + steps,
                   t_gen0=t0, t_gen1=t1, t_env1=t2,
                   # wall-clock latency fields (per-request row; same-node clocks)
@@ -386,7 +402,7 @@ async def _collect(ctx: _Ctx, units: List[Dict], pool: int,
                 tok_e = [0] * n_srv
                 done = 0
                 for s, p in phases:
-                    e = s % n_srv
+                    e = ctx.slot_engine.get(s, s % n_srv)
                     if p == "gen":
                         gen_e[e] += 1
                         asg_e[e] += 1
@@ -535,6 +551,7 @@ def async_multi_turn_loop(collector, gen_batch: DataProto, async_rollout_manager
 
     ctx = _Ctx(collector, envs, servers, sp, eos_token_id, cycle_turns,
                policy_version, profile)
+    ctx.routing = str(cfg_env.get("async_rollout_routing", "sticky"))
     ctx.init_diag(len(servers), float(cfg_env.get("async_rollout_snap_s", 0) or 0))
     drain_timeout = cfg_env.get("async_rollout_drain_timeout_s", None)
     envs.size_pool(pool)

@@ -31,12 +31,13 @@ MODEL = "/mnt/hdfs/mlsys/models/Qwen3-8B-Base"
 RESP_CAP = 16
 
 
-def make_config(n=2, cycle_turns=3, max_steps=6):
+def make_config(n=2, cycle_turns=3, max_steps=6, routing="sticky"):
     return OmegaConf.create({
         "data": {"max_prompt_length": 512, "truncation": "left",
                  "return_raw_chat": False, "apply_chat_template_kwargs": {}},
         "env": {"rollout": {"n": n}, "max_steps": max_steps,
                 "async_rollout_enable": True,
+                "async_rollout_routing": routing,
                 "partial_rollout_cycle_turns": cycle_turns,
                 "partial_rollout_max_age": 4},
         "actor_rollout_ref": {"rollout": {
@@ -329,6 +330,21 @@ def main():
           "policy versions {1,2} across the seam",
           len(qc_rows) == 10 and turn_seq == sorted([0, 1, 2, 3, 4] * 2) and pv_mix == [1, 2],
           f"n={len(qc_rows)} turns={turn_seq} pv={pv_mix}")
+
+    # ---------------- test 6: least-loaded routing with prefix-affinity tiebreak ----
+    cfg6 = make_config(n=2, cycle_turns=8, max_steps=8, routing="least_loaded")
+    coll6 = TrajectoryCollector(config=cfg6, tokenizer=tok, processor=None)
+    servers6 = [FakeServer(eos, gen_delay=0.20), FakeServer(eos, gen_delay=0.02)]
+    envs6 = FakeEnvs(pool=4, search_delay=0.02)
+    gb6 = make_gen_batch(["qE", "qF"], [4, 4], tok, policy_version=9)
+    out6 = run_collection(coll6, gb6, servers6, envs6)
+    c0, c1 = len(servers6[0].calls), len(servers6[1].calls)
+    n_rows6 = len(out6.batch["responses"]) if out6 is not None else 0
+    # the fast engine must absorb more requests than the 5x-slower one, both must
+    # serve traffic, and the released batch stays complete (4 trajs x 4 turns)
+    check("6. least-loaded routing balances load, output intact",
+          c0 > 0 and c1 > c0 and n_rows6 == 16,
+          f"slow-engine calls={c0} fast-engine calls={c1} rows={n_rows6}")
 
     print()
     if failures:

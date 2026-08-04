@@ -127,25 +127,45 @@ class ExternalRayDistributedExecutor(Executor):
 _ENGINE_STATS = {
     "running": 0, "waiting": 0, "kv_usage": 0.0,
     "prompt_tokens_cum": 0, "gen_tokens_cum": 0, "preempted_cum": 0,
+    "iters": 0, "sched_tok_sum": 0, "budget_hits": 0,
+    "prefix_queries": 0, "prefix_hits": 0, "token_budget": 0,
 }
 
 
 class _StatsCapture:
     """Minimal StatLoggerBase-compatible logger: latest scheduler stats + cumulative
-    iteration counters into a process-global (one engine per actor process)."""
+    iteration counters into a process-global (one engine per actor process).
+    Per-iteration scheduled tokens = num_prompt_tokens + num_generation_tokens of
+    that iteration; budget_hits counts iterations reaching >=98% of
+    max_num_batched_tokens (prefill packing saturation)."""
 
     def __init__(self, vllm_config=None, engine_idx: int = 0):
-        pass
+        try:
+            _ENGINE_STATS["token_budget"] = int(
+                vllm_config.scheduler_config.max_num_batched_tokens)
+        except AttributeError:
+            _ENGINE_STATS["token_budget"] = 0
 
     def record(self, scheduler_stats=None, iteration_stats=None, engine_idx: int = 0):
         if scheduler_stats is not None:
             _ENGINE_STATS["running"] = int(scheduler_stats.num_running_reqs)
             _ENGINE_STATS["waiting"] = int(scheduler_stats.num_waiting_reqs)
             _ENGINE_STATS["kv_usage"] = float(scheduler_stats.kv_cache_usage)
+            pcs = getattr(scheduler_stats, "prefix_cache_stats", None)
+            if pcs is not None:
+                _ENGINE_STATS["prefix_queries"] += int(getattr(pcs, "queries", 0))
+                _ENGINE_STATS["prefix_hits"] += int(getattr(pcs, "hits", 0))
         if iteration_stats is not None:
-            _ENGINE_STATS["prompt_tokens_cum"] += int(iteration_stats.num_prompt_tokens)
-            _ENGINE_STATS["gen_tokens_cum"] += int(iteration_stats.num_generation_tokens)
+            pt = int(iteration_stats.num_prompt_tokens)
+            gt = int(iteration_stats.num_generation_tokens)
+            _ENGINE_STATS["prompt_tokens_cum"] += pt
+            _ENGINE_STATS["gen_tokens_cum"] += gt
             _ENGINE_STATS["preempted_cum"] += int(iteration_stats.num_preempted_reqs)
+            _ENGINE_STATS["iters"] += 1
+            _ENGINE_STATS["sched_tok_sum"] += pt + gt
+            budget = _ENGINE_STATS["token_budget"]
+            if budget and pt + gt >= 0.98 * budget:
+                _ENGINE_STATS["budget_hits"] += 1
 
     def log(self):
         pass
