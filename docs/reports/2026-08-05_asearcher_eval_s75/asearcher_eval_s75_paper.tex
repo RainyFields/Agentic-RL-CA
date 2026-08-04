@@ -146,9 +146,19 @@ environment assigned. GRPO leaves 8.0\% of questions with no \texttt{<answer>} a
 \begin{itemize}\itemsep2pt
   \item \hw{Single seed.} One run per arm; the wiki-answerable judge gap ($+0.015$) is
   small. Seed replication is queued before any headline claim.
-  \item \hw{Unfiltered training data.} Both arms trained without the closed-book filter
-  ($\approx$40\% of unfiltered training successes require zero searches); absolute numbers
-  carry a recall confound, and the 4B \emph{filtered} campaign inverted the arm ordering.
+  \item \hw{Unfiltered training data (parametric-recall confound).} Both arms trained
+  without the closed-book filter. Measured on a 944-query sample of the training pool
+  (early-training 8B, temperature 1, 5 attempts each; Fig.~\ref{fig:parametric}): the
+  near-base policy solves 51.6\% of queries at least once, and \hw{54.8\% of those solved
+  queries have at least one zero-search win} (27.3\% are solved \emph{only} by memory) ---
+  43.9\% of all winning trajectories used no search at all. The training reward therefore
+  partly pays for parametric recall rather than search skill. The trained checkpoints
+  nearly always search at eval time (zero-search trajectories: GRPO 0.0\%, turn-PPO 1.6\%),
+  but this does not prove retrieval \emph{dependence}, and the 4B \emph{filtered} campaign
+  inverted the arm ordering. (For scale: the forced closed-book measurement on 4B found
+  28.8\% of all queries parametric-answerable; the 8B in-env 28.3\% is a lower bound on the
+  same quantity, so the true 8B rate is likely higher. The forced 8B closed-book pass is
+  queued.)
   \item \hw{Live-web $\neq$ method comparison.} GAIA/frames/xbench need the open web; our
   retriever serves a 2018 wiki snapshot.
   \item An earlier (2026-08-04 morning) claim that transfer \emph{reverses} the training-val
@@ -158,5 +168,15 @@ environment assigned. GRPO leaves 8.0\% of questions with no \texttt{<answer>} a
   \texttt{gigpo}) receive the identical eval + judge pass at step 75, extending this to the
   full five-arm estimator comparison.
 \end{itemize}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.7\linewidth]{assets/fig_parametric_pie.pdf}
+\caption{The parametric-recall confound in the unfiltered training data: 944 training
+queries $\times$ 5 attempts by the early-training 8B (temperature 1). Roughly half the
+queries it can solve at all admit a zero-search (memory-only) win; for 14\% of all queries,
+memory was the \emph{only} successful route. These queries pay training reward regardless
+of search skill.}
+\label{fig:parametric}
+\end{figure}
 
 \end{document}
