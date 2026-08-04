@@ -57,14 +57,11 @@ fig, ax = plt.subplots(figsize=(9, 5.5))
 for arm in LOGS:
     xs, ys = train[arm]
     ax.plot(xs, ys, color=C2[arm], linewidth=1.2, alpha=0.3)
-    ax.plot(xs, ema(ys), color=C2[arm], linewidth=2.5, label=f"{arm} train (temp 1)")
-    vx, vy = val[arm]
-    ax.plot(vx, vy, color=C2[arm], linewidth=2.0, linestyle="--", marker="o",
-            markersize=9, label=f"{arm} val (greedy EM)")
+    ax.plot(xs, ema(ys), color=C2[arm], linewidth=2.5, label=arm)
 ax.set_xlabel("training step")
-ax.set_ylabel("success rate / EM")
+ax.set_ylabel("train success rate")
 ax.set_ylim(0, None)
-ax.legend(frameon=False, fontsize=13, loc="lower right")
+ax.legend(frameon=False, loc="lower right")
 
 finalize_figure(fig, HERE / "assets" / "fig_training_curves")
 print("wrote assets/fig_training_curves.{png,pdf}")
