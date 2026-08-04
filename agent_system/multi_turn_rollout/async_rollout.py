@@ -149,13 +149,19 @@ class _Ctx:
     # (waiting on tool/search), idle/done (slot free). ----
     def init_diag(self, n_servers: int, snap_s: float):
         self.snap_s = snap_s
+        self.n_servers = n_servers
         self.slot_phase: Dict[int, str] = {}
+        self.slot_tokens: Dict[int, int] = {}   # last submitted prompt len per slot
         self.prompt_lens: List[int] = []
         self.finished_traj = 0
 
-    def set_phase(self, slot: int, phase: str):
+    def set_phase(self, slot: int, phase: str, prompt_tokens: int = None):
         if getattr(self, "snap_s", 0):
             self.slot_phase[slot] = phase
+            if prompt_tokens is not None:
+                self.slot_tokens[slot] = prompt_tokens
+            elif phase == "done":
+                self.slot_tokens.pop(slot, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -202,7 +208,7 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         server = ctx.servers[slot % len(ctx.servers)]  # sticky per slot: prefix cache
         if getattr(ctx, "snap_s", 0):
             ctx.prompt_lens.append(len(prow["raw_prompt_ids"]))
-            ctx.set_phase(slot, "gen")
+            ctx.set_phase(slot, "gen", prompt_tokens=len(prow["raw_prompt_ids"]))
         t0 = time.monotonic()
         ref = server.generate_token_ids.remote(list(prow["raw_prompt_ids"]), ctx.sp, rid)
         try:
@@ -344,22 +350,41 @@ async def _collect(ctx: _Ctx, units: List[Dict], pool: int,
     snap_task = None
     if getattr(ctx, "snap_s", 0):
         async def _snapshots():
-            n_srv = len(ctx.servers)
+            n_srv = ctx.n_servers
             while True:
                 await asyncio.sleep(ctx.snap_s)
                 phases = list(ctx.slot_phase.items())
-                by = {"gen": 0, "env": 0, "done": 0}
-                per_engine = [0] * n_srv
+                # per-engine request-state split (engine = slot % n_srv, sticky):
+                #   assigned   = slots owned by the engine still holding a live trajectory
+                #   in_gen     = requests SUBMITTED to that vLLM engine (driver view;
+                #                engine-side running vs waiting comes from the vLLM
+                #                stat log lines, joined by timestamp at analysis)
+                #   in_env     = trajectories waiting on the search tool
+                #   sub_tokens = sum of submitted prompt tokens resident per engine
+                #                (driver-known lower bound; true KV residency incl.
+                #                generated + cached blocks is the engine's KV% line)
+                gen_e = [0] * n_srv
+                env_e = [0] * n_srv
+                asg_e = [0] * n_srv
+                tok_e = [0] * n_srv
+                done = 0
                 for s, p in phases:
-                    by[p] = by.get(p, 0) + 1
+                    e = s % n_srv
                     if p == "gen":
-                        per_engine[s % n_srv] += 1
+                        gen_e[e] += 1
+                        asg_e[e] += 1
+                        tok_e[e] += ctx.slot_tokens.get(s, 0)
+                    elif p == "env":
+                        env_e[e] += 1
+                        asg_e[e] += 1
+                    else:
+                        done += 1
                 pl = sorted(ctx.prompt_lens[-2048:])
                 pct = (lambda q: pl[min(len(pl) - 1, int(q * len(pl)))]) if pl else (lambda q: 0)
-                print(f"[async_snap] t={time.monotonic():.0f} in_gen={by['gen']} "
-                      f"in_env={by['env']} slots_done={by['done']} "
+                print(f"[async_snap] wall={time.time():.1f} "
+                      f"assigned={asg_e} in_gen={gen_e} in_env={env_e} "
+                      f"sub_tokens={tok_e} slots_done={done} "
                       f"finished_traj={ctx.finished_traj} "
-                      f"gen_per_engine={per_engine} "
                       f"ctx_p50={pct(0.5)} ctx_p90={pct(0.9)} ctx_p99={pct(0.99)}",
                       flush=True)
         snap_task = asyncio.create_task(_snapshots())
