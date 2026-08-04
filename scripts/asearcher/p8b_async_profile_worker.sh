@@ -143,8 +143,10 @@ if [ "$START_PHASE" != "C" ]; then
   run_phase B_sync token_grpo "$N_STEPS" || { echo "SYNC BASELINE FAILED"; exit 1; }
 fi
 
-# ---- phase C: async collector ----
-run_phase C_async token_grpo "$N_STEPS" "${ASYNC_ARGS[@]}" || { echo "ASYNC RUN FAILED"; exit 1; }
+# ---- phase C: async collector (START_PHASE=D skips) ----
+if [ "$START_PHASE" != "D" ]; then
+  run_phase C_async token_grpo "$N_STEPS" "${ASYNC_ARGS[@]}" || { echo "ASYNC RUN FAILED"; exit 1; }
+fi
 
 # ---- phase D: optional turn-PPO async smoke ----
 if [ "$TURNPPO_STEPS" -gt 0 ]; then
