@@ -209,6 +209,13 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         if getattr(ctx, "snap_s", 0):
             ctx.prompt_lens.append(len(prow["raw_prompt_ids"]))
             ctx.set_phase(slot, "gen", prompt_tokens=len(prow["raw_prompt_ids"]))
+        inflight_at_enq = -1
+        if ctx.profile:
+            n_srv = len(ctx.servers)
+            inflight_at_enq = sum(
+                1 for s, p in getattr(ctx, "slot_phase", {}).items()
+                if p == "gen" and s % n_srv == slot % n_srv)
+        w_enq = time.time()
         t0 = time.monotonic()
         ref = server.generate_token_ids.remote(list(prow["raw_prompt_ids"]), ctx.sp, rid)
         try:
@@ -226,6 +233,7 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
                   f"traj={unit['traj_uid']} turn={t_off + steps} — turn discarded", flush=True)
             break
         t1 = time.monotonic()
+        w_recv = time.time()
 
         resp_ids = gen["token_ids"]
         text_action = tokenizer.decode(resp_ids, skip_special_tokens=True)
@@ -234,8 +242,17 @@ async def _run_trajectory(ctx: _Ctx, slot: int, unit: Dict) -> Dict:
         ctx.set_phase(slot, "env")
         next_obs, reward, env_done, info = await envs.astep_one(slot, text_action)
         t2 = time.monotonic()
-        ctx.event(slot=slot, traj=unit["traj_uid"], turn=t_off + steps,
-                  t_gen0=t0, t_gen1=t1, t_env1=t2)
+        ctx.event(slot=slot, engine=slot % len(ctx.servers),
+                  traj=unit["traj_uid"], turn=t_off + steps,
+                  t_gen0=t0, t_gen1=t1, t_env1=t2,
+                  # wall-clock latency fields (per-request row; same-node clocks)
+                  w_enq=w_enq, w_recv=w_recv, w_env_done=time.time(),
+                  t_rpc_recv=gen.get("t_rpc_recv"),
+                  t_first_token=gen.get("t_first_token"),
+                  t_srv_done=gen.get("t_done"),
+                  prompt_len=len(prow["raw_prompt_ids"]),
+                  n_tokens=len(resp_ids),
+                  inflight_engine_at_enq=inflight_at_enq)
 
         # ---- per-turn bookkeeping (mirrors _turn_loop field-for-field) ----
         is_valid = bool(np.asarray(info.get("is_action_valid", True)).item()) \
@@ -555,6 +572,20 @@ def async_multi_turn_loop(collector, gen_batch: DataProto, async_rollout_manager
     results = asyncio.run(_collect(ctx, units, pool, drain_timeout))
     wall_s = time.monotonic() - t_wall0
     collector._dump_rollout_records(ctx.rollout_records)
+    if ctx.profile and ctx.events:
+        import json as _json
+        import os as _os
+        d = _os.environ.get("ASYNC_DIAG_DIR", "/tmp/async_diag")
+        try:
+            _os.makedirs(d, exist_ok=True)
+            p = _os.path.join(d, f"events_{ctx.run_id}.jsonl")
+            with open(p, "w") as fh:
+                for e in ctx.events:
+                    fh.write(_json.dumps(e) + "\n")
+            print(f"[async_rollout] per-request event log: {p} "
+                  f"({len(ctx.events)} rows)", flush=True)
+        except Exception as _e:
+            print(f"[async_rollout] event dump failed: {_e!r}", flush=True)
     am = _overlap_metrics(ctx, wall_s)
     print(f"[async_rollout] cycle done: {len(results)} trajectories, "
           f"{am.get('async/turns', 0)} turns, wall {wall_s:.1f}s, "

@@ -5,4 +5,5 @@
 export START_PHASE=C N_STEPS=1 TURNPPO_STEPS=0
 export EXP_NAME_OVERRIDE=asyncdiag
 export PROFILE_EXTRA="actor_rollout_ref.rollout.disable_log_stats=False +env.async_rollout_snap_s=2"
+export ASYNC_DIAG_DIR=/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/async_diag
 exec bash /home/tiger/xiaoxuan/Agentic-RL-CA/.claude/worktrees/sync-partial-rollout/scripts/asearcher/p8b_async_profile_worker.sh

@@ -273,13 +273,19 @@ class AsyncvLLMServer(AsyncServerBase):
         sync engine) and gets the exact sampled ids + per-token logprobs back. Called
         as a Ray async actor method — many requests run concurrently on this engine.
         """
+        import time as _time
+
         from vllm.inputs import TokensPrompt
 
+        t_rpc_recv = _time.time()
+        t_first = None
         sp = SamplingParams(**sampling_params)
         final = None
         async for out in self.engine.generate(
             TokensPrompt(prompt_token_ids=list(prompt_token_ids)), sp, request_id
         ):
+            if t_first is None:
+                t_first = _time.time()
             final = out
         seq = final.outputs[0]
         logprobs = None
@@ -289,6 +295,12 @@ class AsyncvLLMServer(AsyncServerBase):
             "token_ids": list(seq.token_ids),
             "logprobs": logprobs,
             "finish_reason": str(seq.finish_reason),
+            # wall-clock timing (same node as the driver -> directly joinable):
+            # engine-internal queue vs prefill cannot be split without scheduler
+            # events; t_first - t_rpc_recv = in-engine queue + prefill (service TTFT).
+            "t_rpc_recv": t_rpc_recv,
+            "t_first_token": t_first,
+            "t_done": _time.time(),
         }
 
     async def abort_request(self, request_id: str):
