@@ -89,12 +89,42 @@ GRPO runs essentially every question to near the 32-turn cap (16.5--18.1 average
 uniformly --- including single-hop questions answerable with one search), consistent with
 its training-side turn re-inflation (14.6$\rightarrow$17.0 turns over steps 50--75) and
 per-turn response collapse (54 tokens/turn). turn-PPO modulates its budget with difficulty:
-4--5 turns on single-hop, 8--12 on multi-hop. At equal-or-better accuracy this is a
-\hw{2--4$\times$ cheaper inference-time policy}.
+the full distribution (Fig.~\ref{fig:turnsdist}) is \hw{bimodal} --- 44\% of its
+trajectories answer within $\sim$2 turns (single-hop questions resolved immediately) with a
+second mode at $\sim$13 turns for multi-hop --- while GRPO is unimodal at 16--19 turns for
+\emph{everything} (medians 12 vs.\ 17, means 8.3 vs.\ 17.3). At equal-or-better accuracy
+this is a \hw{2--4$\times$ cheaper inference-time policy}.
 
 \begin{figure}[h]\centering
 \includegraphics[width=0.9\linewidth]{assets/fig_turns.pdf}
 \caption{Average turns per question. Dotted line = 32-turn cap.}
+\end{figure}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.72\linewidth]{assets/fig_turns_dist.pdf}
+\caption{Distribution of turns per question over all 7{,}152 eval trajectories.
+turn-PPO is bimodal (immediate answers on single-hop, $\sim$13 turns on multi-hop);
+GRPO spends 16--19 turns regardless of difficulty. Dashed lines = medians.
+Neither arm hits the 32-turn cap.}
+\label{fig:turnsdist}
+\end{figure}
+
+\section{Training dynamics}
+The strategy split emerges during training, not at eval time (Fig.~\ref{fig:traindyn}).
+Both arms' temperature-1 train success climbs 0.2$\rightarrow$0.5 nearly in lockstep ---
+the training reward barely distinguishes them --- while their \emph{policies} diverge:
+both inflate to $\sim$570 response tokens/turn by step 5, then GRPO collapses to
+$\sim$54 tokens/turn (terse queries, many turns) while turn-PPO stabilizes at
+$\sim$145 (fuller per-turn reasoning, fewer turns). The eval-time differences of the
+preceding sections are the downstream signature of this divergence.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.49\linewidth]{assets/fig_training_curves.pdf}\hfill
+\includegraphics[width=0.49\linewidth]{assets/fig_resp_len_steps.pdf}
+\caption{Training dynamics over the 75-step runs. Left: temperature-1 train success
+(faint = raw per step, bold = EMA). Right: mean generated tokens per turn; dotted
+line = 1{,}024-token cap.}
+\label{fig:traindyn}
 \end{figure}
 
 \section{Scorer calibration}
