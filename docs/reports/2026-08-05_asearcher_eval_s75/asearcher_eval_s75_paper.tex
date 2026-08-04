@@ -1,0 +1,132 @@
+\documentclass[10pt]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{booktabs,graphicx,xcolor,amsmath,amssymb}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\input{assets/tables.tex}
+\newcommand{\hw}[1]{\textbf{#1}}
+
+\title{\vspace{-1.2em}Transfer Evaluation of GRPO vs.\ turn-PPO on the ASearcher Suite:\\
+Qwen3-8B-Base step-75 checkpoints, 10 benchmarks, three scorers}
+\author{CA-benchmark rung-3 / 8B thread}
+\date{2026-08-05}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\begin{abstract}
+We evaluate the two finished 8B training arms --- token-level GRPO and turn-level PPO
+(\texttt{gae\_turn}) --- at step 75 on the full ASearcher test suite: 7{,}152 questions
+over 10 benchmarks, greedy decoding, the training environment's own wiki-18/e5 retrieval,
+scored by strict exact match (the training reward), substring EM, and a gpt-oss-120b judge
+with a frozen prompt. turn-PPO transfers ahead of GRPO on the wiki-answerable slice
+(macro judge \hw{0.550 vs.\ 0.535}; strict EM 0.405 vs.\ 0.395), directionally consistent
+with the training validation ordering (0.561 vs.\ 0.520) but with a much smaller margin ---
+and it does so at \hw{2--4$\times$ fewer turns per question}. Strict EM understates true
+accuracy by $\approx$0.13--0.14 with 99.7\% one-directional disagreement. The live-web trio
+(GAIA / frames / xbench-deepsearch) floors for both arms, measuring the wiki-18 corpus gap
+rather than the credit-assignment method.
+\end{abstract}
+
+\section*{Setup}
+Checkpoints: \texttt{token\_grpo}\,/\,\texttt{turn\_ppo\_b0}
+\texttt{\_qwen3-8b-base\_32turn\_fast75\_s0} at step 75 (unfiltered ASearcher Base-35k,
+32-turn horizon, 16k prompt / 1024 response, top-5 wiki-18/e5 retrieval, fast config:
+partial rollout 8/4 + dynamic token batching + chunked prefill). Evaluation:
+\texttt{val\_only} greedy rollouts in the training environment; full trajectory dumps
+retained. Scoring pipeline \texttt{scripts/asearcher/judge\_rollouts.py}: dump
+$\rightarrow$ trajectory fold $\rightarrow$ gold join $\rightarrow$ concurrent judging
+(gpt-oss-120b, TP4, mxfp4; frozen prompt \texttt{asearcher\_mbe\_v1}) $\rightarrow$
+per-benchmark aggregation. The 7 \emph{wiki-answerable} benchmarks (NQ, TriviaQA, PopQA,
+HotpotQA, 2WikiMultihopQA, Musique, Bamboogle; 6{,}115 questions) are reported separately
+from the 3 \emph{live-web} benchmarks (GAIA, frames, xbench-deepsearch; 1{,}027 questions)
+that require open-web retrieval our offline corpus cannot serve.
+
+\section{Headline scores}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrr}\toprule
+\multicolumn{3}{c}{\textbf{Wiki-answerable} (7 benchmarks, macro)}\\
+scorer & GRPO & turn-PPO\\\midrule
+\wikirows
+\bottomrule\end{tabular}\hspace{1.2em}
+\begin{tabular}{lrr}\toprule
+\multicolumn{3}{c}{\textbf{Live-web} (3 benchmarks, macro)}\\
+scorer & GRPO & turn-PPO\\\midrule
+\liverows
+\bottomrule\end{tabular}
+\caption{Macro scores at step 75. turn-PPO leads every scorer on both slices; the
+wiki-answerable margin (judge $+0.015$) is far smaller than the training-val margin
+($+0.041$ strict EM). Live-web numbers measure the corpus gap, not the method.}
+\end{table}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.62\linewidth]{assets/fig_metric_ladder.pdf}
+\caption{Wiki-answerable macro score under the three scorers. The EM$\rightarrow$judge gap
+($\approx$0.13--0.14 for both arms) is the formatting/alias slack of strict EM --- the
+metric the environment actually rewards during training.}
+\end{figure}
+
+\section{Per-benchmark results}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrrrrrr}\toprule
+ & & \multicolumn{2}{c}{judge} & \multicolumn{2}{c}{strict EM} & \multicolumn{2}{c}{avg turns}\\
+benchmark & $n$ & GRPO & tPPO & GRPO & tPPO & GRPO & tPPO\\\midrule
+\benchrows
+\bottomrule\end{tabular}
+\caption{Per-benchmark scores ($^{*}$ = live-web). Single-hop (NQ/TriviaQA/PopQA) is a
+dead heat ($\pm 0.01$); turn-PPO wins every multi-hop benchmark ($+0.02$--$0.04$ judge).}
+\end{table}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.9\linewidth]{assets/fig_judge_by_benchmark.pdf}
+\caption{Judge score by benchmark.}
+\end{figure}
+
+\section{Search efficiency}
+GRPO runs essentially every question to near the 32-turn cap (16.5--18.1 average turns,
+uniformly --- including single-hop questions answerable with one search), consistent with
+its training-side turn re-inflation (14.6$\rightarrow$17.0 turns over steps 50--75) and
+per-turn response collapse (54 tokens/turn). turn-PPO modulates its budget with difficulty:
+4--5 turns on single-hop, 8--12 on multi-hop. At equal-or-better accuracy this is a
+\hw{2--4$\times$ cheaper inference-time policy}.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.9\linewidth]{assets/fig_turns.pdf}
+\caption{Average turns per question. Dotted line = 32-turn cap.}
+\end{figure}
+
+\section{Scorer calibration}
+\begin{table}[h]\centering\small
+\begin{tabular}{lrrrrr}\toprule
+arm & judge--EM agr. & judge\checkmark EM$\times$ & judge$\times$ EM\checkmark &
+EM vs.\ env reward & no-answer frac\\\midrule
+\calibrows
+\bottomrule\end{tabular}
+\caption{Scorer agreement over 7{,}152 trajectories per arm. Disagreement is 99.7\%
+one-directional (judge-correct, EM-wrong): aliases, formatting, paraphrases.
+\emph{EM vs.\ env reward} $=1.000$ confirms the pipeline reproduces exactly the reward the
+environment assigned. GRPO leaves 8.0\% of questions with no \texttt{<answer>} at all
+(loops to the cap); turn-PPO 0.5\%. Judge failures: 0. Manual smoke calibration:
+0.983 agreement on 60 hand-checked items.}
+\end{table}
+
+\section{Caveats}
+\begin{itemize}\itemsep2pt
+  \item \hw{Single seed.} One run per arm; the wiki-answerable judge gap ($+0.015$) is
+  small. Seed replication is queued before any headline claim.
+  \item \hw{Unfiltered training data.} Both arms trained without the closed-book filter
+  ($\approx$40\% of unfiltered training successes require zero searches); absolute numbers
+  carry a recall confound, and the 4B \emph{filtered} campaign inverted the arm ordering.
+  \item \hw{Live-web $\neq$ method comparison.} GAIA/frames/xbench need the open web; our
+  retriever serves a 2018 wiki snapshot.
+  \item An earlier (2026-08-04 morning) claim that transfer \emph{reverses} the training-val
+  ordering was based on a mis-computed turn-PPO macro (0.355) and is superseded by the
+  full-dump judged numbers here.
+  \item \hw{Pending.} The three in-flight arms (\texttt{hcapo\_ans}, \texttt{token\_ppo},
+  \texttt{gigpo}) receive the identical eval + judge pass at step 75, extending this to the
+  full five-arm estimator comparison.
+\end{itemize}
+
+\end{document}
