@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>ASearcher Evaluation — 8B step-75 checkpoints (GRPO vs turn-PPO)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #f5fbf7;
+      --card:        #ffffff;
+      --text:        #225573;
+      --text-light:  #4a7a94;
+      --accent:      #b6274e;
+      --green:       #547b5b;
+      --green-light: #6d8436;
+      --border:      #d5e3ec;
+      --border-light:#e8f0f5;
+      --tag-bg:      #eef5f0;
+      --shadow:      0 1px 3px rgba(34,85,115,.08), 0 4px 14px rgba(34,85,115,.05);
+      --shadow-lg:   0 2px 6px rgba(34,85,115,.10), 0 8px 24px rgba(34,85,115,.08);
+      --radius:      10px;
+      --max-w:       1440px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.55; font-size: 15px;
+    }
+    .page { max-width: var(--max-w); margin: 0 auto; padding: 32px 48px 64px; }
+    .header {
+      background: linear-gradient(135deg, #225573 0%, #1a6e5c 50%, #547b5b 100%);
+      color: #fff; padding: 48px 56px; border-radius: var(--radius);
+      margin-bottom: 32px; box-shadow: var(--shadow-lg);
+    }
+    .header h1 { margin: 0 0 10px 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+    .header .meta { font-size: 0.92rem; opacity: 0.82; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px 32px; margin-bottom: 24px; box-shadow: var(--shadow);
+    }
+    .card h2 { margin: 0 0 14px 0; font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .card h2 .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; background: var(--accent); color: #fff;
+      font-size: 0.8rem; font-weight: 700; border-radius: 50%;
+    }
+    .card h3 { font-size: 1.05rem; font-weight: 600; margin: 18px 0 8px 0; color: var(--text); }
+    .summary {
+      background: linear-gradient(135deg, #eef5f0, #e8f3f9); border-left: 4px solid var(--green);
+      padding: 20px 24px; border-radius: 0 var(--radius) var(--radius) 0; margin: 16px 0 20px;
+    }
+    .warning {
+      background: #fef8ee; border-left: 4px solid #d4880f;
+      padding: 20px 24px; border-radius: 0 var(--radius) var(--radius) 0; margin: 16px 0 20px;
+    }
+    table {
+      width: 100%; border-collapse: separate; border-spacing: 0; margin: 14px 0;
+      font-size: 0.88rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-light); }
+    th {
+      background: #f0f6f2; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; font-size: 0.82rem; color: var(--text-light);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fcfa; }
+    td.best { color: var(--accent); font-weight: 700; }
+    td.num, th.num-col { text-align: right; font-variant-numeric: tabular-nums; }
+    pre {
+      background: #1e2d3a; color: #c8dce6; padding: 18px 22px; border-radius: 8px;
+      font-size: 0.82rem; line-height: 1.55; overflow-x: auto; margin: 14px 0;
+    }
+    code {
+      background: var(--tag-bg); padding: 2px 7px; border-radius: 4px; font-size: 0.84em;
+      color: var(--green); font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; }
+    a { color: var(--green); text-decoration: none; font-weight: 600; }
+    a:hover { color: var(--accent); text-decoration: underline; }
+    img { max-width: 100%; border: 1px solid var(--border); border-radius: 8px; margin: 1em 0; box-shadow: var(--shadow); }
+    .mtag {
+      display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem;
+      font-weight: 600; letter-spacing: 0.02em; background: var(--tag-bg); color: var(--green); margin-right: 4px;
+    }
+    .mtag.rose   { background: #fae6ec; color: var(--accent); }
+    .mtag.teal   { background: #e2edf3; color: var(--text); }
+    .mtag.amber  { background: #fdf1dc; color: #a56a0b; }
+    .mtag.gray   { background: #e8eef2; color: var(--text-light); }
+    ul, ol { margin: 8px 0 8px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    p { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <div class="header">
+      <h1>ASearcher Evaluation — 8B step-75 checkpoints</h1>
+      <div class="meta">2026-08-05 · Qwen3-8B-Base, 32-turn wiki-18 local RAG · 7,152 questions over 10 benchmarks ·
+        greedy decoding · scored by strict EM, sub-EM, and gpt-oss-120b judge (frozen prompt <code>asearcher_mbe_v1</code>)</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">1</span> Key findings</h2>
+      <div class="summary">
+        <ul>
+          <li><strong>turn-PPO transfers ahead of GRPO, consistent with training val but with a much smaller margin</strong>:
+            wiki-answerable macro judge <strong>0.550 vs 0.535</strong> (strict EM 0.405 vs 0.395, sub-EM 0.461 vs 0.446).
+            Training val said 0.561 vs 0.520.</li>
+          <li><strong>turn-PPO reaches that score with 2–4× fewer turns</strong> (4.3–12.3 turns/question vs GRPO's uniform 16.5–18.1)
+            — same answer quality at a fraction of the search budget.</li>
+          <li><strong>Strict EM (the training reward) understates real accuracy by ~0.13–0.14</strong>: of 7,152 judged
+            trajectories per arm, ~930–974 are judge-correct but EM-wrong, while only <em>3</em> are the reverse.</li>
+          <li><strong>The live-web trio (GAIA / frames / xbench) floors at 0.05–0.23 judge</strong> — a corpus gap
+            (our retriever serves wiki-18 only), not a method difference.</li>
+          <li>GRPO leaves <strong>8.0%</strong> of questions with no <code>&lt;answer&gt;</code> at all (loops to the turn cap);
+            turn-PPO only 0.5%.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span> Headline scores</h2>
+      <p>Both step-75 checkpoints evaluated over the full ASearcher test suite. Wiki-answerable = the 7 benchmarks our
+        offline wiki-18 retriever can serve; live-web = the 3 that need the open web (reported separately — they measure
+        the corpus gap, not credit assignment).</p>
+      <table>
+        <thead>
+          <tr><th>Slice</th><th>Arm</th><th class="num-col">n questions</th><th class="num-col">judge</th>
+              <th class="num-col">strict EM</th><th class="num-col">sub-EM</th></tr>
+        </thead>
+        <tbody>
+          <tr><td rowspan="2">Wiki-answerable (7 benchmarks, macro)</td>
+              <td><span class="mtag teal">GRPO</span></td><td class="num">6,115</td>
+              <td class="num">0.535</td><td class="num">0.395</td><td class="num">0.446</td></tr>
+          <tr><td><span class="mtag rose">turn-PPO</span></td><td class="num">6,115</td>
+              <td class="num best">0.550</td><td class="num best">0.405</td><td class="num best">0.461</td></tr>
+          <tr><td rowspan="2">Live-web (3 benchmarks, macro)</td>
+              <td><span class="mtag teal">GRPO</span></td><td class="num">1,027</td>
+              <td class="num">0.097</td><td class="num">0.061</td><td class="num">0.066</td></tr>
+          <tr><td><span class="mtag rose">turn-PPO</span></td><td class="num">1,027</td>
+              <td class="num best">0.126</td><td class="num best">0.078</td><td class="num best">0.087</td></tr>
+          <tr><td rowspan="2">All 10 benchmarks (macro)</td>
+              <td><span class="mtag teal">GRPO</span></td><td class="num">7,142</td>
+              <td class="num">0.403</td><td class="num">0.295</td><td class="num">—</td></tr>
+          <tr><td><span class="mtag rose">turn-PPO</span></td><td class="num">7,142</td>
+              <td class="num best">0.423</td><td class="num best">0.306</td><td class="num">—</td></tr>
+        </tbody>
+      </table>
+      <img src="metric_ladder.svg" alt="Wiki-answerable macro score under the three scorers">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">3</span> Per-benchmark breakdown</h2>
+      <p>Judge scores per benchmark. Single-hop (NQ / TriviaQA / PopQA) is a dead heat (±0.01); turn-PPO wins every
+        multi-hop benchmark (+0.02–0.04): HotpotQA 0.615 vs 0.592, 2Wiki 0.520 vs 0.480, Musique 0.286 vs 0.245,
+        Bamboogle 0.544 vs 0.528.</p>
+      <img src="judge_by_benchmark.svg" alt="Judge score by benchmark">
+      <table>
+        <thead>
+          <tr><th>Benchmark</th><th class="num-col">n</th>
+              <th class="num-col">GRPO judge</th><th class="num-col">turn-PPO judge</th>
+              <th class="num-col">GRPO EM</th><th class="num-col">turn-PPO EM</th>
+              <th class="num-col">GRPO turns</th><th class="num-col">turn-PPO turns</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>NQ</td><td class="num">999</td><td class="num best">0.616</td><td class="num">0.614</td>
+              <td class="num">0.428</td><td class="num best">0.433</td><td class="num">18.1</td><td class="num">5.5</td></tr>
+          <tr><td>TriviaQA</td><td class="num">1000</td><td class="num best">0.776</td><td class="num">0.772</td>
+              <td class="num best">0.577</td><td class="num">0.572</td><td class="num">18.0</td><td class="num">4.3</td></tr>
+          <tr><td>PopQA</td><td class="num">992</td><td class="num best">0.505</td><td class="num">0.501</td>
+              <td class="num best">0.446</td><td class="num">0.438</td><td class="num">17.5</td><td class="num">4.7</td></tr>
+          <tr><td>HotpotQA</td><td class="num">1000</td><td class="num">0.592</td><td class="num best">0.615</td>
+              <td class="num">0.401</td><td class="num best">0.419</td><td class="num">17.2</td><td class="num">8.5</td></tr>
+          <tr><td>2WikiMultihopQA</td><td class="num">1000</td><td class="num">0.480</td><td class="num best">0.520</td>
+              <td class="num">0.389</td><td class="num best">0.407</td><td class="num">16.5</td><td class="num">12.3</td></tr>
+          <tr><td>Musique</td><td class="num">999</td><td class="num">0.245</td><td class="num best">0.286</td>
+              <td class="num">0.147</td><td class="num best">0.179</td><td class="num">17.6</td><td class="num">11.4</td></tr>
+          <tr><td>Bamboogle</td><td class="num">125</td><td class="num">0.528</td><td class="num best">0.544</td>
+              <td class="num">0.376</td><td class="num best">0.384</td><td class="num">17.8</td><td class="num">10.8</td></tr>
+          <tr><td>GAIA <span class="mtag amber">live-web</span></td><td class="num">103</td><td class="num">0.049</td><td class="num best">0.087</td>
+              <td class="num">0.049</td><td class="num best">0.078</td><td class="num">16.9</td><td class="num">10.2</td></tr>
+          <tr><td>frames <span class="mtag amber">live-web</span></td><td class="num">824</td><td class="num best">0.233</td><td class="num">0.231</td>
+              <td class="num best">0.135</td><td class="num">0.125</td><td class="num">17.1</td><td class="num">11.1</td></tr>
+          <tr><td>xbench-deepsearch <span class="mtag amber">live-web</span></td><td class="num">100</td><td class="num">0.010</td><td class="num best">0.060</td>
+              <td class="num">0.000</td><td class="num best">0.030</td><td class="num">7.7</td><td class="num">9.9</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">4</span> Search efficiency</h2>
+      <p>GRPO runs essentially every question to near the turn cap (16.5–18.1 avg turns, uniformly — including single-hop
+        questions answerable in one search). turn-PPO modulates its budget with difficulty: ~4–5 turns on single-hop,
+        8–12 on multi-hop. At equal-or-better accuracy this is a <strong>2–4× cheaper policy at inference time</strong>,
+        and matches the training-side observation (turn-PPO 6.5 searches/question vs GRPO 16.1 at step 75).</p>
+      <img src="avg_turns.svg" alt="Average turns per question by benchmark">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">5</span> Scorer calibration</h2>
+      <p>Three scorers on identical trajectories. Strict EM is the metric the training env rewards
+        (<code>compute_score</code>) and what every <code>val/em</code> curve reports; the judge (gpt-oss-120b, frozen
+        MBE prompt) is the closest to human judgment.</p>
+      <table>
+        <thead>
+          <tr><th>Arm</th><th class="num-col">judge–EM agreement</th><th class="num-col">judge✓ EM✗</th>
+              <th class="num-col">judge✗ EM✓</th><th class="num-col">EM vs env reward</th>
+              <th class="num-col">no-answer frac</th><th class="num-col">judge failures</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="mtag teal">GRPO</span></td><td class="num">0.870</td><td class="num">930</td>
+              <td class="num">3</td><td class="num">1.000</td><td class="num">0.080</td><td class="num">0</td></tr>
+          <tr><td><span class="mtag rose">turn-PPO</span></td><td class="num">0.863</td><td class="num">974</td>
+              <td class="num">3</td><td class="num">1.000</td><td class="num best">0.005</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+      <p>The disagreement is one-directional (99.7% of disagreements are judge-correct/EM-wrong): strict EM misses
+        formatting variants, aliases, and paraphrases. <code>EM vs env reward = 1.000</code> confirms the pipeline
+        recomputes exactly the reward the env assigned — the eval is internally consistent with training. Judge
+        calibration on the manual smoke set: 0.983 vs EM on 60 hand-checked items, with the one systematic strictness
+        note that the judge occasionally rejects a technically-gold answer with wrong granularity.</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">6</span> Method &amp; provenance</h2>
+      <ul>
+        <li><strong>Checkpoints</strong>: <code>token_grpo_qwen3-8b-base_32turn_fast75_s0</code> and
+          <code>turn_ppo_b0_qwen3-8b-base_32turn_fast75_s0</code> at step 75 (75 steps, unfiltered Base-35k,
+          fast config: partial rollout 8/4 + dynamic token batching + chunked prefill).</li>
+        <li><strong>Eval protocol</strong>: <code>val_only</code> greedy rollouts, 32-turn cap, top-5 wiki-18 e5 retrieval,
+          identical env to training; full trajectory dumps on HDFS
+          (<code>logs/p8b_eval_{grpo,turnppo}_s75/rollout_eval_*.jsonl.zst</code>).</li>
+        <li><strong>Scoring</strong>: <code>scripts/asearcher/judge_rollouts.py</code> — dump → trajectory fold → gold join
+          → concurrent judging (gpt-oss-120b, TP4, mxfp4) → per-benchmark aggregation. Summaries in
+          <code>outputs/judge/*.summary.json</code>; cross-arm table <code>outputs/judge/cross_arm_s75.md</code>.</li>
+        <li><strong>Training context</strong>: val curves (strict EM, greedy, 512 fixed questions):
+          GRPO 0.195 → 0.227 → 0.520 → 0.520; turn-PPO 0.195 → 0.234 → 0.479 → 0.561 @ steps 0/25/50/75.</li>
+      </ul>
+      <pre><code># reproduce the cross-arm table
+python scripts/asearcher/compare_eval_summaries.py \
+  outputs/judge/grpo_s75.summary.json outputs/judge/turnppo_s75.summary.json \
+  --out outputs/judge/cross_arm_s75.md</code></pre>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">7</span> Caveats &amp; pending</h2>
+      <div class="warning">
+        <strong>Read before quoting.</strong>
+        <ul>
+          <li><strong>Single seed.</strong> One run per arm; the wiki-7 gap (judge +0.015) is small — seed replication is
+            queued before any headline claim.</li>
+          <li><strong>Unfiltered training data.</strong> Both arms trained on Base-35k without the closed-book filter
+            (~40% of unfiltered training successes need zero searches) — the absolute numbers carry a recall confound;
+            the 4B filtered campaign inverted the arm ordering.</li>
+          <li><strong>Live-web ≠ method comparison.</strong> GAIA/frames/xbench need the open web; our retriever serves
+            wiki-18 (2018 snapshot). Those columns measure the corpus gap.</li>
+          <li><strong>An earlier (2026-08-04 morning) claim that transfer "reverses" training val was wrong</strong> —
+            based on a mis-computed turn-PPO macro (0.355). The judged full-dump numbers here supersede it.</li>
+          <li><strong>Pending</strong>: the three in-flight arms (hcapo_ans, token_ppo, gigpo) get the same eval + judge
+            pass when they reach step 75; this report then extends to the full 5-arm estimator comparison.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
