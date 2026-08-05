@@ -99,6 +99,29 @@ Gen within 0.4% / 7% across runs, val within 0.002 — the async engine is
 deterministic-stable at run granularity. Turn-PPO async gen ≈ the GRPO async legs
 (232 / 505), vs sync turn-PPO's 2,057 s matched-step average.
 
+## B200 async leg (2026-08-06, worker 1032626, instrumented run @ gpu_util 0.65)
+
+Engine smoke on sm_100 (TRITON_ATTN + V1 AsyncLLM + sleep mode): **all 5 PASS** —
+the async engine is validated on both chips. token_grpo, 4 steps + val:
+
+| step | B200 gen (s) | B200 step (s) | H100 async gen (s) | H100 async step (s) |
+|---|---|---|---|---|
+| 1 | 270.5 | 332.8 | 231.7 | 326.9 |
+| 2 | 439.7 | 793.7 | 505.0 | 1,068.0 |
+| 3 | 455.5 | 1,492.0 | 491.2 | ~2,030 (ex-val) |
+| 4 | 382.7 | 2,100.4 (incl. val) | — | — |
+
+val@4 = 0.252 / 5.3 turns (same band as H100 async 0.244 and sync 0.264).
+
+**Measured B200-over-H100 (async, GRPO): ~1.24–1.36× per step** (steps 2–3;
+step 1 is a tie — decode-heavy early cycles hit the TRITON_ATTN penalty, gen
+0.86×; mature prefill-heavy cycles run 1.08–1.15×). Matches the ~1.3× GRPO
+estimate; turn-PPO (more update weight) projects ~1.4×. CONFOUND: the B200 run
+used gpu_util 0.65 vs 0.5 on the H100 async leg (part of the parallel session's
+KV-pressure ablation) — some of the B200 edge may be KV headroom, not silicon;
+the parallel session's H100@0.65 leg is the exact comparator. B200 turn-PPO
+async (phase D) not run — superseded by the instrumented-diagnosis design.
+
 Async engine also released groups on EVERY collection (no no-release cycles),
 vs sync's 2 empty cycles in 5 — immediate backfill keeps release pressure up.
 
