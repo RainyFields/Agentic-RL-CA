@@ -119,9 +119,9 @@ WATCHDOG_PID=$!
 run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
   local TAG="$1" COND="$2" STEPS="$3"; shift 3
   echo "==== PHASE $TAG: $COND $STEPS steps $(date -u) ===="
-  export EXP_NAME="b200asyncprof_${TAG}_${COND}_s0"
+  export EXP_NAME="b200async65_${TAG}_${COND}_s0"
   TOTAL_STEPS="$STEPS" VAL_FREQ=1000000 SAVE_FREQ=1000000 VAL_BEFORE_TRAIN=False RESUME=disable \
-    DYNBSZ=1 DYNBSZ_TOK=24576 CRITIC_PARAM_OFFLOAD=False CRITIC_OPTIM_OFFLOAD=False \
+    DYNBSZ=1 DYNBSZ_TOK=20480 GPU_MEMORY_UTIL=0.65 \
     timeout 4h bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL" \
       +env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 \
       +env.partial_rollout_max_age=4 +env.rollout_profiling=true "$@"
@@ -136,11 +136,24 @@ run_phase() { # $1=tag $2=cond $3=steps, rest = extra hydra args
 
 ASYNC_ARGS=(actor_rollout_ref.rollout.mode=async +env.async_rollout_enable=true)
 
-run_phase B_sync token_grpo "$N_STEPS" || { echo "B200 SYNC BASELINE FAILED"; exit 1; }
-run_phase C_async token_grpo "$N_STEPS" "${ASYNC_ARGS[@]}" || { echo "B200 ASYNC RUN FAILED"; exit 1; }
-if [ "$TURNPPO_STEPS" -gt 0 ]; then
-  run_phase D_tppo turn_ppo_b0 "$TURNPPO_STEPS" "${ASYNC_ARGS[@]}" || echo "B200 TURNPPO ASYNC FAILED (non-fatal)"
+# ---- single instrumented async run, config-matched to H100 A@0.65 ----
+export ASYNC_DIAG_DIR=/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/async_diag/b200_async65
+mkdir -p "$ASYNC_DIAG_DIR"
+( while true; do echo "$(date +%s) $(nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,noheader,nounits | tr '\n' ';')"; sleep 1; done \
+    > "$ASYNC_DIAG_DIR/gpu_samples.txt" ) &
+SAMPLER_PID=$!
+if nvidia-smi dmon -c 1 -s pum >/dev/null 2>&1; then
+  ( exec nvidia-smi dmon -s pum -d 1 > "$ASYNC_DIAG_DIR/dmon.txt" 2>&1 ) &
+  DMON_PID=$!
+else
+  DMON_PID=""
+  echo "[dmon] unavailable"
 fi
+export VLLM_LOGGING_LEVEL=INFO
+run_phase C_async token_grpo 4 \
+  actor_rollout_ref.rollout.disable_log_stats=False +env.async_rollout_snap_s=2 \
+  "${ASYNC_ARGS[@]}" || { echo "B200 ASYNC RUN FAILED"; exit 1; }
+kill "$SAMPLER_PID" ${DMON_PID:+$DMON_PID} 2>/dev/null || true
 
 status=DONE
 echo "==== B200-ASYNC-PROF complete $(date -u) ===="
