@@ -54,8 +54,7 @@ def parse_engine_stats(log_path, run_key):
     """Bucket [async_engine_stats] lines by run using the RUN markers."""
     marker = re.compile(r"==== (?:KV-SWEEP RUN gpu_memory_utilization=|PREFILL-SWEEP RUN )([\w.]+)")
     es_re = re.compile(
-        r"\[async_engine_stats\] wall=([0-9.]+) running=(\[[^\]]*\]) waiting=(\[[^\]]*\]) "
-        r"kv=(\[[^\]]*\]) preempt=(\[[^\]]*\]) ptok=(\[[^\]]*\]) gtok=(\[[^\]]*\])")
+        r"\[async_snap\] wall=([0-9.]+) assigned=(\[[^\]]*\]) in_gen=(\[[^\]]*\]) in_env=(\[[^\]]*\])")
     cur = None
     out = []
     for line in open(log_path, errors="replace"):
@@ -69,9 +68,7 @@ def parse_engine_stats(log_path, run_key):
         if m:
             out.append({
                 "wall": float(m.group(1)),
-                "running": json.loads(m.group(2)), "waiting": json.loads(m.group(3)),
-                "kv": json.loads(m.group(4)), "preempt": json.loads(m.group(5)),
-                "ptok": json.loads(m.group(6)), "gtok": json.loads(m.group(7)),
+                "in_gen": json.loads(m.group(3)), "in_env": json.loads(m.group(4)),
             })
     return out
 
@@ -109,15 +106,11 @@ def analyze(label, d, log_path, run_key):
         w0 = min(r["w_enq"] for r in rows)
         w1 = max(r["w_env_done"] for r in rows)
         win = [e for e in es if w0 <= e["wall"] <= w1] or es
-        runv = [v for e in win for v in e["running"]]
-        waitv = [v for e in win for v in e["waiting"]]
-        kvv = [v for e in win for v in e["kv"]]
-        first, last = win[0], win[-1]
+        gv = [v for e in win for v in e["in_gen"]]
+        ev = [v for e in win for v in e["in_env"]]
         stats = {
-            "run_mean": float(np.mean(runv)), "run_p50": pct(runv, 50), "run_p90": pct(runv, 90),
-            "wait_mean": float(np.mean(waitv)), "wait_p50": pct(waitv, 50), "wait_p90": pct(waitv, 90),
-            "kv_mean": float(np.mean(kvv)), "kv_max": float(np.max(kvv)),
-            "preempt": sum(last["preempt"]) - sum(first["preempt"]),
+            "infl_mean": float(np.mean(gv)), "infl_p50": pct(gv, 50), "infl_p90": pct(gv, 90),
+            "inenv_mean": float(np.mean(ev)),
         }
     gpu_file = os.path.join(BASE, d, "gpu_samples.txt")
     peak_mem, powers, utils = 0, [], []
@@ -192,13 +185,10 @@ def main():
     row("req e2e p90 (s)", lambda s: pct(s["e2e"], 90))
     row("traj latency p50 (s)", lambda s: pct(s["tlat"], 50))
     row("traj latency p90 (s)", lambda s: pct(s["tlat"], 90))
-    row("engine running mean/p90", lambda s: s["run_mean"], "{:.1f}")
-    row("engine running p90", lambda s: s["run_p90"], "{:.0f}")
-    row("engine waiting mean", lambda s: s["wait_mean"], "{:.1f}")
-    row("engine waiting p90", lambda s: s["wait_p90"], "{:.0f}")
-    row("KV usage mean", lambda s: s["kv_mean"], "{:.2f}")
-    row("KV usage max", lambda s: s["kv_max"], "{:.2f}")
-    row("preemptions (measured window)", lambda s: s["preempt"], "{:.0f}")
+    row("in-flight/engine mean (driver)", lambda s: s["infl_mean"], "{:.1f}")
+    row("in-flight/engine p50", lambda s: s["infl_p50"], "{:.0f}")
+    row("in-flight/engine p90", lambda s: s["infl_p90"], "{:.0f}")
+    row("in-env/engine mean", lambda s: s["inenv_mean"], "{:.2f}")
     row("engine req CoV", lambda s: s["cv"], "{:.3f}")
     row("engine req max/min", lambda s: s["maxmin"], "{:.2f}")
     row("GPU util mean %", lambda s: s["util_mean"], "{:.0f}")
