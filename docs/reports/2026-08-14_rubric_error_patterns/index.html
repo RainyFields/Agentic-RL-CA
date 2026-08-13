@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Rubric error patterns — GRPO step-75 rollouts</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #f5fbf7;
+      --card:        #ffffff;
+      --text:        #225573;
+      --text-light:  #4a7a94;
+      --accent:      #b6274e;
+      --green:       #547b5b;
+      --green-light: #6d8436;
+      --border:      #d5e3ec;
+      --border-light:#e8f0f5;
+      --tag-bg:      #eef5f0;
+      --shadow:      0 1px 3px rgba(34,85,115,.08), 0 4px 14px rgba(34,85,115,.05);
+      --shadow-lg:   0 2px 6px rgba(34,85,115,.10), 0 8px 24px rgba(34,85,115,.08);
+      --radius:      10px;
+      --max-w:       1440px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.55; font-size: 15px;
+    }
+    .page { max-width: var(--max-w); margin: 0 auto; padding: 32px 48px 64px; }
+    .header {
+      background: linear-gradient(135deg, #225573 0%, #1a6e5c 50%, #547b5b 100%);
+      color: #fff; padding: 48px 56px; border-radius: var(--radius);
+      margin-bottom: 32px; box-shadow: var(--shadow-lg);
+    }
+    .header h1 { margin: 0 0 10px 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+    .header .meta { font-size: 0.92rem; opacity: 0.82; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px 32px; margin-bottom: 24px; box-shadow: var(--shadow);
+    }
+    .card h2 { margin: 0 0 14px 0; font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .card h2 .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; background: var(--accent); color: #fff;
+      font-size: 0.8rem; font-weight: 700; border-radius: 50%;
+    }
+    .card h3 { font-size: 1.05rem; font-weight: 600; margin: 18px 0 8px 0; color: var(--text); }
+    .summary {
+      background: linear-gradient(135deg, #eef5f0, #e8f3f9); border-left: 4px solid var(--green);
+      padding: 20px 24px; border-radius: 0 var(--radius) var(--radius) 0; margin: 16px 0 20px;
+    }
+    .warning {
+      background: #fef8ee; border-left: 4px solid #d4880f;
+      padding: 20px 24px; border-radius: 0 var(--radius) var(--radius) 0; margin: 16px 0 20px;
+    }
+    table {
+      width: 100%; border-collapse: separate; border-spacing: 0; margin: 14px 0;
+      font-size: 0.88rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-light); }
+    th {
+      background: #f0f6f2; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; font-size: 0.82rem; color: var(--text-light);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fcfa; }
+    td.best { color: var(--accent); font-weight: 700; }
+    td.num, th.num-col { text-align: right; font-variant-numeric: tabular-nums; }
+    pre {
+      background: #1e2d3a; color: #c8dce6; padding: 18px 22px; border-radius: 8px;
+      font-size: 0.82rem; line-height: 1.55; overflow-x: auto; margin: 14px 0;
+    }
+    pre .comment { color: #5e8599; }
+    code {
+      background: var(--tag-bg); padding: 2px 7px; border-radius: 4px; font-size: 0.84em;
+      color: var(--green); font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; }
+    a { color: var(--green); text-decoration: none; font-weight: 600; }
+    a:hover { color: var(--accent); text-decoration: underline; }
+    img { max-width: 100%; border: 1px solid var(--border); border-radius: 8px; margin: 1em 0; box-shadow: var(--shadow); }
+    .mtag {
+      display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem;
+      font-weight: 600; letter-spacing: 0.02em; background: var(--tag-bg); color: var(--green); margin-right: 4px;
+    }
+    .mtag.rose   { background: #fae6ec; color: var(--accent); }
+    .mtag.teal   { background: #e2edf3; color: var(--text); }
+    .mtag.amber  { background: #fdf1dc; color: #a56a0b; }
+    .mtag.olive  { background: #eef2e1; color: var(--green-light); }
+    .mtag.gray   { background: #e8eef2; color: var(--text-light); }
+    ul, ol { margin: 8px 0 8px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    p { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <div class="header">
+      <h1>Rubric error patterns — GRPO step-75 rollouts</h1>
+      <div class="meta">2026-08-14 · 2,000 trajectories (34,125 judged search turns) · policy <span style="opacity:.9">token_grpo_qwen3-8b-base_32turn_fast75_s0 @ step 75</span> · judge gpt-oss-120b (temp 0, JSON-schema mode, 0 fallbacks) · greedy eval decoding on NQ / TriviaQA</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">1</span> Key findings</h2>
+      <div class="summary">
+        <ul>
+          <li><strong>The dominant error pattern is a repeated-query attractor, not bad querying.</strong> First searches are nearly flawless (0.8% non-novel, 100% progression-valid); from search #3 onward, 99.96% of queries are non-novel and 99.98% retrieve nothing new. Virtually every trajectory (99.95%) contains a run of ≥3 consecutive non-novel searches.</li>
+          <li><strong>Evidence sufficiency arrives almost immediately; the policy keeps searching anyway.</strong> 70.5% of trajectories reach judge readiness p≥0.9, on average after <strong>1.02 searches</strong> — then issue <strong>16.1 more</strong>. Two-thirds (66.3%) of all search turns happen after sufficiency.</li>
+          <li><strong>The judge's readiness and info-gain signals discriminate success; well-formedness does not.</strong> Final-turn p predicts EM with AUC 0.74 and mean info_gain with AUC 0.69, while well_formed fails on 92.6% of turns <em>uniformly</em> across successes and failures (AUC 0.49) — the policy pastes the question verbatim as its query, on winning and losing trajectories alike.</li>
+          <li><strong>Under greedy decoding the policy searches 17.1× per rollout (median 17)</strong> — vs ~5.4 at temp 1.0 in training — so these numbers are an upper bound on the pathology; the temp-1.0 training-matched collection (ckpts 25/50/75) is in flight to confirm.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span> Setup</h2>
+      <p>
+        Per-turn rubric judging of the existing step-75 GRPO eval rollout dump
+        (<code>p8b_eval_grpo_s75</code>, greedy decoding, 32-turn horizon). One gpt-oss-120b call per
+        trajectory grades every search turn on five binary criteria
+        (<code>well_formed</code>, <code>relevant</code>, <code>novel</code>, <code>progression</code>, <code>info_gain</code>)
+        and estimates readiness p<sub>t</sub> — the probability the gold answer is derivable from evidence
+        retrieved in turns 1..t — plus <code>sufficiency_turn</code> (first t with p ≥ 0.9). The judge sees gold
+        answers (training-time privilege) and never sees the agent's <code>&lt;think&gt;</code> text.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Slice</th><th class="num-col">N traj</th><th class="num-col">EM</th><th class="num-col">searches / rollout</th><th class="num-col">post-sufficiency searches</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="mtag teal">NQ_rand1000</span></td><td class="num">1000</td><td class="num">0.428</td><td class="num">17.1</td><td class="num">10.8</td></tr>
+          <tr><td><span class="mtag teal">TriviaQA_rand1000</span></td><td class="num">1000</td><td class="num">0.577</td><td class="num">17.0</td><td class="num">11.8</td></tr>
+        </tbody>
+      </table>
+      <div class="warning">
+        <strong>Caveats.</strong> (1) These are <em>greedy</em> (temp 0) eval rollouts — repetition loops are far more
+        severe than the temp-1.0 training profile (~5.4 searches/rollout, Base35k study 2026-08-04). Treat
+        magnitudes as an upper bound; the shape of the pathology is what transfers. (2) The 2,000-trajectory cap
+        covers only the single-hop NQ + TriviaQA slices of the eval dump, so <code>progression</code> (a multi-hop
+        criterion) is rarely applicable and sufficiency lands on the first search by construction of the task mix.
+        The multi-hop picture arrives with the temp-1.0 collection from ckpts 25/50/75.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">3</span> Over-search: sufficiency vs behavior</h2>
+      <p>
+        The judge says evidence sufficient to answer arrives after <strong>1.02 searches</strong> on average
+        (for the 70.5% of trajectories that ever reach p ≥ 0.9). The policy's search count is unmoored from it:
+        <strong>99.9%</strong> of sufficient trajectories keep searching, issuing a mean of
+        <strong>16.1 post-sufficiency searches</strong>; 66.3% of <em>all</em> search turns occur after sufficiency.
+      </p>
+      <img src="searches_vs_sufficiency.svg" alt="Distribution of searches issued vs searches to sufficiency">
+      <img src="over_search_dist.svg" alt="Distribution of post-sufficiency searches">
+      <p>
+        The 29.5% of trajectories that never reach p ≥ 0.9 have final readiness 0.53 on average when they fail
+        (EM=0 mean p<sub>final</sub> = 0.53 vs 0.91 for EM=1) — under-retrieval exists, but it is the minority
+        failure mode; the majority pattern is retrieving enough immediately and then spinning.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">4</span> The repeated-query attractor</h2>
+      <p>
+        Criterion failures are position-dependent in a way that identifies the mechanism. The <em>first</em> search
+        is nearly always sensible: novel (99.2%), progression-valid (100%), info-gaining (78.4%). By position ≥3,
+        <code>novel</code> fails on 99.96% of turns and <code>info_gain</code> on 99.98% — the policy re-issues the same
+        (or a near-duplicate) query and re-retrieves the same documents, turn after turn. The mean longest
+        consecutive non-novel run is <strong>16.0 turns</strong> under greedy decoding.
+      </p>
+      <img src="criterion_fail_by_turn.svg" alt="Criterion failure rate by search turn position">
+      <table>
+        <thead>
+          <tr><th>Criterion</th><th class="num-col">fail rate, turn 0</th><th class="num-col">fail rate, turns ≥3</th><th class="num-col">fail rate, all turns</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>novel</code></td><td class="num best">0.008</td><td class="num">0.9996</td><td class="num">0.941</td></tr>
+          <tr><td><code>info_gain</code></td><td class="num">0.216</td><td class="num">0.9998</td><td class="num">0.954</td></tr>
+          <tr><td><code>progression</code></td><td class="num best">0.000</td><td class="num">0.956</td><td class="num">0.900</td></tr>
+          <tr><td><code>well_formed</code></td><td class="num">0.943</td><td class="num">0.925</td><td class="num">0.926</td></tr>
+          <tr><td><code>relevant</code></td><td class="num">0.110</td><td class="num">0.108</td><td class="num">0.108</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>well_formed</code> and <code>relevant</code> are position-<em>independent</em>: they measure query style
+        (the policy pastes the question verbatim — 92.6% well_formed failure everywhere) and topicality (89.2% of
+        queries are on-chain), not the loop. The loop is entirely captured by <code>novel</code> / <code>info_gain</code> /
+        <code>progression</code>.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">5</span> Readiness dynamics</h2>
+      <p>
+        Mean p<sub>t</sub> by turn position, split by final outcome: successful trajectories saturate readiness at the
+        first search (p ≈ 0.9 at position 0) and stay flat — later searches add nothing the judge can see. Failed
+        trajectories plateau near 0.5 and never recover, consistent with "retrieved the wrong entity's page and kept
+        re-retrieving it" rather than progressive refinement. p<sub>0</sub> = 0 for every trajectory (the judge treats
+        no question as answerable without retrieval).
+      </p>
+      <img src="readiness_by_turn.svg" alt="Mean readiness p by turn position and outcome">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">6</span> Which judge signals predict success?</h2>
+      <p>
+        Rank AUC of trajectory-level signals against EM (0.5 = chance). This is the Phase-1 discrimination
+        readout that feeds criterion selection for the <span class="mtag rose">pen</span> arm and validates
+        p<sub>t</sub> for <span class="mtag olive">redist</span>.
+      </p>
+      <img src="discrimination_auc.svg" alt="Rank AUC of each signal for predicting EM">
+      <ul>
+        <li><strong>p<sub>final</sub> (AUC 0.74)</strong> and <strong>mean info_gain (AUC 0.69)</strong> carry real signal — supports using p-increments as the redist reward and info_gain in monitoring.</li>
+        <li><strong>novel / progression / relevant (AUC 0.56)</strong> are weakly informative individually on this single-hop slice.</li>
+        <li><strong>well_formed (AUC 0.49)</strong> has no discriminative power: penalizing it in <span class="mtag rose">pen</span> would act as a near-uniform per-search tax on this policy — indistinguishable from the judge-free <span class="mtag teal">cost</span> arm, at 400× the compute. <strong>Recommendation: drop well_formed from the pen penalty</strong> (keep it as a logged canary) unless the temp-1.0 collection shows otherwise.</li>
+        <li>Fewer searches predicts success only weakly (AUC 0.56) — search count alone is a blunt signal, which is the a-priori case for targeted (flag-gated) penalties over a plain cost.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">7</span> Implications for the reward arms</h2>
+      <ul>
+        <li><strong>pen</strong>: the actionable penalty surface is <code>novel=0</code> (94% of turns under greedy, position-targeted, mechanism-aligned) and <code>t &gt; sufficiency_turn</code> (66% of turns). Drop <code>well_formed</code> (§6). λ on the EM scale stays at 0.02–0.05: with ~10+ flagged turns per greedy trajectory the summed penalty must not swamp the EM outcome term at temp 1.0 (~5.4 turns, fewer flags).</li>
+        <li><strong>redist</strong>: p<sub>t</sub> saturates at turn 1 on single-hop — increments will be front-loaded, which is exactly the intended credit shape (pay the turn that found the evidence, not the spin). Calibration check still pending on temp-1.0 multi-hop data.</li>
+        <li><strong>cost</strong>: the attractor means even a blind per-search cost has a large target to cut; §6's weak search-count AUC is why pen may still beat it on accuracy retention.</li>
+        <li><strong>Judge ops</strong>: 0/2000 JSON fallbacks in schema mode; ~45 min wall-clock for 2,000 trajectories on 4×H100 at concurrency 32 → comfortably inside the ~6M tok/step budget for training-time judging.</li>
+      </ul>
+      <h3>Reproduce</h3>
+      <pre><code><span class="comment"># rubric judging (worker): serve gpt-oss-120b + judge the dump</span>
+DUMPS="grpo_s75=/mnt/hdfs/.../p8b_eval_grpo_s75/rollout_eval_grpo_s75.jsonl.zst" \
+GOLDSET=/mnt/hdfs/.../data_asearcher_eval/asearcher_eval.parquet MAX_TRAJS=2000 \
+  bash scripts/asearcher/p8b_rubric_judge_worker.sh
+<span class="comment"># this analysis + figures</span>
+uv run docs/reports/2026-08-14_rubric_error_patterns/make_plots.py</code></pre>
+    </div>
+
+  </div>
+</body>
+</html>
