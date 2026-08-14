@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Async-Rollout 8B Campaign — Final Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #f5fbf7;
+      --card:        #ffffff;
+      --text:        #225573;
+      --text-light:  #4a7a94;
+      --accent:      #b6274e;
+      --green:       #547b5b;
+      --green-light: #6d8436;
+      --border:      #d5e3ec;
+      --border-light:#e8f0f5;
+      --tag-bg:      #eef5f0;
+      --shadow:      0 1px 3px rgba(34,85,115,.08), 0 4px 14px rgba(34,85,115,.05);
+      --shadow-lg:   0 2px 6px rgba(34,85,115,.10), 0 8px 24px rgba(34,85,115,.08);
+      --radius:      10px;
+      --max-w:       1440px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .page {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 32px 48px 64px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #225573 0%, #1a6e5c 50%, #547b5b 100%);
+      color: #fff;
+      padding: 48px 56px;
+      border-radius: var(--radius);
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-lg);
+    }
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .header .meta {
+      font-size: 0.92rem;
+      opacity: 0.82;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+    .card h2 {
+      margin: 0 0 14px 0;
+      font-size: 1.3rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card h2 .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 50%;
+    }
+    .card h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 18px 0 8px 0;
+      color: var(--text);
+    }
+
+    .summary {
+      background: linear-gradient(135deg, #eef5f0, #e8f3f9);
+      border-left: 4px solid var(--green);
+      padding: 20px 24px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 16px 0 20px;
+    }
+    .warning {
+      background: #fef8ee;
+      border-left: 4px solid #d4880f;
+      padding: 20px 24px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 16px 0 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 14px 0;
+      font-size: 0.88rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    th {
+      background: #f0f6f2;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 0.82rem;
+      color: var(--text-light);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fcfa; }
+    td.best { color: var(--accent); font-weight: 700; }
+    td.num, th.num-col { text-align: right; font-variant-numeric: tabular-nums; }
+
+    pre {
+      background: #1e2d3a;
+      color: #c8dce6;
+      padding: 18px 22px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      margin: 14px 0;
+    }
+    pre .comment { color: #5e8599; }
+    code {
+      background: var(--tag-bg);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.84em;
+      color: var(--green);
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      font-size: inherit;
+    }
+
+    a {
+      color: var(--green);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    img {
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 1em 0;
+      box-shadow: var(--shadow);
+    }
+
+    .mtag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: var(--tag-bg);
+      color: var(--green);
+      margin-right: 4px;
+    }
+    .mtag.rose   { background: #fae6ec; color: var(--accent); }
+    .mtag.teal   { background: #e2edf3; color: var(--text); }
+    .mtag.amber  { background: #fdf1dc; color: #a56a0b; }
+    .mtag.olive  { background: #eef2e1; color: var(--green-light); }
+    .mtag.gray   { background: #e8eef2; color: var(--text-light); }
+
+    ul, ol { margin: 8px 0 8px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    p { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <div class="header">
+      <h1>Throughput Is Not Learning — Async-Rollout 8B Campaign, Final Report</h1>
+      <div class="meta">2026-08-14 · Qwen3-8B-Base · ASearcher Base-35k · 32-turn / 16k / 1k protocol · 4 campaign arms (2 engines × 2 estimators, 75 steps) + 5-estimator sweep · 7,152-q transfer suite, gpt-oss-120b judge</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">1</span> Key findings</h2>
+      <div class="summary">
+        <ul>
+          <li><strong>The async engine's systems claims all hold</strong> — 2.01× end-to-end at matched config, 3–4× on the rollout phase, zombie generation 49.6% → 0, val parity at profile scale — <strong>but its ~2× faster per-step learning is a data-rate effect, not sample efficiency</strong>: at matched cumulative trajectories the old engine matches or beats it everywhere.</li>
+          <li><strong>Old-engine arms win transfer across the board</strong>: wiki-answerable macro judge 0.550 (old turn-PPO) / 0.535 (old GRPO) vs 0.506 (async GRPO) / 0.445 (async turn-PPO). The async GRPO train-val "win" (0.529 vs 0.520) reverses on transfer.</li>
+          <li><strong>Both async deficits are answer-coverage collapses, not accuracy losses.</strong> Conditional on answering, async turn-PPO is the <em>most accurate arm in the campaign</em> (judge 0.623) — but it never emits an answer on 30.2% of questions (old: 0.3%), ending trajectories by context exhaustion after ~17-turn searches. 720 of its 1,028 paired losses vs old turn-PPO are no-answer terminations.</li>
+          <li><strong>Stale-drop censoring is ruled out</strong> (zero <code>max_age</code> drops in both engines, all arms, all 75 steps). Prime suspect for the late regression (async tPPO val 0.486 → 0.404 over steps 50–75): the <strong>critic × partial-rollout-resume interaction</strong>.</li>
+          <li><strong>Estimator sweep (old engine)</strong>: token-PPO (0.312) and HCAPO (0.297) lead the val@25 board; GiGPO collapsed on val (0.064) while its train success stayed normal. All three arms resumed 2026-08-14 from step 25 and are running to 75.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span> The four campaign arms</h2>
+      <p>
+        <span class="mtag teal">old GRPO</span><span class="mtag teal">old turn-PPO</span>
+        <span class="mtag rose">async GRPO</span><span class="mtag rose">async turn-PPO</span>
+        Both engines ran identical partial-rollout config (cycle 8 / max_age 4); the async arms
+        (<code>async75kv60</code>) add trajectory-level concurrency over vLLM V1 AsyncLLM engines
+        with uid-atomic group release, gpu_util 0.60, sticky routing. Val = greedy strict EM on
+        512 held-out questions, reproducibility ±0.02.
+      </p>
+      <table>
+        <thead>
+          <tr><th>arm</th><th>engine</th><th class="num-col">val@0</th><th class="num-col">val@25</th><th class="num-col">val@50</th><th class="num-col">val@75</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>old GRPO</td><td>lockstep</td><td class="num">0.195</td><td class="num">0.227</td><td class="num best">0.520</td><td class="num">0.520</td></tr>
+          <tr><td>old turn-PPO</td><td>lockstep</td><td class="num">0.195</td><td class="num">0.234</td><td class="num">0.479</td><td class="num best">0.561</td></tr>
+          <tr><td>async GRPO</td><td>async</td><td class="num">0.203</td><td class="num best">0.434</td><td class="num">0.418</td><td class="num">0.529</td></tr>
+          <tr><td>async turn-PPO</td><td>async</td><td class="num">0.199</td><td class="num">0.322</td><td class="num">0.486</td><td class="num">0.404</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">3</span> Engine mechanisms — what actually changed (corrected)</h2>
+      <table>
+        <thead>
+          <tr><th>metric</th><th class="num-col">sync</th><th class="num-col">async</th><th class="num-col">ratio</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>phase wall-clock (3 steps + val + ckpt)</td><td class="num">8,953 s</td><td class="num">4,454 s</td><td class="num best">2.01×</td></tr>
+          <tr><td>rollout generation, 3-step total</td><td class="num">4,890 s</td><td class="num">1,228 s</td><td class="num">~3–4×</td></tr>
+          <tr><td>zombie generated tokens</td><td class="num">49.6%</td><td class="num best">0</td><td class="num">—</td></tr>
+          <tr><td>released trajectories (3 steps)</td><td class="num">2,300</td><td class="num">2,695</td><td class="num">1.17×</td></tr>
+          <tr><td>val@3 (greedy, 512 q)</td><td class="num">0.264</td><td class="num">0.244</td><td class="num">±0.02 band</td></tr>
+        </tbody>
+      </table>
+      <p>Steady state H100 @0.65 util: 6,473 gen tok/s, 174 traj/min, TTFT p50 15.5 s, TPOT 36 ms.
+         B200 measured 0.88× H100 on rollout despite 2.87× KV (TRITON_ATTN decode 1.6× slower per token) —
+         H100 remains the rollout node.</p>
+      <div class="warning">
+        <strong>Correction to earlier working notes.</strong> <code>max_age</code> stale-group drops were
+        <strong>zero in both engines</strong> across all 75 steps of all four arms — stale censoring is
+        <em>not</em> a mechanism of any observed difference. The operative data-side differences are:
+        (1) <strong>release volume</strong> — async releases 1,200–1,700 traj/step vs 690–1,150 (cumulative 92–94k
+        vs 55–69k over 75 steps) because the old engine's fixed batch geometry drops surplus completed groups;
+        (2) <strong>completion mix</strong> — continuous slot backfill keeps long trajectories lockstep cycles would
+        truncate or never collect; (3) <strong>fresher resumes</strong> — paused trajectories resume immediately rather
+        than at the next 8-turn cycle; (4) fp16 engine numerics (token ids byte-exact by construction).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">4</span> Per-step vs per-sample learning</h2>
+      <p>By <em>step</em>, async arms reach val 0.32–0.43 by step 25 while the old arms sit at ~0.23.
+         (Dips near step 26 in the train curves are pod-reclaim/OOM resume replays, not learning events.)</p>
+      <img src="assets/fig_train_val.png" alt="Train success rate and validation EM by training step, four arms">
+      <p>Re-indexing the same val points by <strong>cumulative released trajectories</strong> makes the
+         async advantage disappear: old GRPO reaches 0.520 by ~38k trajectories; async GRPO needs ~92k
+         to reach 0.529. Old turn-PPO reaches 0.561 at 69k; async turn-PPO peaks at 0.486 (61k) and
+         <em>falls</em> to 0.404 at 94k. The per-step advantage is a data-rate effect — more trajectories
+         per update at identical optimizer settings — with per-sample efficiency mildly <em>worse</em>.</p>
+      <img src="assets/fig_sample_matched.png" alt="Cumulative released trajectories per step, and validation EM vs cumulative released trajectories">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">5</span> Transfer: the ordering reverses</h2>
+      <p>7,152-question ASearcher suite; wiki-answerable macro over 7 benchmarks (6,115 q), live-web trio
+         (GAIA / frames / xbench-deepsearch, 1,027 q) reported separately as a corpus-gap measure.
+         Judge ≈ EM + 0.13 one-directional; all three scorers agree on the ranking.</p>
+      <table>
+        <thead>
+          <tr><th>arm</th><th class="num-col">judge</th><th class="num-col">strict EM</th><th class="num-col">sub-EM</th><th class="num-col">live-web judge</th><th class="num-col">no-answer</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>old turn-PPO</td><td class="num best">0.550</td><td class="num best">0.405</td><td class="num best">0.461</td><td class="num best">0.126</td><td class="num">0.3%</td></tr>
+          <tr><td>old GRPO</td><td class="num">0.535</td><td class="num">0.395</td><td class="num">0.446</td><td class="num">0.097</td><td class="num">6.2%</td></tr>
+          <tr><td>async GRPO</td><td class="num">0.506</td><td class="num">0.365</td><td class="num">0.416</td><td class="num">0.108</td><td class="num">11.7%</td></tr>
+          <tr><td>async turn-PPO</td><td class="num">0.445</td><td class="num">0.326</td><td class="num">0.371</td><td class="num">0.065</td><td class="num">30.2%</td></tr>
+        </tbody>
+      </table>
+      <img src="assets/fig_transfer_4way.png" alt="Wiki-answerable macro under three scorers plus live-web judge, four arms">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">6</span> Failure analysis: answer coverage, not accuracy</h2>
+      <table>
+        <thead>
+          <tr><th>arm</th><th class="num-col">judge (all)</th><th class="num-col">judge (answered)</th><th class="num-col">no-answer</th><th class="num-col">mean turns</th><th class="num-col">median</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>old GRPO</td><td class="num">0.535</td><td class="num">0.571</td><td class="num">6.2%</td><td class="num">17.5</td><td class="num">18</td></tr>
+          <tr><td>async GRPO</td><td class="num">0.506</td><td class="num">0.573</td><td class="num">11.7%</td><td class="num">18.7</td><td class="num">19</td></tr>
+          <tr><td>old turn-PPO</td><td class="num">0.551</td><td class="num">0.552</td><td class="num best">0.3%</td><td class="num">7.8</td><td class="num">3</td></tr>
+          <tr><td>async turn-PPO</td><td class="num">0.435</td><td class="num best">0.623</td><td class="num">30.2%</td><td class="num">8.5</td><td class="num">3</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><strong>Async turn-PPO's entire deficit is coverage.</strong> Paired per-question vs old turn-PPO
+            (6,116 common questions): 1,028 lost, 318 gained — <strong>720 of the 1,028 losses are no-answer
+            terminations</strong>. No-answer trajectories average 17.2 turns with <strong>0%</strong> at the 32-turn cap:
+            they end via <code>ctx_terminate</code> — the policy searches until the 16k window fills without
+            committing to an answer. No-answer concentrates on multihop (Musique 43%, 2Wiki 42%, Hotpot 31%
+            vs TriviaQA/PopQA ~19%).</li>
+        <li><strong>Async GRPO's paradox resolves the same way</strong>: answered-only accuracy matches old GRPO
+            (0.573 vs 0.571); the transfer gap is 2× the no-answer rate (11.7% vs 6.2%) plus turn inflation
+            (20–23-turn bucket: 35% vs 10%). It beats old GRPO on train-val because the 512-q val set matches
+            the training distribution where long searches pay off.</li>
+        <li><strong>The drift is training-time</strong>: async turn-PPO's own val fell 0.486 → 0.404 over steps 50–75
+            while train success kept rising. Prime suspect: <strong>critic × partial-rollout-resume</strong> — resumed
+            trajectories carry returns realized under older policies; a turn-level critic bootstraps across the
+            resume seam, and async's higher resume volume makes the value of "continue searching" systematically
+            stale-optimistic. GRPO (no critic) shows the same direction at ~1/3 strength. Candidate fixes:
+            behavior-IS staleness correction (parked item R2), answer-commitment shaping, resume-age cap for
+            critic arms.</li>
+      </ul>
+      <img src="assets/fig_noanswer.png" alt="All-question vs answered-only judge score per arm; no-answer rate by benchmark for the two turn-PPO arms">
+      <img src="assets/fig_turns_dist.png" alt="Turn-count distributions on wiki-answerable questions, four arms">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">7</span> Comparability caveats</h2>
+      <div class="warning">
+        <ul>
+          <li>Async-arm evals ran on A100 (old-arm evals on H100); cross-arch greedy drift is within ±0.02 —
+              the deficits are 3–8× that.</li>
+          <li>Greedy same-checkpoint reproducibility ±0.02; judge ≈ EM + 0.13, one-directional
+              (judge✓EM✗ ≈ 930–975 items per arm, converse ≤ 3).</li>
+          <li>Async arms checkpointed every 5 steps (pod-reclaim replay bound), old arms every 25;
+              replay differences are ≤5-step re-samples.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">8</span> Credit-assignment sweep (old engine, 5 estimators)</h2>
+      <p>Same protocol and lockstep engine (<code>fast75</code>). GRPO and turn-PPO finished 2026-08-02.
+         The token-PPO / GiGPO / HCAPO arms (started 2026-08-03) died with their pods at steps 42/44/46
+         with only the step-25 checkpoint retained, and were <strong>resumed from step 25 on 2026-08-14</strong>
+         on identical code (only change: checkpoint every 5 steps). Pending cells fill as the resumed runs
+         reach steps 50/75 — rerun <code>mine_campaign_data.py</code> + <code>make_figures.py</code> to regenerate.</p>
+      <table>
+        <thead>
+          <tr><th>estimator</th><th>mechanism</th><th class="num-col">val@0</th><th class="num-col">val@25</th><th class="num-col">val@50</th><th class="num-col">val@75</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="mtag teal">GRPO</span></td><td>token-level group-relative</td><td class="num">0.195</td><td class="num">0.227</td><td class="num best">0.520</td><td class="num">0.520</td></tr>
+          <tr><td><span class="mtag teal">turn-PPO (b0)</span></td><td>turn-level GAE + critic</td><td class="num">0.195</td><td class="num">0.234</td><td class="num">0.479</td><td class="num best">0.561</td></tr>
+          <tr><td><span class="mtag olive">token-PPO</span></td><td>stock token GAE + critic</td><td class="num">0.195</td><td class="num best">0.312</td><td class="num">pending</td><td class="num">pending</td></tr>
+          <tr><td><span class="mtag olive">HCAPO</span></td><td>hindsight answer-cond., γ=0.95</td><td class="num">0.195</td><td class="num">0.297</td><td class="num">pending</td><td class="num">pending</td></tr>
+          <tr><td><span class="mtag amber">GiGPO</span></td><td>anchor-state + episode groups</td><td class="num">0.195</td><td class="num">0.064</td><td class="num">pending</td><td class="num">pending</td></tr>
+        </tbody>
+      </table>
+      <div class="warning">
+        <strong>GiGPO train/val divergence.</strong> GiGPO's val collapsed (0.195 → 0.064) while its train success
+        rate stayed normal (~0.45) — not a failed run; the resumed leg's val@50/75 will show whether it recovers.
+        HCAPO's γ=0.95 is a deliberate protocol deviation (the paper's Search-QA value; all other arms use γ=1.0).
+        token-PPO (0.312) and HCAPO (0.297) lead at step 25 — but the two finished arms stood at 0.227/0.234 at
+        step 25 and finished at 0.52/0.56, so val@25 is weakly predictive.
+      </div>
+      <img src="assets/fig_estimators.png" alt="Five-estimator training curves and validation markers">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">9</span> Verdict &amp; artifacts</h2>
+      <div class="summary">
+        <p><strong>Adopt the async collector for what it is</strong> — a 2× wall-clock engine with clean semantics
+        (atomic groups, zero zombie generation, val parity at profile scale). <strong>Do not yet adopt it as the
+        training default</strong>: its data distribution (more, longer, fresher-resumed trajectories) pushes policies
+        toward non-committal search — mildly for GRPO, severely for critic-based turn-PPO. Fix order:
+        (1) staleness/IS correction at the resume seam; (2) answer-commitment shaping or no-answer penalty;
+        (3) re-run the turn-PPO arm. The sample-matched curves here are the baseline any fix must beat.</p>
+      </div>
+      <pre><code># rebuild everything in this folder (venv: /home/tiger/xiaoxuan/envs/agentic-rl-ca)
+python mine_campaign_data.py     # per-step series for all 7 runs -> campaign_data.json
+python analyze_items.py          # per-item turns / no-answer / conditional -> items_analysis.json
+python make_figures.py           # 6 figures -> assets/
+~/.local/bin/tectonic async_campaign_final.tex   # paper PDF</code></pre>
+      <p>Judge summaries: <code>~/xiaoxuan/arlca-8b/outputs/judge/{agrpo,atppo,grpo,turnppo}_s75.summary.{md,json}</code> ·
+         Eval dumps: HDFS <code>.../logs/p8b_eval_*_s75/</code> ·
+         Checkpoints: HDFS <code>.../checkpoints/{token_grpo,turn_ppo_b0}_..._{fast75,async75kv60}_s0/global_step_75</code> ·
+         wandb <code>rainyfields/ca-rung3-8b-asearcher</code> (async zkdy7cw7 / g2lwspq4; old uabse4uv+vgoq421c / odkf1zmj)</p>
+    </div>
+
+  </div>
+</body>
+</html>
