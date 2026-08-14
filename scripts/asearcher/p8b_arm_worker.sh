@@ -99,7 +99,7 @@ export DYNBSZ=1 DYNBSZ_TOK="${DYNBSZ_TOK:-24576}"
 PR_ARGS=(+env.partial_rollout_enable=true +env.partial_rollout_cycle_turns=8 +env.partial_rollout_max_age=4)
 for attempt in 1 2 3; do
   echo "==== P8B-ARM $COND attempt $attempt $(date -u) ===="
-  TOTAL_STEPS=75 VAL_FREQ=25 SAVE_FREQ=25 VAL_BEFORE_TRAIN=True RESUME=auto \
+  TOTAL_STEPS=75 VAL_FREQ=25 SAVE_FREQ="${SAVE_FREQ:-5}" VAL_BEFORE_TRAIN=True RESUME=auto \
     bash "$REPO/scripts/run_condition.sh" "$COND" 0 "$PROTOCOL" "${PR_ARGS[@]}"
   RC=$?
   echo "==== P8B-ARM $COND attempt $attempt exit=$RC $(date -u) ===="
