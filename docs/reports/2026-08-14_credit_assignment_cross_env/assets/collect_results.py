@@ -60,6 +60,12 @@ def collect_searchqa():
             curves.append(df)
             prov[f"searchqa_curve_{m}"] = [r.id for r in runs]
         pt = os.path.join(SQA_REPO, "outputs", "eval_full", eval_dir, "paper_table.csv")
+        if not os.path.exists(pt):
+            # batch-pod evals rsync their outputs to HDFS instead of the devbox repo
+            alt = os.path.join("/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/eval_results",
+                               eval_dir, "paper_table.csv")
+            if os.path.exists(alt):
+                pt = alt
         if os.path.exists(pt):
             t = pd.read_csv(pt)
             t.insert(0, "method", m)
