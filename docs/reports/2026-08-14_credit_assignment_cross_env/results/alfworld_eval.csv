@@ -1,0 +1,8 @@
+method,unseen_success,eval_step
+token_ppo,0.761,150
+turn_ppo,0.963,150
+grpo,0.881,265
+gigpo,0.955,200
+hcapo,0.784,145
+hcapo_ans,0.791,145
+floor,0.44,0

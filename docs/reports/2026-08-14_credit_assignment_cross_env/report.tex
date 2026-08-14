@@ -1,0 +1,132 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,graphicx,booktabs,amssymb,xcolor,hyperref}
+\usepackage[skip=4pt]{caption}
+\usepackage{float}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black}
+\newcommand{\fig}[1]{\includegraphics[width=\linewidth]{figs/#1}}
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\bad}[1]{\textcolor{red!70!black}{#1}}
+\newcommand{\pending}[1]{\textcolor{orange!80!black}{\textit{#1}}}
+\sloppy
+\title{\textbf{Credit assignment, five ways, two environments}\\[3pt]
+\large token-PPO, turn-PPO, GRPO, GiGPO and HCAPO on SearchQA and ALFWorld:\\
+matched-budget training curves and final evaluations}
+\author{Agentic-RL-CA project}
+\date{2026-08-14 (draft; final after the two in-flight SearchQA arms complete)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We compare five credit-assignment strategies for multi-turn agentic RL --- token-level
+PPO (GAE over tokens, learned critic), turn-level PPO (GAE over turns, learned critic), GRPO
+(trajectory-level group baseline), GiGPO (episode-level group baseline plus anchor-state
+step-level groups) and HCAPO (hindsight credit reweighting) --- on two environments with
+per-environment matched budgets and configurations. On \textbf{ALFWorld} (Qwen3-1.7B from a
+shared replay-BC initialisation, unseen 134-game evaluation) the ordering is
+turn-PPO $0.963$ $>$ GiGPO $0.955$ $>$ GRPO $0.881$ $>$ HCAPO $0.784$ $>$ token-PPO $0.761$.
+On \textbf{SearchQA} (Qwen3-4B, 4-turn non-thinking protocol, 500 steps, full 51{,}713-question
+evaluation) the completed arms give GRPO $0.463$ $>$ HCAPO(adapted) $0.440$ $>$ turn-PPO $0.417$
+$>$ HCAPO(paper) $0.410$; \pending{token-PPO and GiGPO are training now (launched 2026-08-14,
+config-matched) and will complete this table.} Two observations already stand:
+\textbf{(1) no single credit scheme wins both environments} --- turn-level PPO dominates the
+long-horizon, sparse-reward ALFWorld but is mid-pack on short-horizon SearchQA, where the
+critic-free group baseline (GRPO) leads; \textbf{(2) HCAPO trails flat GRPO in both environments}
+under matched budgets, consistent with the dedicated HCAPO analysis (2026-08-03 report).
+\end{abstract}
+
+\section{Setup}
+\subsection{Environments and protocols}
+\textbf{SearchQA} (Search-R1 style): the agent interleaves \texttt{<search>} calls against a
+wiki-18 e5 retriever (top-3) with a final \texttt{<answer>}; max 4 turns; Qwen3-4B, non-thinking
+chat template, 2{,}048-token response cap; 500 training steps at 1{,}280 trajectories/step
+(batch 256 $\times$ group 5), lr $10^{-6}$, KL $10^{-3}$; validation every 25 steps is greedy
+strict-EM on a fixed 2{,}048-question slice; the final evaluation is the full 51{,}713-question
+7-task suite (NQ, TriviaQA, PopQA, HotpotQA, 2WikiMultiHopQA, Musique, Bamboogle), reported as
+macro EM over tasks. All five arms share the protocol file
+(\texttt{configs/protocol\_4turn\_nothink2k.sh}) and differ only in
+\texttt{algorithm.adv\_estimator} (plus the critic for the two PPO arms).
+
+\smallskip\noindent
+\textbf{ALFWorld}: embodied household tasks, ReAct full-transcript prompt, max 50 turns;
+Qwen3-1.7B initialised from a shared replay-BC checkpoint (unseen success $0.440$); 16
+trajectory-groups of 16 (PPO arms: 128 envs), lr $10^{-6}$, KL-to-$\pi_{base}$ $0.01$;
+validation every 5 steps on the seen split; the final evaluation is greedy success on the
+full 134-game out-of-distribution split at each method's best checkpoint.
+
+\subsection{Methods and caveats}
+The five estimators map to \texttt{gae} (token-PPO), \texttt{gae\_turn} (turn-PPO),
+\texttt{token\_grpo} (GRPO), \texttt{gigpo} (GiGPO, mean-std normalisation, step-advantage
+weight $1.0$) and \texttt{hcapo}. HCAPO appears twice where two variants exist: the
+paper-faithful configuration (\emph{HCAPO}) and the environment-adapted variant that scored
+best in the earlier per-environment studies (\emph{HCAPO (adapted)}: hindsight-source
+\texttt{answer} on SearchQA; the $\omega{=}1$, $T{=}5$ clip variant on ALFWorld).
+
+\smallskip\noindent Caveats, stated once and applying throughout:
+\begin{itemize}
+  \item The two environments use \emph{different model scales} (4B vs 1.7B) and eval metrics;
+        compare orderings within an environment, never numbers across environments.
+  \item Single seed per arm. The SearchQA greedy-val reproducibility band is $\pm 0.02$;
+        deltas inside it are noise.
+  \item ALFWorld training curves plot the \emph{seen}-split validation; the table reports the
+        \emph{unseen} 134-game split, which is the cross-method-comparable number.
+  \item The SearchQA token-PPO and GiGPO cells were trained in this campaign (2026-08-14,
+        ark H100 queue, checkpoint-resume across 4-hour pod reclamations) with configurations
+        matched 1:1 to the July non-thinking arms; all other cells reuse the completed
+        July--August runs unchanged.
+\end{itemize}
+
+\section{SearchQA}
+\begin{figure}[H]\centering\fig{fig1_searchqa.png}
+\caption{\textbf{SearchQA, Qwen3-4B, 4-turn non-thinking, 500 steps.} Left: greedy validation
+macro-EM (2{,}048 questions) every 25 steps. Right: full-set (51{,}713-question) macro EM at
+step 500, best non-baseline value in bold. \pending{token-PPO and GiGPO curves/rows appear when
+their arms complete.}}
+\label{fig:searchqa}
+\end{figure}
+
+Among completed arms, GRPO leads at $0.463$ macro EM, $+0.046$ over turn-PPO and $+0.023$ over
+the best HCAPO variant. The HCAPO curves show the documented response-length runaway dips
+(paper variant dips hardest around step 300) yet recover to a plateau below GRPO.
+\pending{Token-PPO and GiGPO commentary pending run completion; the thinking-protocol precedent
+(GiGPO $0.446$ vs GRPO $0.441$, token-PPO $0.381$) suggests GiGPO lands near GRPO and token-PPO
+lands near the bottom of the table.}
+
+\section{ALFWorld}
+\begin{figure}[H]\centering\fig{fig2_alfworld.png}
+\caption{\textbf{ALFWorld, Qwen3-1.7B from replay-BC.} Left: seen-split validation success
+(logged every 5 steps; PPO/HCAPO arms trained 150 steps, GRPO/GiGPO 300 --- budgets follow the
+original campaign). Right: unseen 134-game success at each method's best checkpoint.}
+\label{fig:alfworld}
+\end{figure}
+
+Turn-PPO ($0.963$) and GiGPO ($0.955$) are effectively tied at the top; GRPO trails by
+$\sim$8 points, HCAPO by $\sim$17--18, and token-PPO is last at $0.761$ --- $20$ points below
+its turn-level twin, which differs \emph{only} in GAE granularity. On a 50-turn horizon,
+token-level value estimation is the clear failure mode.
+
+\section{Cross-environment reading}
+\begin{itemize}
+  \item \textbf{Horizon determines the winner.} Turn-level PPO dominates the 50-turn ALFWorld
+        but is mid-pack on 4-turn SearchQA; GRPO's trajectory-level baseline is strongest on the
+        short horizon. The token-vs-turn PPO contrast is the cleanest evidence: same critic,
+        same budget, only the credit granularity differs, and the gap is $+0.202$ success on
+        ALFWorld versus \pending{(pending)} on SearchQA.
+  \item \textbf{GiGPO is competitive without a critic} in its home environment (ALFWorld,
+        $0.955$) \pending{--- its SearchQA cell completes this claim's second half.}
+  \item \textbf{HCAPO underperforms flat GRPO in both environments} under matched budgets
+        ($0.410$--$0.440$ vs $0.463$; $0.784$--$0.791$ vs $0.881$), reproducing the 2026-08-03
+        analysis.
+\end{itemize}
+
+\section{Reproducibility}
+\texttt{assets/collect\_results.py} pulls every number in this report (wandb curves, full-set
+eval tables, ALFWorld campaign CSVs) into \texttt{results/}; \texttt{assets/build\_figures.py}
+renders both figures; \texttt{build\_pdf.sh} compiles this document. Checkpoints:
+\texttt{/mnt/hdfs/mlsys/users/xiaoxuan/agentic\_rl\_ca/checkpoints/} (SearchQA) and
+\texttt{/mnt/hdfs/mlsys/users/xiaoxuan/alfworld\_prm\_gigpo/checkpoints/} (ALFWorld). New-arm
+launch infrastructure: \texttt{\char`~/xiaoxuan/ca\_cmp\_jobs/} (job specs, entrypoint,
+resubmit loop).
+
+\end{document}
