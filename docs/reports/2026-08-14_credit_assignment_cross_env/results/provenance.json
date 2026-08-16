@@ -6,6 +6,9 @@
   "alfworld_curve_token_ppo": "/home/tiger/xiaoxuan/reward_models/docs/reports/2026-07-13_credit_assignment_comparison_assets/history_PPO-token_cmp150.csv",
   "alfworld_curve_turn_ppo": "/home/tiger/xiaoxuan/reward_models/docs/reports/2026-07-13_credit_assignment_comparison_assets/history_PPO_mvn5d9np.csv",
   "alfworld_ledger": "/mnt/hdfs/mlsys/users/xiaoxuan/alfworld_prm_gigpo/spa_data/unseen_cmp_results.txt",
+  "searchqa_curve_gigpo": [
+    "cacmp_gigpo_4bnt_s0"
+  ],
   "searchqa_curve_grpo": [
     "1mphor86"
   ],
@@ -15,10 +18,14 @@
   "searchqa_curve_hcapo_ans": [
     "bk48nam7"
   ],
+  "searchqa_curve_token_ppo": [
+    "cacmp_token_ppo_4bnt_s0"
+  ],
   "searchqa_curve_turn_ppo": [
     "bl9tqkk8"
   ],
   "searchqa_eval_floor": "/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/eval_full/eval4b_floor/paper_table.csv",
+  "searchqa_eval_gigpo": "/mnt/hdfs/mlsys/users/xiaoxuan/agentic_rl_ca/eval_results/eval4b_nt_gigpo_s0/paper_table.csv",
   "searchqa_eval_grpo": "/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/eval_full/eval4b_nt_token_grpo_s0/paper_table.csv",
   "searchqa_eval_hcapo": "/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/eval_full/eval4b_hcapo_paper_s0/paper_table.csv",
   "searchqa_eval_hcapo_ans": "/home/tiger/xiaoxuan/Agentic-RL-CA/outputs/eval_full/eval4b_hcapo_ans_s0/paper_table.csv",

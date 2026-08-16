@@ -78,13 +78,20 @@ best in the earlier per-environment studies (\emph{HCAPO (adapted)}: hindsight-s
 \end{itemize}
 
 \section{SearchQA}
-\begin{figure}[H]\centering\fig{fig1_searchqa.png}
-\caption{\textbf{SearchQA, Qwen3-4B, 4-turn non-thinking, 500 steps.} Left: greedy validation
-macro-EM (2{,}048 questions) every 25 steps. Right: full-set (51{,}713-question) macro EM at
-step 500, best non-baseline value in bold. \pending{token-PPO and GiGPO curves/rows appear when
-their arms complete.}}
+\begin{figure}[H]\centering\includegraphics[width=0.72\linewidth]{figs/fig1_searchqa.png}
+\caption{\textbf{SearchQA, Qwen3-4B, 4-turn non-thinking, 500 steps.} Greedy validation
+macro-EM (2{,}048 questions) every 25 steps. \pending{The token-PPO curve completes when
+its arm finishes.}}
 \label{fig:searchqa}
 \end{figure}
+
+\begin{table}[H]\centering
+\input{tables/tab_searchqa.tex}
+\caption{\textbf{SearchQA final evaluation:} full-set (51{,}713-question) macro EM at
+step 500. Best non-baseline value in bold, second best underlined.
+\pending{token-PPO row appears when its arm completes.}}
+\label{tab:searchqa}
+\end{table}
 
 Among completed arms, GRPO leads at $0.463$ macro EM, $+0.046$ over turn-PPO and $+0.023$ over
 the best HCAPO variant. The HCAPO curves show the documented response-length runaway dips
@@ -94,12 +101,19 @@ the best HCAPO variant. The HCAPO curves show the documented response-length run
 lands near the bottom of the table.}
 
 \section{ALFWorld}
-\begin{figure}[H]\centering\fig{fig2_alfworld.png}
-\caption{\textbf{ALFWorld, Qwen3-1.7B from replay-BC.} Left: seen-split validation success
-(logged every 5 steps; PPO/HCAPO arms trained 150 steps, GRPO/GiGPO 300 --- budgets follow the
-original campaign). Right: unseen 134-game success at each method's best checkpoint.}
+\begin{figure}[H]\centering\includegraphics[width=0.72\linewidth]{figs/fig2_alfworld.png}
+\caption{\textbf{ALFWorld, Qwen3-1.7B from replay-BC.} Seen-split validation success
+(logged every 5 steps; curves truncated at step 200 for readability --- PPO/HCAPO arms
+trained 150 steps, GRPO/GiGPO 300, budgets follow the original campaign).}
 \label{fig:alfworld}
 \end{figure}
+
+\begin{table}[H]\centering
+\input{tables/tab_alfworld.tex}
+\caption{\textbf{ALFWorld final evaluation:} unseen 134-game success at each method's best
+checkpoint. Best value in bold, second best underlined.}
+\label{tab:alfworld}
+\end{table}
 
 Turn-PPO ($0.963$) and GiGPO ($0.955$) are effectively tied at the top; GRPO trails by
 $\sim$8 points, HCAPO by $\sim$17--18, and token-PPO is last at $0.761$ --- $20$ points below
