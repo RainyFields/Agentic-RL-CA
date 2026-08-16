@@ -157,26 +157,38 @@ Decomposition (fig `fig_noanswer`, wiki-answerable):
 
 Same protocol/engine (`fast75`, old lockstep + partial rollout), five estimators.
 GRPO and turn-PPO completed 2026-08-02. The token-PPO / GiGPO / HCAPO arms started
-2026-08-03 died with their pods at steps 42/44/46 (checkpoint grain 25) and were
-**resumed from step 25 on 2026-08-14** (same code, SAVE_FREQ 25→5); they are
-running to step 75 — the table/figure regenerate as vals land
-(`python mine_campaign_data.py && python make_figures.py`).
+2026-08-03 died with their pods at steps 42/44/46 (checkpoint grain 25), were
+**resumed from step 25 on 2026-08-14** (same code, SAVE_FREQ 25→5) and **completed
+2026-08-15/16**. Resume fidelity: each arm's restart re-val@25 reproduced its
+original value exactly (0.312 / 0.064 / 0.297).
 
-| estimator | mechanism | val@0 | val@25 | val@50 | val@75 |
-|---|---|---|---|---|---|
-| GRPO | token-level group-relative | 0.195 | 0.227 | 0.520 | 0.520 |
-| turn-PPO (b0) | turn-level GAE + critic | 0.195 | 0.234 | 0.479 | **0.561** |
-| token-PPO | stock token GAE + critic | 0.195 | **0.312** | *pending* | *pending* |
-| HCAPO | hindsight answer-conditioned, γ=0.95 | 0.195 | 0.297 | *pending* | *pending* |
-| GiGPO | anchor-state step groups + episode groups | 0.195 | 0.064 ⚠ | *pending* | *pending* |
+| estimator | mechanism | val@0 | val@25 | val@50 | val@75 | turns@75 |
+|---|---|---|---|---|---|---|
+| turn-PPO (b0) | turn-level GAE + critic | 0.195 | 0.234 | 0.479 | **0.561** | 7.5 |
+| GiGPO | anchor-state step groups + episode groups | 0.195 | 0.064 ⚠ | 0.438 | 0.535 | 16.1 |
+| HCAPO | hindsight answer-conditioned, γ=0.95 | 0.195 | 0.297 | 0.449 | 0.529 | 3.7 |
+| GRPO | token-level group-relative | 0.195 | 0.227 | **0.520** | 0.520 | 17.0 |
+| token-PPO | stock token GAE + critic | 0.195 | **0.312** | 0.447 | 0.426 | 8.4 |
 
-Early signal (fig `fig_estimators`): token-PPO (0.312) and HCAPO (0.297) lead the
-val@25 board — both ahead of where GRPO/turn-PPO were at step 25 (0.227/0.234),
-though those two finished at 0.52/0.56, so val@25 is weakly predictive. **GiGPO
-collapsed on val (0.195→0.064) while its train success rate stayed normal (~0.45)**
-— a strong train/val divergence, not a failed run; the resumed leg's val@50/75 will
-show whether it recovers. HCAPO's γ=0.95 is a protocol deviation (paper value; all
-other arms γ=1.0).
+Final readings (fig `fig_estimators`):
+- **turn-PPO remains the winner (0.561)**; GiGPO (0.535) and HCAPO (0.529) edge past
+  GRPO (0.520); token-PPO trails badly (0.426).
+- **GiGPO's step-25 collapse (0.064) fully recovered** (0.438 → 0.535, second place).
+  Its train success rate was normal (~0.45) throughout — the dip was a transient
+  greedy-decode pathology (17.8 val turns at step 25, long unproductive searches),
+  not estimator failure. It still searches long at 75 (16.1 turns, GRPO-like).
+- **token-PPO regressed 0.447→0.426 over steps 50–75** — the only old-engine arm to
+  regress late. Notably it is the token-level critic method: together with async
+  turn-PPO's regression (§6), both late regressions in the campaign are critic-based
+  arms, consistent with the critic-staleness suspicion (though token-PPO ran on the
+  old engine, so partial-rollout resume alone — cycle 8/max_age 4 — is sufficient
+  exposure).
+- **HCAPO is the turn-efficiency standout**: 0.529 at just 3.7 turns/question —
+  half of turn-PPO's 7.5 and ~4.5× leaner than GRPO/GiGPO — the best
+  accuracy-per-turn in the sweep. Its γ=0.95 is a protocol deviation (paper value;
+  all other arms γ=1.0).
+- val@25 was weakly predictive of val@75 (rank correlation is poor: the step-25
+  leader finished last; the step-25 collapse finished second).
 
 ## 9. Artifacts & reproduction
 
@@ -187,7 +199,7 @@ other arms γ=1.0).
 - Rebuild: `python mine_campaign_data.py && python analyze_items.py && python make_figures.py`
   (venv: `/home/tiger/xiaoxuan/envs/agentic-rl-ca`)
 - Checkpoints (HDFS `.../agentic_rl_ca/checkpoints/`): `{token_grpo,turn_ppo_b0}_qwen3-8b-base_32turn_{fast75,async75kv60}_s0/global_step_75`,
-  `{token_ppo,gigpo,hcapo_ans}_..._fast75_s0/` (resuming)
+  `{token_ppo,gigpo,hcapo_ans}_..._fast75_s0/global_step_75`
 - wandb `rainyfields/ca-rung3-8b-asearcher`: async zkdy7cw7/g2lwspq4; old
   uabse4uv+vgoq421c/odkf1zmj
 - Eval dumps: HDFS `.../logs/p8b_eval_{agrpo,atppo,grpo,turnppo}_s75/rollout_eval_*.jsonl.zst`

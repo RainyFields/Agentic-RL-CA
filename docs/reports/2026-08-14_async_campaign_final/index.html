@@ -222,7 +222,7 @@
           <li><strong>Old-engine arms win transfer across the board</strong>: wiki-answerable macro judge 0.550 (old turn-PPO) / 0.535 (old GRPO) vs 0.506 (async GRPO) / 0.445 (async turn-PPO). The async GRPO train-val "win" (0.529 vs 0.520) reverses on transfer.</li>
           <li><strong>Both async deficits are answer-coverage collapses, not accuracy losses.</strong> Conditional on answering, async turn-PPO is the <em>most accurate arm in the campaign</em> (judge 0.623) — but it never emits an answer on 30.2% of questions (old: 0.3%), ending trajectories by context exhaustion after ~17-turn searches. 720 of its 1,028 paired losses vs old turn-PPO are no-answer terminations.</li>
           <li><strong>Stale-drop censoring is ruled out</strong> (zero <code>max_age</code> drops in both engines, all arms, all 75 steps). Prime suspect for the late regression (async tPPO val 0.486 → 0.404 over steps 50–75): the <strong>critic × partial-rollout-resume interaction</strong>.</li>
-          <li><strong>Estimator sweep (old engine)</strong>: token-PPO (0.312) and HCAPO (0.297) lead the val@25 board; GiGPO collapsed on val (0.064) while its train success stayed normal. All three arms resumed 2026-08-14 from step 25 and are running to 75.</li>
+          <li><strong>Estimator sweep (old engine, complete)</strong>: turn-PPO wins (0.561) &gt; GiGPO 0.535 &gt; HCAPO 0.529 &gt; GRPO 0.520 &gt; token-PPO 0.426. GiGPO fully recovered from its step-25 val collapse (0.064 → 0.535); HCAPO delivers 0.529 at just 3.7 turns/question (best accuracy-per-turn); both late regressions in the campaign (token-PPO 0.447 → 0.426 and async turn-PPO) are critic-based arms.</li>
         </ul>
       </div>
     </div>
@@ -365,27 +365,30 @@
       <h2><span class="num">8</span> Credit-assignment sweep (old engine, 5 estimators)</h2>
       <p>Same protocol and lockstep engine (<code>fast75</code>). GRPO and turn-PPO finished 2026-08-02.
          The token-PPO / GiGPO / HCAPO arms (started 2026-08-03) died with their pods at steps 42/44/46
-         with only the step-25 checkpoint retained, and were <strong>resumed from step 25 on 2026-08-14</strong>
-         on identical code (only change: checkpoint every 5 steps). Pending cells fill as the resumed runs
-         reach steps 50/75 — rerun <code>mine_campaign_data.py</code> + <code>make_figures.py</code> to regenerate.</p>
+         with only the step-25 checkpoint retained, were <strong>resumed from step 25 on 2026-08-14</strong>
+         on identical code (only change: checkpoint every 5 steps), and <strong>completed 2026-08-15/16</strong>.
+         Resume fidelity: each restart re-val@25 reproduced its original value exactly (0.312 / 0.064 / 0.297).</p>
       <table>
         <thead>
-          <tr><th>estimator</th><th>mechanism</th><th class="num-col">val@0</th><th class="num-col">val@25</th><th class="num-col">val@50</th><th class="num-col">val@75</th></tr>
+          <tr><th>estimator</th><th>mechanism</th><th class="num-col">val@0</th><th class="num-col">val@25</th><th class="num-col">val@50</th><th class="num-col">val@75</th><th class="num-col">turns@75</th></tr>
         </thead>
         <tbody>
-          <tr><td><span class="mtag teal">GRPO</span></td><td>token-level group-relative</td><td class="num">0.195</td><td class="num">0.227</td><td class="num best">0.520</td><td class="num">0.520</td></tr>
-          <tr><td><span class="mtag teal">turn-PPO (b0)</span></td><td>turn-level GAE + critic</td><td class="num">0.195</td><td class="num">0.234</td><td class="num">0.479</td><td class="num best">0.561</td></tr>
-          <tr><td><span class="mtag olive">token-PPO</span></td><td>stock token GAE + critic</td><td class="num">0.195</td><td class="num best">0.312</td><td class="num">pending</td><td class="num">pending</td></tr>
-          <tr><td><span class="mtag olive">HCAPO</span></td><td>hindsight answer-cond., γ=0.95</td><td class="num">0.195</td><td class="num">0.297</td><td class="num">pending</td><td class="num">pending</td></tr>
-          <tr><td><span class="mtag amber">GiGPO</span></td><td>anchor-state + episode groups</td><td class="num">0.195</td><td class="num">0.064</td><td class="num">pending</td><td class="num">pending</td></tr>
+          <tr><td><span class="mtag teal">turn-PPO (b0)</span></td><td>turn-level GAE + critic</td><td class="num">0.195</td><td class="num">0.234</td><td class="num">0.479</td><td class="num best">0.561</td><td class="num">7.5</td></tr>
+          <tr><td><span class="mtag olive">GiGPO</span></td><td>anchor-state + episode groups</td><td class="num">0.195</td><td class="num">0.064</td><td class="num">0.438</td><td class="num">0.535</td><td class="num">16.1</td></tr>
+          <tr><td><span class="mtag olive">HCAPO</span></td><td>hindsight answer-cond., γ=0.95</td><td class="num">0.195</td><td class="num">0.297</td><td class="num">0.449</td><td class="num">0.529</td><td class="num best">3.7</td></tr>
+          <tr><td><span class="mtag teal">GRPO</span></td><td>token-level group-relative</td><td class="num">0.195</td><td class="num">0.227</td><td class="num best">0.520</td><td class="num">0.520</td><td class="num">17.0</td></tr>
+          <tr><td><span class="mtag amber">token-PPO</span></td><td>stock token GAE + critic</td><td class="num">0.195</td><td class="num best">0.312</td><td class="num">0.447</td><td class="num">0.426</td><td class="num">8.4</td></tr>
         </tbody>
       </table>
       <div class="warning">
-        <strong>GiGPO train/val divergence.</strong> GiGPO's val collapsed (0.195 → 0.064) while its train success
-        rate stayed normal (~0.45) — not a failed run; the resumed leg's val@50/75 will show whether it recovers.
-        HCAPO's γ=0.95 is a deliberate protocol deviation (the paper's Search-QA value; all other arms use γ=1.0).
-        token-PPO (0.312) and HCAPO (0.297) lead at step 25 — but the two finished arms stood at 0.227/0.234 at
-        step 25 and finished at 0.52/0.56, so val@25 is weakly predictive.
+        <strong>Final readings.</strong> <strong>GiGPO's step-25 collapse fully recovered</strong> (0.064 → 0.438 → 0.535,
+        second place); its train success was normal (~0.45) throughout — the dip was a transient greedy-decode
+        pathology (17.8 val turns at step 25), not estimator failure. <strong>token-PPO regressed 0.447 → 0.426
+        over steps 50–75</strong> — the only old-engine arm to regress late; both late regressions in the campaign
+        (this and async turn-PPO, §6) are critic-based arms. <strong>HCAPO is the turn-efficiency standout</strong>:
+        0.529 at 3.7 turns/question — half of turn-PPO's 7.5, ~4.5× leaner than GRPO/GiGPO — though its γ=0.95
+        is a deliberate protocol deviation (paper value; all other arms γ=1.0). val@25 was weakly predictive of
+        val@75: the step-25 leader finished last, the step-25 collapse finished second.
       </div>
       <img src="assets/fig_estimators.png" alt="Five-estimator training curves and validation markers">
     </div>

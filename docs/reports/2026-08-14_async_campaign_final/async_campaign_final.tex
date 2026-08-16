@@ -146,25 +146,31 @@ answer-commitment shaping, resume-age cap for critic arms.
 
 \section{Credit-assignment sweep (old engine, 5 estimators)}
 \begin{table}[h]\centering\small
-\begin{tabular}{llrrrr}\toprule
-estimator & mechanism & val@0 & val@25 & val@50 & val@75\\\midrule
-GRPO & token-level group-relative & 0.195 & 0.227 & 0.520 & 0.520\\
-turn-PPO (b0) & turn-level GAE + critic & 0.195 & 0.234 & 0.479 & \hw{0.561}\\
-token-PPO & stock token GAE + critic & 0.195 & \hw{0.312} & \emph{pending} & \emph{pending}\\
-HCAPO & hindsight answer-cond., $\gamma{=}0.95$ & 0.195 & 0.297 & \emph{pending} & \emph{pending}\\
-GiGPO & anchor-state + episode groups & 0.195 & 0.064 & \emph{pending} & \emph{pending}\\\bottomrule
+\begin{tabular}{llrrrrr}\toprule
+estimator & mechanism & val@0 & val@25 & val@50 & val@75 & turns@75\\\midrule
+turn-PPO (b0) & turn-level GAE + critic & 0.195 & 0.234 & 0.479 & \hw{0.561} & 7.5\\
+GiGPO & anchor-state + episode groups & 0.195 & 0.064 & 0.438 & 0.535 & 16.1\\
+HCAPO & hindsight answer-cond., $\gamma{=}0.95$ & 0.195 & 0.297 & 0.449 & 0.529 & \hw{3.7}\\
+GRPO & token-level group-relative & 0.195 & 0.227 & \hw{0.520} & 0.520 & 17.0\\
+token-PPO & stock token GAE + critic & 0.195 & \hw{0.312} & 0.447 & 0.426 & 8.4\\\bottomrule
 \end{tabular}
-\caption{Estimator comparison on the lockstep engine (\texttt{fast75}). token-PPO / HCAPO /
-GiGPO died with their pods at steps 42/44/46 and were resumed 2026-08-14 from step 25 on
-identical code; \emph{pending} cells fill as the resumed runs reach steps 50/75.}
+\caption{Estimator comparison on the lockstep engine (\texttt{fast75}), all arms complete.
+token-PPO / HCAPO / GiGPO died with their pods at steps 42/44/46, were resumed 2026-08-14
+from step 25 on identical code (restart re-vals reproduced 0.312/0.297/0.064 exactly), and
+finished 2026-08-15/16.}
 \end{table}
 \begin{figure}[h]\centering
 \includegraphics[width=\linewidth]{assets/fig_estimators.png}
-\caption{Five-estimator training curves. token-PPO (0.312) and HCAPO (0.297) lead at step
-25 --- ahead of where the two finished arms stood (0.227/0.234), though those finished at
-0.52/0.56, so val@25 is weakly predictive. \hw{GiGPO's val collapsed (0.064) while its
-train success stayed normal ($\sim$0.45)} --- a train/val divergence, not a failed run.
-HCAPO's $\gamma{=}0.95$ is a deliberate protocol deviation (paper value).}
+\caption{Five-estimator training curves, all complete. turn-PPO wins (0.561); GiGPO (0.535)
+and HCAPO (0.529) edge past GRPO (0.520); token-PPO trails (0.426). \hw{GiGPO's step-25 val
+collapse (0.064) fully recovered} --- its train success was normal ($\sim$0.45) throughout;
+the dip was a transient greedy-decode pathology (17.8 val turns at step 25), not estimator
+failure. \hw{token-PPO regressed 0.447$\rightarrow$0.426 over steps 50--75} --- both late
+regressions in the campaign (this and async turn-PPO, \S 5) are critic-based arms. HCAPO is
+the turn-efficiency standout: 0.529 at 3.7 turns/question, half of turn-PPO's 7.5; its
+$\gamma{=}0.95$ is a deliberate protocol deviation (paper value). val@25 was weakly
+predictive of val@75: the step-25 leader finished last, the step-25 collapse finished
+second.}
 \end{figure}
 
 \section*{Verdict}
