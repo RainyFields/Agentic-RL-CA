@@ -187,6 +187,16 @@ Final readings (fig `fig_estimators`):
   half of turn-PPO's 7.5 and ~4.5× leaner than GRPO/GiGPO — the best
   accuracy-per-turn in the sweep. Its γ=0.95 is a protocol deviation (paper value;
   all other arms γ=1.0).
+- **⚠ HCAPO shows incipient per-turn length runaway.** It is the only arm that
+  never compresses per-turn responses (median 270–400 tok/turn all run vs ~30 for
+  GRPO/GiGPO, ~100–120 for the PPOs; p90 pinned at the 1024 cap throughout), and
+  over steps 62–75 the median climbs ~280→390 with spikes to 716 (s72) and **1024 —
+  the cap — at step 75**, while valid-action ratio sags 0.84→0.79 (cap truncation).
+  Mechanism-consistent: γ=0.95 discounts per *turn*, so content migrates into
+  fewer, longer turns; nothing in the hindsight objective penalizes within-turn
+  tokens. Trajectory length is NOT running away (turns fell 4.8→3.4) and reward was
+  unaffected through step 75 — but training longer would likely saturate the cap.
+  Any HCAPO follow-up should add a per-token length penalty or per-turn cap margin.
 - val@25 was weakly predictive of val@75 (rank correlation is poor: the step-25
   leader finished last; the step-25 collapse finished second).
 

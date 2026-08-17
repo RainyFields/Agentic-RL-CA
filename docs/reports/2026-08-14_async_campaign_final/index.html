@@ -390,6 +390,17 @@
         is a deliberate protocol deviation (paper value; all other arms γ=1.0). val@25 was weakly predictive of
         val@75: the step-25 leader finished last, the step-25 collapse finished second.
       </div>
+      <div class="warning">
+        <strong>HCAPO: incipient per-turn length runaway.</strong> HCAPO is the only arm that never compresses
+        per-turn responses (median 270–400 tok/turn throughout vs ~30 for GRPO/GiGPO, ~100–120 for the PPOs;
+        p90 pinned at the 1024 response cap for the entire run). Over steps 62–75 the median climbs ~280 → 390
+        with spikes to 716 (step 72) and <strong>1024 — the cap — at step 75</strong>, while the valid-action ratio sags
+        0.84 → 0.79 (cap truncation). Mechanism-consistent: γ=0.95 discounts per <em>turn</em>, so content migrates
+        into fewer, longer turns; nothing in the hindsight objective penalizes within-turn tokens. Trajectory
+        length is <em>not</em> running away (turns fell 4.8 → 3.4) and reward was unaffected through step 75, but
+        longer training would likely saturate the cap. Follow-ups should add a per-token length penalty or a
+        per-turn cap margin.
+      </div>
       <img src="assets/fig_estimators.png" alt="Five-estimator training curves and validation markers">
     </div>
 

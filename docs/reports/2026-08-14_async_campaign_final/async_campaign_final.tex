@@ -173,6 +173,18 @@ predictive of val@75: the step-25 leader finished last, the step-25 collapse fin
 second.}
 \end{figure}
 
+\paragraph{HCAPO: incipient per-turn length runaway.} HCAPO is the only arm that never
+compresses per-turn responses (median 270--400 tok/turn throughout, vs.\ $\sim$30 for
+GRPO/GiGPO and $\sim$100--120 for the PPOs; p90 pinned at the 1{,}024 response cap for the
+entire run). Over steps 62--75 the median climbs $\sim$280$\rightarrow$390 with spikes to
+716 (step 72) and \hw{1{,}024 --- the cap --- at step 75}, while the valid-action ratio
+sags 0.84$\rightarrow$0.79 (cap truncation). This is mechanism-consistent:
+$\gamma{=}0.95$ discounts per \emph{turn}, so content migrates into fewer, longer turns,
+and nothing in the hindsight objective penalizes within-turn tokens. Trajectory length is
+\emph{not} running away (turns fell 4.8$\rightarrow$3.4) and reward was unaffected through
+step 75, but longer training would likely saturate the cap; follow-ups should add a
+per-token length penalty or a per-turn cap margin.
+
 \section*{Verdict}
 Adopt the async collector for what it is: a \hw{2$\times$ wall-clock engine} with clean
 semantics (atomic groups, zero zombie generation, val parity at profile scale). Do not yet
