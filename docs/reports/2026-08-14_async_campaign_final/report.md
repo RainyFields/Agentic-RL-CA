@@ -197,12 +197,15 @@ Final readings (fig `fig_estimators`):
   tokens. Trajectory length is NOT running away (turns fell 4.8→3.4) and reward was
   unaffected through step 75 — but training longer would likely saturate the cap.
   Any HCAPO follow-up should add a per-token length penalty or per-turn cap margin.
+  Fig `fig_resp_len` shows the divergence: four arms compress per-turn length within
+  ~20 steps; HCAPO alone plateaus high and turns upward late (shaded band = HCAPO
+  p10–p90; upper edge at the cap throughout).
 - val@25 was weakly predictive of val@75 (rank correlation is poor: the step-25
   leader finished last; the step-25 collapse finished second).
 
 ## 9. Artifacts & reproduction
 
-- Figures: `assets/fig_{train_val,sample_matched,transfer_4way,noanswer,turns_dist,estimators}.{png,pdf}`
+- Figures: `assets/fig_{train_val,sample_matched,transfer_4way,noanswer,turns_dist,estimators,resp_len}.{png,pdf}`
 - Data: `campaign_data.json` (per-step series, all 7 runs), `items_analysis.json`
   (per-item turns/no-answer/conditional), judge summaries in
   `~/xiaoxuan/arlca-8b/outputs/judge/{agrpo,atppo,grpo,turnppo}_s75.summary.{md,json}`

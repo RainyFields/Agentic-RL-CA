@@ -42,6 +42,10 @@ PATTERNS = {
     "num_actions": r"episode/num_actions/mean:([\d.]+)",
     "step_wall_s": r"timing_s/step:([\d.]+)",
     "gen_s": r"timing_s/gen:([\d.]+)",
+    "resp_len_p10": r"lengthdiag/resp_len/p10:([\d.]+)",
+    "resp_len_p50": r"lengthdiag/resp_len/p50:([\d.]+)",
+    "resp_len_p90": r"lengthdiag/resp_len/p90:([\d.]+)",
+    "valid_action": r"episode/valid_action_ratio:([\d.]+)",
 }
 
 

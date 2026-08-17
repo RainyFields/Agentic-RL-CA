@@ -192,4 +192,24 @@ axes[1].set_xticks([0, 25, 50, 75])
 axes[1].set_ylim(0, 0.60)
 finalize_figure(fig, os.path.join(A, "fig_estimators"), formats=["png", "pdf"])
 
+# ---------------- fig 7: per-turn response length over training ----------------
+fig, ax = plt.subplots(figsize=(9.5, 5.2))
+for lab, (k, c) in EST.items():
+    xs, ys = series(k, "resp_len_p50")
+    xs, ys = xs[1:], ys[1:]  # step-0 row is val-only
+    ax.plot(xs, ys, color=c, linewidth=1.0, alpha=0.22)
+    ax.plot(xs, ema(ys), color=c, linewidth=2.4, label=lab)
+# HCAPO p10-p90 band shows the cap-pinned upper tail
+hx, h10 = series("hcapo_ans", "resp_len_p10")
+_, h90 = series("hcapo_ans", "resp_len_p90")
+ax.fill_between(hx[1:], ema(h10[1:]), ema(h90[1:]), color=EST["HCAPO"][1], alpha=0.13,
+                linewidth=0, label="HCAPO p10–p90")
+ax.axhline(1024, color="gray", linewidth=1.2, linestyle=":")
+ax.text(2, 1024, "response cap (1,024)", fontsize=11, color="gray", va="bottom")
+ax.set_xlabel("training step")
+ax.set_ylabel("tokens per turn (batch median)")
+ax.set_ylim(0, 1120)
+ax.legend(frameon=False, loc="center right", fontsize=12)
+finalize_figure(fig, os.path.join(A, "fig_resp_len"), formats=["png", "pdf"])
+
 print("figures written to", A)

@@ -184,6 +184,14 @@ and nothing in the hindsight objective penalizes within-turn tokens. Trajectory 
 \emph{not} running away (turns fell 4.8$\rightarrow$3.4) and reward was unaffected through
 step 75, but longer training would likely saturate the cap; follow-ups should add a
 per-token length penalty or a per-turn cap margin.
+\begin{figure}[h]\centering
+\includegraphics[width=0.85\linewidth]{assets/fig_resp_len.png}
+\caption{Per-turn response length over training (batch median, EMA; faint = raw). Four
+arms compress within $\sim$20 steps (GRPO/GiGPO to $\sim$30 tok/turn, the PPOs to
+$\sim$100--120); HCAPO alone plateaus at 250--300 and turns upward late, with the raw
+median hitting the 1{,}024 cap at step 75. Shaded band: HCAPO p10--p90 --- the upper edge
+sits at the cap for the entire run.}
+\end{figure}
 
 \section*{Verdict}
 Adopt the async collector for what it is: a \hw{2$\times$ wall-clock engine} with clean
